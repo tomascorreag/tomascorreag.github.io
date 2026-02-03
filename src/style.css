@@ -1,0 +1,460 @@
+/* ============================================
+   CSS Reset & Base
+   ============================================ */
+
+:root {
+  /* Era-specific palette colors */
+  --terminal-green: #6cff6c;
+  --terminal-bg: #0a0a0a;
+  --crt-cyan: #00d4ff;
+  --crt-magenta: #ff00ff;
+  --crt-bg: #0a0a12;
+  --xp-blue: #0054e3;
+  --xp-silver: #ece9d8;
+  --xp-bg: #3a6ea5;
+
+  /* Semantic variables - change based on active era */
+  --text-primary: var(--terminal-green);
+  --text-secondary: color-mix(in srgb, var(--text-primary) 70%, transparent);
+  --bg-primary: var(--terminal-bg);
+  --glow-color: rgba(51, 255, 51, 0.5);
+  --accent: var(--terminal-green);
+
+  /* Animation timing - centralized for consistency */
+  --timing-fast: 150ms;
+  --timing-normal: 300ms;
+  --timing-slow: 600ms;
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Era: Terminal (default) - green phosphor monitor aesthetic */
+[data-era="terminal"], :root {
+  --text-primary: var(--terminal-green);
+  --bg-primary: var(--terminal-bg);
+  --glow-color: rgba(51, 255, 51, 0.5);
+}
+
+/* Era: CRT/90s - early color CRT, synthwave hints */
+[data-era="crt"] {
+  --text-primary: var(--crt-cyan);
+  --bg-primary: var(--crt-bg);
+  --glow-color: rgba(0, 212, 255, 0.5);
+  --accent: var(--crt-magenta);
+}
+
+/* Era: XP - Windows XP aesthetic */
+[data-era="xp"] {
+  --text-primary: #000;
+  --bg-primary: var(--xp-silver);
+  --glow-color: none;
+  --accent: var(--xp-blue);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+/* ============================================
+   Terminal Screen
+   ============================================ */
+
+.terminal {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+
+  /* Positioning context for absolute children */
+  position: relative;
+
+  /* Terminal padding */
+  padding: 2rem;
+
+  /* Base terminal font */
+  font-family: 'Martian Mono', monospace;
+  font-weight: 200;
+  font-style: normal;
+  font-size: clamp(1.25rem, 4vw, 2rem);
+
+  /* Subtle glow on all text - uses era-specific glow */
+  text-shadow: 0 0 10px var(--glow-color);
+}
+
+/* ============================================
+   Terminal Content Wrapper
+   ============================================ */
+
+.terminal-wrapper {
+  /* Anchor: left edge, vertical center. Pivot: top (y=0) */
+  position: absolute;
+  left: 2rem;
+  top: 50%;
+
+  display: flex;
+  flex-direction: column-reverse;  /* Reverses visual order: last child on top */
+  align-items: flex-start;
+}
+
+/* ============================================
+   History (submitted lines) - grows upward
+   ============================================ */
+
+.terminal-history {
+  display: flex;
+  flex-direction: column;  /* Oldest at top, newest at bottom (closest to active) */
+  align-items: flex-start;
+}
+
+/* ============================================
+   Terminal Lines
+   ============================================ */
+
+.terminal-line {
+  width: 100%;
+  min-height: 1.5em;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ============================================
+   Cursor
+   ============================================ */
+
+.cursor {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ============================================
+   Prompt
+   ============================================ */
+
+.prompt {
+  opacity: 0.7;
+  margin-right: 0.5em;
+}
+
+/* ============================================
+   Rabbit Sprite Animation
+   ============================================ */
+
+.rabbit {
+  /*
+   * Frame position formula: --frame-N = -((N - 1) * 32)px
+   * Define key frames as variables for easy reference
+   */
+  --frame-1: 0px;
+  --frame-2: -32px;
+  --frame-10: -288px;
+  --frame-17: -512px;
+
+  position: relative;
+  width: 32px;
+  height: 64px;
+
+  /*
+   * Base layer: original sprite colors
+   */
+  background-image: url('/src/assets/spritesheets/RabbitAnimation_V1.png');
+  background-repeat: no-repeat;
+  background-position: var(--frame-17) 0;
+
+  /* Crisp pixel art rendering (no blur) */
+  image-rendering: pixelated;
+
+  /* Scale up 4x, anchor from top center (so flip happens around center) */
+  transform: scale(4);
+  transform-origin: top center;
+
+  /* Jump direction: 1 = left, -1 = right (set by JS) */
+  --jump-direction: 1;
+}
+
+/*
+ * Green overlay using pseudo-element with mask
+ * Sits on top of original sprite, fades out during first jump
+ */
+.rabbit::after {
+  content: '';
+  position: absolute;
+  inset: 0;  /* Fill parent */
+
+  background-color: var(--text-primary);
+  -webkit-mask-image: url('/src/assets/spritesheets/RabbitAnimation_V1.png');
+  mask-image: url('/src/assets/spritesheets/RabbitAnimation_V1.png');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: var(--frame-17) 0;
+  mask-position: var(--frame-17) 0;
+
+  image-rendering: pixelated;
+}
+
+/* After color transition, hide the green overlay */
+.rabbit.color-revealed::after {
+  opacity: 0;
+}
+
+/* Flipped sprite (facing right) */
+.rabbit.flipped {
+  transform: scale(-4, 4);  /* Negative X scale flips horizontally */
+}
+
+/* Spawn animation - sprite + drop to bottom */
+.rabbit.spawning {
+  animation:
+    rabbit-spawn-sprite 0.75s steps(7) forwards,
+    rabbit-spawn-drop 0.6s cubic-bezier(0.5, 0, 1, 1) forwards;  /* Accelerating (like gravity) */
+}
+
+.rabbit.spawning::after {
+  animation: rabbit-spawn-overlay 0.75s steps(7) forwards;
+}
+
+@keyframes rabbit-spawn-sprite {
+  from { background-position: -288px 0; }
+  to   { background-position: -512px 0; }
+}
+
+@keyframes rabbit-spawn-overlay {
+  from {
+    -webkit-mask-position: -288px 0;
+    mask-position: -288px 0;
+  }
+  to {
+    -webkit-mask-position: -512px 0;
+    mask-position: -512px 0;
+  }
+}
+
+@keyframes rabbit-spawn-drop {
+  /*
+   * Start position is set by JS via inline style
+   * End at bottom of viewport (100vh - visual height)
+   * Visual height = 64px * 4 scale = 256px
+   */
+  to {
+    top: calc(100vh - 256px);
+  }
+}
+
+/* Jump animation - sprite + horizontal movement */
+.rabbit.jumping {
+  animation:
+    rabbit-jump-sprite 1.1s steps(15) forwards,
+    rabbit-jump-move 1.1s linear forwards;
+}
+
+.rabbit.jumping::after {
+  animation: rabbit-jump-overlay 1.1s steps(15) forwards;
+}
+
+/* First jump: fade from green to original colors */
+.rabbit.jumping.color-fade::after {
+  animation:
+    rabbit-jump-overlay 1.1s steps(15) forwards,
+    rabbit-color-fade 1.1s ease-out forwards;
+}
+
+@keyframes rabbit-jump-sprite {
+  from { background-position: -32px 0; }
+  to   { background-position: -512px 0; }
+}
+
+@keyframes rabbit-jump-overlay {
+  from {
+    -webkit-mask-position: -32px 0;
+    mask-position: -32px 0;
+  }
+  to {
+    -webkit-mask-position: -512px 0;
+    mask-position: -512px 0;  /* Frame 17 */
+  }
+}
+
+@keyframes rabbit-color-fade {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes rabbit-jump-move {
+  /*
+   * Movement timing aligned to sprite frames:
+   * - 16 frames total (2-17), 15 steps
+   * - Frame 3 = 1/15 = 6.67%
+   * - Frame 15 = 13/15 = 86.67%
+   * - Direction controlled by --jump-direction: 1 = left, -1 = right
+   */
+  0%      { margin-left: 0; }
+  26.67%  { margin-left: 0; }
+  91.67%  { margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction)); }
+  100%    { margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction)); }
+}
+
+/* ============================================
+   CRT Post-Processing Effects
+   ============================================ */
+
+/*
+ * CRT Screen Container
+ * Wraps all content that should receive CRT effects.
+ * The terminal and rabbit live inside this container.
+ */
+#crt-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+
+  /* Base flicker animation - subtle constant shimmer */
+  animation: crt-flicker var(--flicker-speed, 0.15s) infinite;
+}
+
+/*
+ * Scanline Overlay
+ * Uses repeating-linear-gradient to create horizontal lines.
+ * pointer-events: none so it doesn't block interaction.
+ */
+.crt-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+
+  /* Scanlines - alternating transparent/dark bands */
+  /* Pattern: [spacing gap] [size dark line] repeating */
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent var(--scanline-spacing, 4px),
+    rgba(0, 0, 0, var(--scanline-opacity, 0.08)) var(--scanline-spacing, 4px),
+    rgba(0, 0, 0, var(--scanline-opacity, 0.08)) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px))
+  );
+}
+
+/*
+ * Vignette - radial gradient darkening at edges
+ * Separate element so it doesn't interfere with scanlines
+ */
+.crt-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse at center,
+    transparent var(--vignette-size, 40%),
+    rgba(0, 0, 0, var(--vignette-intensity, 0.3)) 100%
+  );
+}
+
+/*
+ * CRT Flicker Animation
+ * Subtle opacity variation simulating phosphor instability.
+ * JS can trigger spikes by directly setting opacity.
+ */
+@keyframes crt-flicker {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: calc(1 - var(--flicker-intensity, 0.03));
+  }
+}
+
+/*
+ * CRT Effects - Shared Pattern
+ *
+ * Base values (before multipliers):
+ *   - Blur: var(--crt-blur)
+ *   - RGB offset: var(--rgb-offset)
+ *   - RGB intensity: var(--rgb-intensity)
+ *   - Glow spread: 10px inner, 30px outer
+ *   - Glow intensity: 100% inner, 50% outer
+ *
+ * Rabbit divides all px values by --rabbit-scale to compensate for transform.
+ */
+
+/* Terminal */
+.terminal.crt-effects {
+  /* brightness amplifies glow beyond what color-mix allows */
+  filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)));
+  text-shadow:
+    /* RGB split */
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)),
+    var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)),
+    /* Glow - 3 layers that stack for intensity > 1 */
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+}
+
+/* Rabbit CRT Effects
+ * RGB offset hardcoded to 1px. Flipped state reverses to keep red on screen-left.
+ */
+.rabbit.crt-effects {
+  filter:
+    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
+    brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)))
+    /* RGB split - red left, blue right */
+    drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
+    drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
+    /* Glow - 3 layers */
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(100% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(80% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+}
+
+/* Flipped: pre-reverse RGB so it stays red-left after transform flip */
+.rabbit.flipped.crt-effects {
+  filter:
+    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
+    brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)))
+    /* RGB split - reversed */
+    drop-shadow(1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
+    drop-shadow(-1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
+    /* Glow - 3 layers */
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(100% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(80% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+}
+
+/* Rabbit (after color reveal - white glow) */
+.rabbit.color-revealed.crt-effects {
+  filter:
+    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
+    brightness(calc(1 + 0.5 * var(--crt-glow-intensity, 1)))
+    /* RGB split - red left, blue right */
+    drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.33)))
+    drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.33)))
+    /* Glow (white) - 3 layers */
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) rgba(255, 255, 255, var(--crt-glow-intensity, 1)))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) rgba(255, 255, 255, calc(0.5 * var(--crt-glow-intensity, 1))))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) rgba(255, 255, 255, calc(0.25 * var(--crt-glow-intensity, 1))));
+}
+
+/* Flipped + color revealed */
+.rabbit.flipped.color-revealed.crt-effects {
+  filter:
+    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
+    brightness(calc(1 + 0.5 * var(--crt-glow-intensity, 1)))
+    /* RGB split - reversed */
+    drop-shadow(1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.33)))
+    drop-shadow(-1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.33)))
+    /* Glow (white) - 3 layers */
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, var(--crt-glow-intensity, 1)))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.5 * var(--crt-glow-intensity, 1))))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.25 * var(--crt-glow-intensity, 1))));
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tomás Correa | Technical Artist</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Portfolio of Tomás Correa, Technical Artist specializing in shaders, VFX, 3D art, and game development." />
+    <meta name="author" content="Tomás Correa" />
+    <meta name="theme-color" content="#0a0a0a" />
+
+    <!-- Open Graph (Facebook, LinkedIn) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Tomás Correa | Technical Artist" />
+    <meta property="og:description" content="Portfolio showcasing shaders, VFX, 3D art, and game development work." />
+    <meta property="og:url" content="https://tomascorreag.github.io/" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Tomás Correa | Technical Artist" />
+    <meta name="twitter:description" content="Portfolio showcasing shaders, VFX, 3D art, and game development work." />
+
+    <link rel="stylesheet" href="/src/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <!-- CRT screen container - all CRT effects apply to content inside -->
+    <div id="crt-screen">
+      <!-- Terminal container - JS will populate this -->
+      <main id="terminal" class="terminal crt-effects"></main>
+      <!-- Rabbit spawns here via JS -->
+    </div>
+
+    <!-- Scanline overlay - sits above everything, doesn't block clicks -->
+    <div class="crt-overlay"></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
