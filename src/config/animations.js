@@ -35,6 +35,15 @@ export const RABBIT_CONFIG = {
   // Interaction
   mouseThreshold: 150,  // px distance to trigger jump
 
+  // Glow effect
+  glowRange: 700,           // px - distance where proximity glow starts
+  maxProximityGlow: 4,      // max glow multiplier from proximity (at distance 0)
+  maxProximitySpread: 3,    // max spread multiplier from proximity (at distance 0)
+  glowExponent: 2,          // >1 = accelerates near rabbit, <1 = decelerates
+  clickRadius: 50,          // px from bottom center to register click
+  glowBoostPerClick: 0,  // permanent glow added per click
+  maxPermanentGlow: 2.0,    // cap on permanent glow bonus
+
   // Frame positions for sprite sheet (px offset)
   // Formula: frame N = -((N - 1) * 32)px
   frames: {

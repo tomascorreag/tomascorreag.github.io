@@ -216,8 +216,8 @@ html, body {
 /* Spawn animation - sprite + drop to bottom */
 .rabbit.spawning {
   animation:
-    rabbit-spawn-sprite 0.75s steps(7) forwards,
-    rabbit-spawn-drop 0.6s cubic-bezier(0.5, 0, 1, 1) forwards;  /* Accelerating (like gravity) */
+    rabbit-spawn-sprite 0.55s steps(7) forwards,
+    rabbit-spawn-drop 0.45s cubic-bezier(0.5, 0, 1, 1) forwards;  /* Accelerating (like gravity) */
 }
 
 .rabbit.spawning::after {
@@ -407,7 +407,7 @@ html, body {
 .rabbit.crt-effects {
   filter:
     blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)))
+    brightness(calc(1 + 0.25 * var(--crt-glow-intensity, 1)))
     /* RGB split - red left, blue right */
     drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
     drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
@@ -421,7 +421,7 @@ html, body {
 .rabbit.flipped.crt-effects {
   filter:
     blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)))
+    brightness(calc(1 + 0.25 * var(--crt-glow-intensity, 1)))
     /* RGB split - reversed */
     drop-shadow(1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
     drop-shadow(-1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
@@ -435,21 +435,21 @@ html, body {
 .rabbit.color-revealed.crt-effects {
   filter:
     blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 0.5 * var(--crt-glow-intensity, 1)))
+    brightness(calc(1 + 0.25 * var(--crt-glow-intensity, 1)))
     /* RGB split - red left, blue right */
     drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.33)))
     drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.33)))
     /* Glow (white) - 3 layers */
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) rgba(255, 255, 255, var(--crt-glow-intensity, 1)))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) rgba(255, 255, 255, calc(0.5 * var(--crt-glow-intensity, 1))))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) rgba(255, 255, 255, calc(0.25 * var(--crt-glow-intensity, 1))));
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, var(--crt-glow-intensity, 1)))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.5 * var(--crt-glow-intensity, 1))))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.25 * var(--crt-glow-intensity, 1))));
 }
 
 /* Flipped + color revealed */
 .rabbit.flipped.color-revealed.crt-effects {
   filter:
     blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 0.5 * var(--crt-glow-intensity, 1)))
+    brightness(calc(1 + 0.25 * var(--crt-glow-intensity, 1)))
     /* RGB split - reversed */
     drop-shadow(1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.33)))
     drop-shadow(-1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.33)))
