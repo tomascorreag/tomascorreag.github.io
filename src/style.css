@@ -168,7 +168,7 @@ html, body {
   /*
    * Base layer: original sprite colors
    */
-  background-image: url('/src/assets/spritesheets/RabbitAnimation_V1.png');
+  background-image: url('./assets/spritesheets/RabbitAnimation_V1.png');
   background-repeat: no-repeat;
   background-position: var(--frame-17) 0;
 
@@ -193,8 +193,8 @@ html, body {
   inset: 0;  /* Fill parent */
 
   background-color: var(--text-primary);
-  -webkit-mask-image: url('/src/assets/spritesheets/RabbitAnimation_V1.png');
-  mask-image: url('/src/assets/spritesheets/RabbitAnimation_V1.png');
+  -webkit-mask-image: url('./assets/spritesheets/RabbitAnimation_V1.png');
+  mask-image: url('./assets/spritesheets/RabbitAnimation_V1.png');
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: var(--frame-17) 0;

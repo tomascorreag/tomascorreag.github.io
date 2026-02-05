@@ -11,6 +11,7 @@
 import { Rabbit } from './components/Rabbit.js';
 import { TYPING_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startFlicker } from './config/crt.js';
+import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
 
 // Inject CSS variables from centralized config
 injectCSSVariables();
@@ -283,7 +284,7 @@ let rabbit = null;
 async function main() {
   try {
     // Preload rabbit spritesheet before starting
-    await preloadImage('/src/assets/spritesheets/RabbitAnimation_V1.png');
+    await preloadImage(rabbitSpritesheetUrl);
 
     await terminal.run(introSequence);
 
