@@ -26,7 +26,7 @@ export const RABBIT_CONFIG = {
 
   // Animation timing (must match CSS keyframe durations)
   spawnDuration: 750,   // ms - matches CSS rabbit-spawn-drop
-  jumpDuration: 1100,   // ms - matches CSS rabbit-jump-sprite
+  jumpDuration: 1000,   // ms - matches CSS rabbit-jump-sprite
   jumpCooldown: 100,    // ms - delay between jumps
 
   // Movement
@@ -36,10 +36,10 @@ export const RABBIT_CONFIG = {
   mouseThreshold: 150,  // px distance to trigger jump
 
   // Glow effect
-  glowRange: 700,           // px - distance where proximity glow starts
-  maxProximityGlow: 4,      // max glow multiplier from proximity (at distance 0)
-  maxProximitySpread: 3,    // max spread multiplier from proximity (at distance 0)
-  glowExponent: 2,          // >1 = accelerates near rabbit, <1 = decelerates
+  glowRange: 600,           // px - distance where proximity glow starts
+  maxProximityGlow: 3,      // max glow multiplier from proximity (at distance 0)
+  maxProximitySpread: 2,    // max spread multiplier from proximity (at distance 0)
+  glowExponent: 1.5,          // >1 = accelerates near rabbit, <1 = decelerates
   clickRadius: 50,          // px from bottom center to register click
   glowBoostPerClick: 0,  // permanent glow added per click
   maxPermanentGlow: 2.0,    // cap on permanent glow bonus

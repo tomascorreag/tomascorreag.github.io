@@ -274,7 +274,7 @@ const wakeUpText = username ? `Wake up, ${username}...` : 'Wake up...';
 // The Matrix opening terminal sequence
 const introSequence = [
   { text: wakeUpText, submit: true },
-  { text: 'Follow the white rabbit. ', submit: false },
+  { text: 'Follow the white rabbit.', submit: false },
 ];
 
 // Track rabbit instance for cleanup

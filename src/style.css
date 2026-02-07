@@ -1,3 +1,16 @@
+/*
+ * @property registers a custom property with a type, so the browser
+ * knows HOW to interpolate it. Without this, CSS treats custom
+ * properties as opaque strings — it can't lerp "green" to "white"
+ * any more than a shader can lerp a string. This tells the browser
+ * "this is a <color>, interpolate it in color space."
+ */
+@property --rabbit-glow-color {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: #6cff6c;
+}
+
 /* ============================================
    CSS Reset & Base
    ============================================ */
@@ -181,6 +194,9 @@ html, body {
 
   /* Jump direction: 1 = left, -1 = right (set by JS) */
   --jump-direction: 1;
+
+  /* Glow color — starts green, transitions to white during first jump */
+  --rabbit-glow-color: #6cff6c;
 }
 
 /*
@@ -206,6 +222,19 @@ html, body {
 /* After color transition, hide the green overlay */
 .rabbit.color-revealed::after {
   opacity: 0;
+}
+
+/* First jump triggers glow color transition green → white.
+ * Transition lives here (not on .rabbit) so it only activates during
+ * the first jump — prevents unwanted transition on DOM insertion. */
+.rabbit.color-fade {
+  --rabbit-glow-color: #ffffff;
+  transition: --rabbit-glow-color 1.1s ease-out;
+}
+
+/* After first jump, lock glow to white */
+.rabbit.color-revealed {
+  --rabbit-glow-color: #ffffff;
 }
 
 /* Flipped sprite (facing right) */
@@ -254,19 +283,19 @@ html, body {
 /* Jump animation - sprite + horizontal movement */
 .rabbit.jumping {
   animation:
-    rabbit-jump-sprite 1.1s steps(15) forwards,
-    rabbit-jump-move 1.1s linear forwards;
+    rabbit-jump-sprite 1.0s steps(15) forwards,
+    rabbit-jump-move 1.0s steps(30) forwards;
 }
 
 .rabbit.jumping::after {
-  animation: rabbit-jump-overlay 1.1s steps(15) forwards;
+  animation: rabbit-jump-overlay 1.0s steps(15) forwards;
 }
 
 /* First jump: fade from green to original colors */
 .rabbit.jumping.color-fade::after {
   animation:
-    rabbit-jump-overlay 1.1s steps(15) forwards,
-    rabbit-color-fade 1.1s ease-out forwards;
+    rabbit-jump-overlay 1.0s steps(15) forwards,
+    rabbit-color-fade 1.0s ease-out forwards;
 }
 
 @keyframes rabbit-jump-sprite {
@@ -299,7 +328,7 @@ html, body {
    * - Direction controlled by --jump-direction: 1 = left, -1 = right
    */
   0%      { margin-left: 0; }
-  26.67%  { margin-left: 0; }
+  28.5%  { margin-left: 0; }
   91.67%  { margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction)); }
   100%    { margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction)); }
 }
@@ -402,6 +431,8 @@ html, body {
 }
 
 /* Rabbit CRT Effects
+ * Uses --rabbit-glow-color (animated via @property) so the glow
+ * smoothly transitions from green to white during the first jump.
  * RGB offset hardcoded to 1px. Flipped state reverses to keep red on screen-left.
  */
 .rabbit.crt-effects {
@@ -411,10 +442,10 @@ html, body {
     /* RGB split - red left, blue right */
     drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
     drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
-    /* Glow - 3 layers */
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(100% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(80% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+    /* Glow - 3 layers using --rabbit-glow-color */
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
 }
 
 /* Flipped: pre-reverse RGB so it stays red-left after transform flip */
@@ -425,36 +456,8 @@ html, body {
     /* RGB split - reversed */
     drop-shadow(1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
     drop-shadow(-1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
-    /* Glow - 3 layers */
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(100% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(80% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--terminal-green) calc(50% * var(--crt-glow-intensity, 1)), transparent));
-}
-
-/* Rabbit (after color reveal - white glow) */
-.rabbit.color-revealed.crt-effects {
-  filter:
-    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 0.25 * var(--crt-glow-intensity, 1)))
-    /* RGB split - red left, blue right */
-    drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.33)))
-    drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.33)))
-    /* Glow (white) - 3 layers */
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, var(--crt-glow-intensity, 1)))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.5 * var(--crt-glow-intensity, 1))))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.25 * var(--crt-glow-intensity, 1))));
-}
-
-/* Flipped + color revealed */
-.rabbit.flipped.color-revealed.crt-effects {
-  filter:
-    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 0.25 * var(--crt-glow-intensity, 1)))
-    /* RGB split - reversed */
-    drop-shadow(1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.33)))
-    drop-shadow(-1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.33)))
-    /* Glow (white) - 3 layers */
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, var(--crt-glow-intensity, 1)))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.5 * var(--crt-glow-intensity, 1))))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) rgba(255, 255, 255, calc(0.25 * var(--crt-glow-intensity, 1))));
+    /* Glow - 3 layers using --rabbit-glow-color */
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
 }
