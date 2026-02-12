@@ -22,8 +22,6 @@ export class Rabbit extends Sprite {
     this.isSpawning = true;
     this.isJumping = false;
     this.jumpCooldown = false;
-    this.isFirstJump = true;
-    this.colorRevealed = false;
     this.lastDirection = -1;  // Start facing right (flipped)
 
     // Glow state
@@ -43,7 +41,7 @@ export class Rabbit extends Sprite {
   createElement() {
     const el = document.createElement('div');
     // Start flipped (facing right) for first jump
-    el.className = 'rabbit spawning flipped';
+    el.className = 'rabbit spawning flipped color-revealed';
     el.style.position = 'fixed';
     return el;
   }
@@ -101,6 +99,79 @@ export class Rabbit extends Sprite {
   }
 
   /**
+   * Creates the rabbit DOM element silently (hidden).
+   * Used by the particle morph path — particles form the shape first,
+   * then this element is revealed underneath when the canvas fades out.
+   *
+   * @param {number} x - CSS left position
+   * @param {number} y - CSS top position
+   * @param {HTMLElement} container - Parent element
+   */
+  spawnSilent(x, y, container = document.body) {
+    this.x = x;
+    this.y = y;
+
+    this.spawn(container);
+    // Remove spawning class — particle morph handles the reveal,
+    // we don't want the spawn sprite+drop animation from .spawning
+    this.element.classList.remove('spawning');
+    this.element.classList.add('crt-effects');
+    // Start at spawn frame (frame 10) to match particle morph target
+    this.element.style.backgroundPosition = `${RABBIT_CONFIG.frames.spawnStart}px 0`;
+    this.element.style.visibility = 'hidden';
+    this.updatePosition();
+
+    return this;
+  }
+
+  /**
+   * Makes the hidden rabbit visible.
+   */
+  reveal() {
+    if (this.element) {
+      this.element.style.visibility = 'visible';
+    }
+  }
+
+  /**
+   * Starts only the drop animation (no sprite animation).
+   * Used after particle morph — the shape is already formed by particles,
+   * so we skip the spawn sprite animation and just do the gravity fall.
+   */
+  startDrop() {
+    if (!this.element) return;
+
+    this.reveal();
+
+    // Start tracking mouse for glow during drop
+    this.earlyMouseHandler = (e) => {
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+    };
+    document.addEventListener('mousemove', this.earlyMouseHandler);
+    this.startGlowAnimation();
+
+    // Use dropping class (drop-only, no sprite animation)
+    this.element.classList.add('dropping');
+
+    const onDropEnd = (e) => {
+      if (e.animationName !== 'rabbit-spawn-drop') return;
+      this.element.removeEventListener('animationend', onDropEnd);
+
+      this.stopGlowAnimation();
+      this.isSpawning = false;
+      this.element.classList.remove('dropping');
+
+      // Lock final position at bottom of viewport
+      const visualHeight = RABBIT_CONFIG.height * this.scale;
+      this.y = window.innerHeight - visualHeight;
+      this.updatePosition();
+      this.element.style.backgroundPosition = `0px 0`;
+    };
+    this.element.addEventListener('animationend', onDropEnd);
+  }
+
+  /**
    * Plays the full jump animation
    * Returns a Promise that resolves when complete
    */
@@ -108,7 +179,6 @@ export class Rabbit extends Sprite {
     return new Promise(resolve => {
       if (!this.element || this.isSpawning) return resolve();
 
-      const isFirstJump = this.isFirstJump;
       const visualWidth = RABBIT_CONFIG.width * this.scale;
       const jumpDist = RABBIT_CONFIG.jumpDistance;
       const edgeMargin = 20;  // px buffer from screen edge
@@ -120,25 +190,17 @@ export class Rabbit extends Sprite {
       // Determine direction: 1 = left (unflipped), -1 = right (flipped)
       let direction;
 
-      if (isFirstJump) {
-        // First jump prefers right, but respects edge
-        direction = canGoRight ? -1 : 1;
-        this.isFirstJump = false;
-        this.element.classList.add('color-fade');
+      // Random direction, but force opposite if at edge
+      if (!canGoLeft && !canGoRight) {
+        this.isJumping = false;
+        return resolve();
+      } else if (!canGoLeft) {
+        direction = -1;  // Must go right
+      } else if (!canGoRight) {
+        direction = 1;   // Must go left
       } else {
-        // Random direction, but force opposite if at edge
-        if (!canGoLeft && !canGoRight) {
-          // Trapped - don't jump (shouldn't happen with normal jump distance)
-          this.isJumping = false;
-          return resolve();
-        } else if (!canGoLeft) {
-          direction = -1;  // Must go right
-        } else if (!canGoRight) {
-          direction = 1;   // Must go left
-        } else {
-          // 1/3 chance to flip direction, 2/3 chance to continue same way
-          direction = Math.random() < 1/3 ? -this.lastDirection : this.lastDirection;
-        }
+        // 1/3 chance to flip direction, 2/3 chance to continue same way
+        direction = Math.random() < 1/3 ? -this.lastDirection : this.lastDirection;
       }
 
       // Update last direction for next jump
@@ -180,13 +242,6 @@ export class Rabbit extends Sprite {
 
         // Stop continuous glow updates
         this.stopGlowAnimation();
-
-        // After first jump, keep overlay hidden permanently
-        if (isFirstJump) {
-          this.element.classList.remove('color-fade');
-          this.element.classList.add('color-revealed');
-          this.colorRevealed = true;
-        }
 
         this.isJumping = false;
         resolve();

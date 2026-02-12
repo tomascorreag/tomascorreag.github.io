@@ -144,6 +144,7 @@ html, body {
 
 .cursor {
   animation: blink 1s step-end infinite;
+  filter: brightness(var(--cursor-brightness, 1));
 }
 
 @keyframes blink {
@@ -334,6 +335,32 @@ html, body {
 }
 
 /* ============================================
+   Particle Morph Canvas
+   ============================================ */
+
+.particle-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 10;
+  image-rendering: pixelated;
+}
+
+/* Drop animation — used after particle morph forms the rabbit at spawn frame 10.
+ * Plays the spawn sprite animation (frames 10→17) + gravity drop together,
+ * same as .spawning but starting from the morph handoff point. */
+.rabbit.dropping {
+  animation:
+    rabbit-spawn-sprite 0.55s steps(7) forwards,
+    rabbit-spawn-drop 0.45s cubic-bezier(0.5, 0, 1, 1) forwards;
+}
+
+.rabbit.dropping::after {
+  animation: rabbit-spawn-overlay 0.75s steps(7) forwards;
+}
+
+/* ============================================
    CRT Post-Processing Effects
    ============================================ */
 
@@ -461,3 +488,19 @@ html, body {
     drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
     drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
 }
+
+/* Reusable CRT effect */
+.crt-effects {
+  filter:
+    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
+    brightness(calc(1.5 + 1 * var(--crt-glow-intensity, 1)))
+    drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7)*0.25)))
+    drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7)*0.25)))
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1))
+      color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1))
+      color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
+    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1))
+      color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+}
+

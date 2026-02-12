@@ -9,8 +9,10 @@
  */
 
 import { Rabbit } from './components/Rabbit.js';
-import { TYPING_CONFIG, injectCSSVariables } from './config/animations.js';
-import { injectCRTVariables, startFlicker } from './config/crt.js';
+import { ParticleMorph } from './components/ParticleMorph.js';
+import { TYPING_CONFIG, RABBIT_CONFIG, injectCSSVariables } from './config/animations.js';
+import { injectCRTVariables, startFlicker, isMobile } from './config/crt.js';
+import { PARTICLE_CONFIG } from './config/particles.js';
 import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
 
 // Inject CSS variables from centralized config
@@ -73,6 +75,42 @@ class Terminal {
     cursor.textContent = '█';
     return cursor;
   }
+
+  /**
+   * Exponentially ramps cursor brightness over duration (ms)
+   * @param {number} duration
+   * @param {number} maxBrightness - e.g. 4 = 400%
+   */
+  rampCursorBrightness(duration = 2500, maxBrightness = 4) {
+    return new Promise(resolve => {
+      const start = performance.now();
+
+      const animate = (now) => {
+        const elapsed = now - start;
+        const t = Math.min(elapsed / duration, 1);
+
+        // Exponential curve
+        // t^3 gives slow start, fast end
+        const eased = Math.pow(t, 3);
+
+        const brightness = 1 + (maxBrightness - 1) * eased;
+
+        this.cursor.style.setProperty(
+          '--cursor-brightness',
+          brightness
+        );
+
+        if (t < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(animate);
+    });
+  }
+
 
   /**
    * Creates the prompt element (the ">" symbol)
@@ -169,6 +207,12 @@ class Terminal {
     await sleep(getRandomDelay(config.linePause, config.variance));
   }
 
+  async delayedHideCursor(delay)
+  {
+    await sleep(delay)
+    this.hideCursor();
+  }
+
   /**
    * Execute a sequence of commands
    *
@@ -197,6 +241,21 @@ class Terminal {
   }
 
   /**
+   * Gets the cursor's full bounding rect (position + size).
+   * Used by ParticleMorph as the source rectangle for particle scatter.
+   * @returns {{ x: number, y: number, w: number, h: number }}
+   */
+  getCursorRect() {
+    const rect = this.cursor.getBoundingClientRect();
+    return {
+      x: rect.left,
+      y: rect.top,
+      w: rect.width,
+      h: rect.height,
+    };
+  }
+
+  /**
    * Hides the terminal cursor (e.g., after spawning a sprite)
    */
   hideCursor() {
@@ -205,9 +264,20 @@ class Terminal {
 
   /**
    * Shows the terminal cursor
+   * @param {boolean} locked - If true, stops blinking and keeps cursor visible
    */
-  showCursor() {
+  showCursor(locked = false) {
     this.cursor.style.display = '';
+
+    if (locked) {
+      // Stop blink animation and force full opacity
+      this.cursor.style.animation = 'none';
+      this.cursor.style.opacity = '1';
+    } else {
+      // Restore blink animation
+      this.cursor.style.animation = '';
+      this.cursor.style.opacity = '';
+    }
   }
 
   /**
@@ -288,16 +358,53 @@ async function main() {
 
     await terminal.run(introSequence);
 
+    terminal.hideCursor();
+    await sleep(500);
+    terminal.showCursor(true);
+
     // Get cursor position and hide cursor
     const cursorPos = terminal.getCursorPosition();
+    const cursorRect = terminal.getCursorRect();
 
-    await sleep(1500); // Wait before hiding cursor
+    // await sleep(2500); // Wait before hiding cursor
+    await terminal.rampCursorBrightness(2500, 8);
 
-    terminal.hideCursor();
+    if (isMobile()) {
+      // Mobile: skip particles, use existing direct spawn + drop
+      rabbit = new Rabbit();
+      rabbit.spawnAndDrop(cursorPos.x, cursorPos.y, crtScreen);
+      terminal.hideCursor();
+    } else {
+      // Desktop: particle morph — cursor shatters into particles that
+      // reassemble into the rabbit shape, then hand off to DOM element
+      const spriteImage = await preloadImage(rabbitSpritesheetUrl);
 
-    // Spawn rabbit at cursor position (inside CRT container)
-    rabbit = new Rabbit();
-    rabbit.spawnAndDrop(cursorPos.x, cursorPos.y, crtScreen);
+      const morph = new ParticleMorph(PARTICLE_CONFIG);
+      const targetRect = {
+        x: cursorPos.x,
+        y: cursorPos.y,
+        w: RABBIT_CONFIG.width,
+        h: RABBIT_CONFIG.height,
+      };
+
+      terminal.delayedHideCursor(100)
+
+      // Particles animate: scatter → drift → converge → settle
+      await morph.start(cursorRect, targetRect, spriteImage,
+        RABBIT_CONFIG.frames.spawnStart, crtScreen);
+
+      // Place the real DOM rabbit underneath the canvas (hidden)
+      rabbit = new Rabbit();
+      rabbit.spawnSilent(cursorPos.x, cursorPos.y, crtScreen);
+
+      // Fade canvas out, revealing DOM rabbit underneath
+      await morph.handoff();
+      morph.destroy();
+
+      // Now drop the rabbit to the bottom
+      rabbit.startDrop();
+    }
+
     rabbit.enableMouseReaction();
 
   } catch (error) {
