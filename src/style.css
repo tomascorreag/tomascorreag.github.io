@@ -648,3 +648,153 @@ html, body {
 .mosaic-item[data-rows="3"] { grid-row: span 3; }
 .mosaic-item[data-rows="4"] { grid-row: span 4; }
 
+/* ============================================
+   Detail View (expanded thumbnail)
+   ============================================ */
+
+/*
+ * New approach: JS computes the target rect and positions the item
+ * with absolute positioning + inline styles. The grid stays intact
+ * (siblings hidden), no display switching. This eliminates the
+ * CSS layout ↔ FLIP mismatch that caused snapping/wrong scale.
+ *
+ * Like setting a UI element's RectTransform directly in Unity
+ * instead of relying on layout groups to compute it.
+ */
+
+/* Siblings fade out when detail opens */
+.mosaic-item.fading-out {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+/*
+ * Detail-active: pulled out of grid flow via absolute positioning.
+ * Actual top/left/width/height set by JS inline styles.
+ * The grid remains display:grid — siblings are just hidden.
+ */
+.mosaic-item.detail-active {
+  position: absolute;
+  z-index: 1;
+  overflow: visible;
+  background: transparent;
+  cursor: default;
+}
+
+/* Media fills the absolutely-positioned container exactly.
+ * contain preserves AR — the JS-computed rect already accounts for it. */
+.mosaic-item.detail-active img,
+.mosaic-item.detail-active video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: none;
+}
+
+/* Disable hover effects on expanded item */
+.mosaic-item.detail-active:hover img,
+.mosaic-item.detail-active:hover video {
+  transform: none;
+  filter: none;
+}
+
+/* Detail info panel — positioned by JS based on aspect ratio.
+ * Landscape: below the image (position: absolute, full width).
+ * Portrait: beside the image (position: absolute, side panel). */
+.detail-info {
+  position: absolute;
+  color: #e0e0e0;
+  font-family: 'Martian Mono', monospace;
+  opacity: 0;
+  transition: opacity 250ms ease;
+  overflow-y: auto;
+}
+
+.detail-info.visible {
+  opacity: 1;
+}
+
+/* Landscape: info below image — full width, top set by JS */
+.detail-info.landscape {
+  left: 0;
+  width: 100%;
+  padding: 1.5rem 0.5rem;
+}
+
+/* Portrait: info beside image — top/left/width set by JS */
+.detail-info.portrait {
+  top: 0;
+  padding: 1.5rem 1rem;
+}
+
+.detail-info h2 {
+  margin: 0 0 0.75rem 0;
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.detail-info p {
+  margin: 0;
+  font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+  font-weight: 200;
+  line-height: 1.6;
+  color: #b0b0b0;
+}
+
+/* Back button — top of detail info */
+.detail-back {
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding: 0.3em 0.6em;
+  font-family: 'Martian Mono', monospace;
+  font-size: clamp(0.75rem, 1.8vw, 0.9rem);
+  font-weight: 400;
+  color: var(--text-primary);
+  background: none;
+  border: 1px solid var(--text-primary);
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.detail-back:hover {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+}
+
+/* ============================================
+   Keyboard Focus Indicators
+   ============================================ */
+
+/*
+ * Keyboard navigation adds a .focused class to the currently
+ * targeted element. For mosaic items, the visual matches hover
+ * (scale + brightness). For nav items, a subtle highlight shows
+ * the cursor position without conflicting with .selected styling.
+ *
+ * Think of it like a UI selector in a console game menu —
+ * there's a visual cursor that moves independently of the
+ * "confirmed" selection.
+ */
+
+/* Mosaic: focused looks like hover */
+.mosaic-item.focused img {
+  transform: scale(1.05);
+  filter: brightness(1.2);
+}
+
+.mosaic-item.focused video {
+  filter: brightness(1.2);
+}
+
+/* Nav: focused but not selected — subtle background highlight */
+.nav-item.focused:not(.selected) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Nav: focused AND selected — add a slight glow to distinguish from plain selected */
+.nav-item.focused.selected {
+  box-shadow: 0 0 8px var(--glow-color);
+}
+

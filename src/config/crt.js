@@ -29,8 +29,8 @@ export const CRT_CONFIG = Object.freeze({
   vignetteSize: 40,           // % from center where vignette starts
 
   // Flicker - base CSS animation
-  flickerIntensity: 0.01,     // Opacity variation amount (0-1)
-  flickerSpeed: 0.08,         // Seconds per flicker cycle
+  flickerIntensity: 0.001,     // Opacity variation amount (0-1)
+  flickerSpeed: 0.1,         // Seconds per flicker cycle
 
   // Flicker - JS-driven random spikes
   flickerSpikeChance: 0.1,  // Probability per frame (~60fps) of spike

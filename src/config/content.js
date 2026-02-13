@@ -6,6 +6,8 @@
  *   - alt: accessible description
  *   - cols: how many grid columns this item spans (1 or 2)
  *   - rows: how many grid rows this item spans (1 or 2)
+ *   - title: (optional) display name shown in detail view
+ *   - description: (optional) text shown below image in detail view
  *
  * cols/rows create the irregular mosaic — some items are 2x2, 1x2, 2x1, etc.
  * CSS Grid's `grid-auto-flow: dense` packs them tightly to fill gaps.
@@ -54,8 +56,8 @@ export const CATEGORIES = {
     // Empty until you add images to src/assets/thumbnails/3d-assets/
   ],
   '3D Art': [
-    { src: '3d-art/thumb1.mp4', alt: '3D Art piece', cols: 4, rows: 2 },
-    { src: '3d-art/thumb2.png', alt: '3D Art piece', cols: 2, rows: 2 },
-    { src: '3d-art/thumb3.jpeg', alt: '3D Art piece', cols: 2, rows: 4 },
+    { src: '3d-art/thumb1.mp4', alt: '3D Art piece', cols: 4, rows: 2, title: 'Animated Scene', description: 'Looping animation rendered in Blender Cycles.' },
+    { src: '3d-art/thumb2.png', alt: '3D Art piece', cols: 2, rows: 2, title: 'Crystal Material', description: 'Procedural crystal material built in Blender.' },
+    { src: '3d-art/thumb3.jpeg', alt: '3D Art piece', cols: 2, rows: 4, title: 'Environment Study', description: 'Stylized environment concept.' },
   ],
 };
