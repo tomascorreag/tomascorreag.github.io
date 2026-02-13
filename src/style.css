@@ -463,6 +463,17 @@ html, body {
     0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
+/* Nav Menu — same text-shadow treatment as terminal */
+.nav-menu.crt-effects {
+  filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)));
+  text-shadow:
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)),
+    var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)),
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+}
+
 /* Rabbit CRT Effects
  * Uses --rabbit-glow-color (animated via @property) so the glow
  * smoothly transitions from green to white during the first jump.
@@ -495,6 +506,61 @@ html, body {
     drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
 }
 
+/* ============================================
+   Main Layout (after rabbit transition)
+   ============================================ */
+
+/*
+ * Nav Menu — absolutely positioned, anchored at bottom-left.
+ * Left edge is fixed so typing grows rightward without shifting.
+ * Bottom-anchored so completed items push upward as new ones type
+ * at the same bottom position (like a reverse terminal).
+ */
+.nav-menu[hidden] {
+  display: none;
+}
+
+.nav-menu {
+  position: absolute;
+  left: 23%;
+  bottom: 36.5%;
+
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  font-family: 'Martian Mono', monospace;
+  font-weight: 200;
+  font-style: normal;
+  font-size: clamp(1.25rem, 4vw, 2rem);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  gap: 0.5em;
+  text-shadow: 0 0 10px var(--text-primary);
+}
+
+.nav-item {
+  cursor: pointer;
+  padding: 0.15em 0.4em;
+  white-space: nowrap;
+  transition: background 150ms, color 150ms;
+  font-weight: 200;
+}
+
+.nav-prompt {
+  visibility: hidden;  /* hidden but still takes space — no layout shift */
+}
+
+.nav-item.selected {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  text-shadow: none;
+  font-weight: 800;
+}
+
+.nav-item.selected .nav-prompt {
+  visibility: visible;
+}
+
 /* Reusable CRT effect */
 .crt-effects {
   filter:
@@ -508,5 +574,63 @@ html, body {
       color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
     drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1))
       color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+}
+
+/* ============================================
+   Thumbnail Mosaic Grid
+   ============================================ */
+
+/*
+ * CSS Grid with dense auto-flow — the key to the mosaic layout.
+ *
+ * grid-auto-flow: dense tells the browser to backfill gaps.
+ * Without it, a 2-col item that doesn't fit on a row leaves
+ * an empty cell. With dense, smaller items fill those gaps.
+ * Think of it like Tetris packing — items slot into the first
+ * available space they fit, regardless of DOM order.
+ */
+
+.mosaic-grid[hidden] {
+  display: none;
+}
+
+.mosaic-grid {
+  position: absolute;
+  right: 2%;
+  top: 5%;
+  bottom: 5%;
+  width: 55%;
+
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-auto-rows: 120px;
+  grid-auto-flow: dense;
+  gap: 6px;
+
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.mosaic-grid.visible {
+  opacity: 1;
+}
+
+/* Mosaic items — each thumbnail cell */
+.mosaic-item {
+  overflow: hidden;
+  background: #1a1a1a;   /* placeholder color before image loads */
+}
+
+/* Span rules via data attributes — controls the irregular sizing.
+ * A 2-col item spans 2 grid columns, a 2-row item spans 2 rows.
+ * Combined (data-cols=2 + data-rows=2) gives a large square. */
+.mosaic-item[data-cols="2"] { grid-column: span 2; }
+.mosaic-item[data-rows="2"] { grid-row: span 2; }
+
+.mosaic-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;    /* crops to fill (like Unity's ScaleMode.ScaleAndCrop) */
+  display: block;
 }
 

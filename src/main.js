@@ -13,6 +13,7 @@ import { ParticleMorph } from './components/ParticleMorph.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startFlicker, isMobile } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
+import { CATEGORIES, resolveThumbnail } from './config/content.js';
 import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
 
 // Inject CSS variables from centralized config
@@ -27,6 +28,17 @@ startFlicker(crtScreen);
 
 // Alias for cleaner code
 const config = TYPING_CONFIG;
+
+// Skip-typing: click anywhere to rush through all typing animations.
+// When true, sleep() resolves instantly so all text dumps at once.
+let skipTyping = false;
+
+function enableSkipOnClick() {
+  const handler = () => { skipTyping = true; };
+  document.addEventListener('click', handler, { once: true });
+  // Return cleanup fn in case typing finishes before click
+  return () => document.removeEventListener('click', handler);
+}
 
 // ============================================
 // Terminal Class
@@ -300,6 +312,7 @@ function getRandomDelay(base, varianceAmount) {
 }
 
 function sleep(ms) {
+  if (skipTyping) return Promise.resolve();
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -314,6 +327,65 @@ function preloadImage(src) {
     img.onerror = reject;
     img.src = src;
   });
+}
+
+// ============================================
+// Mosaic Grid
+// ============================================
+
+/**
+ * Renders thumbnail items for a category into the mosaic grid.
+ *
+ * On first call, just populates and fades in.
+ * On subsequent calls (category switch), fades out first, swaps content, fades back in.
+ * The fade uses CSS opacity transition (300ms) — we await it with transitionend events.
+ *
+ * @param {string} category - Key from CATEGORIES ('General', '3D Assets', '3D Art')
+ */
+const mosaicEl = document.getElementById('mosaic');
+let mosaicHasContent = false;
+
+async function renderMosaic(category) {
+  const items = CATEGORIES[category];
+  if (!items) return;
+
+  // If mosaic already has content, fade out first
+  if (mosaicHasContent) {
+    mosaicEl.classList.remove('visible');
+    await new Promise(r => setTimeout(r, 300)); // wait for fade-out transition
+  }
+
+  // Clear and rebuild
+  mosaicEl.innerHTML = '';
+
+  for (const item of items) {
+    const div = document.createElement('div');
+    div.className = 'mosaic-item';
+    div.dataset.cols = item.cols;
+    div.dataset.rows = item.rows;
+
+    const img = document.createElement('img');
+    img.src = resolveThumbnail(item.src);
+    img.alt = item.alt;
+    img.loading = 'lazy';
+
+    div.appendChild(img);
+    mosaicEl.appendChild(div);
+  }
+
+  mosaicHasContent = true;
+
+  // Fade in after a brief frame delay (lets browser paint the new items)
+  await new Promise(r => setTimeout(r, 50));
+  mosaicEl.classList.add('visible');
+}
+
+/**
+ * Unhides the mosaic container (removes hidden attribute).
+ * Call this once after the nav menu finishes typing.
+ */
+function showMosaic() {
+  mosaicEl.hidden = false;
 }
 
 // ============================================
@@ -406,11 +478,108 @@ async function startRabbitTransition() {
     whiteTerminal.showCursor(false);
     await sleep(400);
 
-    // 11. Type the introduction
+    // 11. Type the introduction + nav menu (click to skip)
+    let cleanupSkip = enableSkipOnClick();
     await whiteTerminal.type("Hi! I'm Tomás,");
     whiteTerminal.submitLine();
     await sleep(300);
     await whiteTerminal.type("Technical Artist");
+
+    // 12. Reveal nav menu (already in DOM, just hidden)
+    await sleep(300);
+    whiteTerminal.hideCursor();
+
+    const navMenu = document.getElementById('nav-menu');
+
+    // Reveal the nav menu (already in DOM, just hidden)
+    navMenu.hidden = false;
+
+    // Type menu items one by one
+    const menuItems = ['General', '3D Assets', '3D Art'];
+    await sleep(200);
+
+    let prevItem = null;
+
+    for (const label of menuItems) {
+      // Deselect previous item
+      if (prevItem) prevItem.classList.remove('selected');
+
+      await sleep(100);
+
+      const item = document.createElement('div');
+      item.className = 'nav-item selected';  // selected while typing
+      item.dataset.label = label;
+      navMenu.appendChild(item);
+
+      // Build structure: <span class="nav-prompt">> </span><span class="nav-label">Label</span>
+      const promptSpan = document.createElement('span');
+      promptSpan.className = 'nav-prompt';
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'nav-label';
+
+      item.appendChild(promptSpan);
+      item.appendChild(labelSpan);
+
+      // Type "> Label" char by char with cursor
+      const fullText = `> ${label}`;
+      const cursorChar = document.createElement('span');
+      cursorChar.className = 'cursor';
+      cursorChar.textContent = '█';
+      item.appendChild(cursorChar);
+
+      // First 2 chars ("> ") go into promptSpan, rest into labelSpan
+      for (let i = 0; i < fullText.length; i++) {
+        const target = i < 2 ? promptSpan : labelSpan;
+        target.appendChild(document.createTextNode(fullText[i]));
+        await sleep(getRandomDelay(config.baseSpeed * 0.5, config.variance));
+      }
+
+      // Remove typing cursor after item is done
+      cursorChar.remove();
+      await sleep(getRandomDelay(config.linePause*0.5, config.variance));
+
+      // item.className="nav-item"
+      prevItem = item;
+    }
+
+    await sleep(200);
+
+    // // Move selection to "General" (first item)
+    // await sleep(200);
+    // prevItem.classList.remove('selected');
+    // navMenu.querySelector('.nav-item').classList.add('selected');
+
+    // Done typing — clean up skip listener
+    cleanupSkip();
+    skipTyping = false;
+
+    // Move selection to last item
+    prevItem.classList.remove('selected');
+
+    const items = navMenu.querySelectorAll('.nav-item');
+    const lastItem = items[items.length - 1];
+    lastItem.classList.add('selected');
+
+    // Show mosaic with the initially selected category
+    const initialCategory = lastItem.dataset.label;
+    showMosaic();
+    await renderMosaic(initialCategory);
+
+    // Click handler for selection + mosaic switch
+    navMenu.addEventListener('click', (e) => {
+      const clicked = e.target.closest('.nav-item');
+      if (!clicked) return;
+
+      const current = navMenu.querySelector('.nav-item.selected');
+      if (clicked === current) return; // already selected, no-op
+
+      current?.classList.remove('selected');
+      clicked.classList.add('selected');
+
+      // Switch mosaic to the clicked category
+      renderMosaic(clicked.dataset.label);
+    });
 
   } catch (error) {
     console.error('Rabbit transition failed:', error);
@@ -423,7 +592,11 @@ async function main() {
     // Preload rabbit spritesheet before starting
     await preloadImage(rabbitSpritesheetUrl);
 
+    // Allow click to skip intro typing
+    let cleanupSkip = enableSkipOnClick();
     await terminal.run(introSequence);
+    cleanupSkip();
+    skipTyping = false;  // reset for next typing phase
 
     terminal.hideCursor();
     await sleep(500);

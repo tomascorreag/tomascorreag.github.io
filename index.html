@@ -29,8 +29,12 @@
   <body>
     <!-- CRT screen container - all CRT effects apply to content inside -->
     <div id="crt-screen">
-      <!-- Terminal container - JS will populate this -->
+      <!-- Terminal - full screen, JS populates -->
       <main id="terminal" class="terminal crt-effects"></main>
+      <!-- Nav menu - absolutely positioned center, hidden until after intro -->
+      <nav id="nav-menu" class="nav-menu crt-effects" hidden></nav>
+      <!-- Thumbnail mosaic grid - right side, no CRT effects (clean presentation) -->
+      <div id="mosaic" class="mosaic-grid" hidden></div>
       <!-- Rabbit spawns here via JS -->
     </div>
 
