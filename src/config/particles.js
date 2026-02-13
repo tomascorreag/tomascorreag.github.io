@@ -14,10 +14,12 @@
  * is revealed underneath, then the canvas is removed.
  */
 
-export const PARTICLE_CONFIG = {
+export const PARTICLE_CONFIG = Object.freeze({
   // Sampling — how the target image is divided into particles
   cellSize: 1,              // NxN source pixels per particle
   displayScale: 4,          // matches RABBIT_CONFIG.scale
+  frameWidth: 32,           // px — single frame width in spritesheet (matches RABBIT_CONFIG.width)
+  frameHeight: 64,          // px — single frame height in spritesheet (matches RABBIT_CONFIG.height)
 
   // Physics — spring-damper system
   stiffnessStart: 0.001,     // initial spring constant toward target
@@ -46,4 +48,4 @@ export const PARTICLE_CONFIG = {
 
   // Mobile
   mobile: { enabled: false },
-};
+});

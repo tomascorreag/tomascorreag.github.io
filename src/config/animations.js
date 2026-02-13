@@ -9,15 +9,15 @@
  */
 
 // Terminal typing animation
-export const TYPING_CONFIG = {
+export const TYPING_CONFIG = Object.freeze({
   baseSpeed: 90,       // Base ms per character
   variance: 0.33,       // ±35% random variation
   spacePause: 130,      // Extra pause around spaces (ms)
   linePause: 500,       // Pause after submitting a line (ms)
-};
+});
 
 // Rabbit sprite animation
-export const RABBIT_CONFIG = {
+export const RABBIT_CONFIG = Object.freeze({
   // Sprite dimensions (unscaled)
   width: 32,
   height: 64,
@@ -31,6 +31,7 @@ export const RABBIT_CONFIG = {
 
   // Movement
   jumpDistance: 300,    // px per jump (matches CSS rabbit-jump-move)
+  edgeMargin: 20,       // px buffer from screen edge to prevent jumping off-screen
 
   // Interaction
   mouseThreshold: 150,  // px distance to trigger jump
@@ -41,7 +42,7 @@ export const RABBIT_CONFIG = {
   maxProximitySpread: 2,    // max spread multiplier from proximity (at distance 0)
   glowExponent: 1.5,          // >1 = accelerates near rabbit, <1 = decelerates
   clickRadius: 50,          // px from bottom center to register click
-  glowBoostPerClick: 0,  // permanent glow added per click
+  glowBoostPerClick: 0,     // permanent glow added per click (0 = disabled, reserved for future use)
   maxPermanentGlow: 2.0,    // cap on permanent glow bonus
 
   // Frame positions for sprite sheet (px offset)
@@ -52,20 +53,26 @@ export const RABBIT_CONFIG = {
     spawnStart: -288,   // Frame 10 - spawn animation start
     spawnEnd: -512,     // Frame 17 - spawn animation end
   },
-};
+});
 
 // Cursor animation
-export const CURSOR_CONFIG = {
+export const CURSOR_CONFIG = Object.freeze({
   blinkDuration: 1000,  // ms - matches CSS blink animation
-};
+});
 
 // General timing presets (for consistency across animations)
-export const TIMING = {
+export const TIMING = Object.freeze({
   fast: 150,
   normal: 300,
   slow: 600,
   verySlow: 1000,
-};
+});
+
+// Mosaic grid transitions
+export const MOSAIC_CONFIG = Object.freeze({
+  fadeDuration: 300,    // ms — fade in/out when switching categories
+  renderDelay: 50,      // ms — brief pause before fade-in to let browser paint
+});
 
 /**
  * Injects animation config as CSS custom properties

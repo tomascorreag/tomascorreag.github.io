@@ -90,6 +90,21 @@ export class Sprite {
   }
 
   /**
+   * Removes a tracked event listener and cleans it from the tracking array.
+   * Like unsubscribing from a specific event in Unity's event system.
+   *
+   * @param {EventTarget} target - Element the listener is on
+   * @param {string} event - Event name
+   * @param {Function} handler - The handler to remove
+   */
+  removeEventListener(target, event, handler) {
+    target.removeEventListener(event, handler);
+    this.eventHandlers = this.eventHandlers.filter(
+      h => !(h.target === target && h.event === event && h.handler === handler)
+    );
+  }
+
+  /**
    * Sets a timeout and tracks it for cleanup
    * @returns {number} Timeout ID
    */

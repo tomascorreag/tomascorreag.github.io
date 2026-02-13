@@ -142,11 +142,11 @@ export class ParticleMorph {
    * @returns {Array<{localX, localY, r, g, b, a}>} — one entry per opaque cell
    */
   sampleTargetImage(image, frameOffset) {
-    const { cellSize } = this.config;
+    const { cellSize, frameWidth, frameHeight } = this.config;
 
     // Frame dimensions — single frame from the spritesheet
-    const frameW = 32;
-    const frameH = 64;
+    const frameW = frameWidth;
+    const frameH = frameHeight;
 
     // Draw just this frame onto an offscreen canvas
     const offscreen = document.createElement('canvas');
@@ -255,11 +255,12 @@ export class ParticleMorph {
     const screenY = rect.y + scale * cell.localY;
     let screenX;
     if (flipped) {
-      // Rabbit flip math: transform-origin top center on 32px element
-      // screenX = rect.x + 80 - scale * localX
-      // 80 = (32/2) * scale + (32/2) * scale = 2 * 16 * scale... actually 80 = 16 + 16*scale
-      // with scale=4: 16 + 64 = 80. This is specific to 32px wide sprites.
-      screenX = rect.x + 80 - scale * cell.localX;
+      // Flip math for transform-origin: top center.
+      // The sprite is 32px wide, scaled 4x, with origin at center (16px).
+      // Flipped screenX = rect.x + (spriteWidth/2 + spriteWidth/2 * scale) - scale * localX
+      // = rect.x + 16 + 64 = rect.x + 80 for a 32px sprite at 4x scale.
+      const flipOffset = (this.config.frameWidth / 2) * (1 + scale);
+      screenX = rect.x + flipOffset - scale * cell.localX;
     } else {
       screenX = rect.x + scale * cell.localX;
     }
@@ -272,10 +273,10 @@ export class ParticleMorph {
    * When cell counts differ, redistributes: extra particles map to random
    * positions on the smaller side. Shuffle ensures even distribution.
    *
-   * @param {Object} source — { rect, flipped }
-   * @param {Object} target — { rect, flipped }
-   * @param {Array} sourceCells — cells from source side
-   * @param {Array} targetCells — cells from target side
+   * @param {{ rect: {x,y,w,h}, image?: HTMLImageElement, flipped?: boolean }} source
+   * @param {{ rect: {x,y,w,h}, image?: HTMLImageElement, flipped?: boolean }} target
+   * @param {Array<{localX: number, localY: number, r: number, g: number, b: number, a: number}>} sourceCells
+   * @param {Array<{localX: number, localY: number, r: number, g: number, b: number, a: number}>} targetCells
    */
   generateParticles(source, target, sourceCells, targetCells) {
     const { cellSize, displayScale, maxSpawnDelay } = this.config;

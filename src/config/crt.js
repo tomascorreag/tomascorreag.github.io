@@ -7,7 +7,7 @@
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
 
-export const CRT_CONFIG = {
+export const CRT_CONFIG = Object.freeze({
   // Scanlines
   scanlineOpacity: 0.4,      // Base visibility (0-1)
   scanlineSpacing: 2,         // px gap between dark lines
@@ -16,7 +16,6 @@ export const CRT_CONFIG = {
   // Glow (layered text-shadow)
   glowSpread: 1,              // Multiplier for glow blur radius
   glowIntensity: 1,           // Multiplier for glow opacity (0-1)
-  glowColor: 'var(--terminal-green)',
 
   // Blur - softens pixel-perfect edges for CRT phosphor feel
   blur: 1.5,                 // px blur on sprites/images
@@ -47,7 +46,7 @@ export const CRT_CONFIG = {
     vignetteIntensity: 0.2,   // Lighter vignette
     blur: 0,                  // Disable blur on mobile
   },
-};
+});
 
 /**
  * Detects if device is mobile/tablet
@@ -128,16 +127,18 @@ export function injectCRTVariables() {
 }
 
 /**
- * Starts the flicker spike system
- * Runs a subtle random flicker on the CRT screen
+ * Starts the flicker spike system.
+ * Runs a subtle random flicker on the CRT screen.
+ * @param {HTMLElement} screenElement - The CRT screen container
+ * @returns {Function} Cleanup function to stop the flicker
  */
 let flickerInterval = null;
 
 export function startFlicker(screenElement) {
-  if (!screenElement || flickerInterval) return;
+  if (!screenElement || flickerInterval) return () => {};
 
   const config = getActiveConfig();
-  if (config.flickerIntensity === 0) return;
+  if (config.flickerIntensity === 0) return () => {};
 
   flickerInterval = setInterval(() => {
     // Random chance of spike
@@ -150,7 +151,7 @@ export function startFlicker(screenElement) {
     }
   }, 16); // ~60fps check
 
-  return flickerInterval;
+  return () => stopFlicker();
 }
 
 export function stopFlicker() {

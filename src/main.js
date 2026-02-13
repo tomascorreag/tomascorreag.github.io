@@ -10,7 +10,7 @@
 
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph } from './components/ParticleMorph.js';
-import { TYPING_CONFIG, RABBIT_CONFIG, injectCSSVariables } from './config/animations.js';
+import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startFlicker, isMobile } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
 import { CATEGORIES, resolveThumbnail } from './config/content.js';
@@ -352,7 +352,7 @@ async function renderMosaic(category) {
   // If mosaic already has content, fade out first
   if (mosaicHasContent) {
     mosaicEl.classList.remove('visible');
-    await new Promise(r => setTimeout(r, 300)); // wait for fade-out transition
+    await new Promise(r => setTimeout(r, MOSAIC_CONFIG.fadeDuration));
   }
 
   // Clear and rebuild
@@ -363,9 +363,6 @@ async function renderMosaic(category) {
     div.className = 'mosaic-item';
     div.dataset.cols = item.cols;
     div.dataset.rows = item.rows;
-
-    const wrapper = document.createElement('div');
-    wrapper.className = 'media-wrapper';
 
     const isVideo = item.src.endsWith('.mp4');
     const media = document.createElement(isVideo ? 'video' : 'img');
@@ -381,15 +378,14 @@ async function renderMosaic(category) {
       media.loading = 'lazy';
     }
 
-    wrapper.appendChild(media);
-    div.appendChild(wrapper);
+    div.appendChild(media);
     mosaicEl.appendChild(div);
   }
 
   mosaicHasContent = true;
 
   // Fade in after a brief frame delay (lets browser paint the new items)
-  await new Promise(r => setTimeout(r, 50));
+  await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
 }
 
@@ -414,7 +410,8 @@ function showMosaic() {
  * - params.get('name') = "John"
  */
 const params = new URLSearchParams(window.location.search);
-const username = params.get('name');  // null if not present
+const rawName = params.get('name');
+const username = rawName ? rawName.trim().slice(0, 20).replace(/[<>]/g, '') : null;
 
 // ============================================
 // Initialize & Run
@@ -495,17 +492,17 @@ async function startRabbitTransition() {
 
     // 10. Start cursor blinking
     whiteTerminal.showCursor(false);
-    await sleep(400);
+    await sleep(TIMING.normal);
 
     // 11. Type the introduction + nav menu (click to skip)
     let cleanupSkip = enableSkipOnClick();
     await whiteTerminal.type("Hi! I'm Tomás,");
     whiteTerminal.submitLine();
-    await sleep(300);
+    await sleep(TIMING.normal);
     await whiteTerminal.type("Technical Artist");
 
     // 12. Reveal nav menu (already in DOM, just hidden)
-    await sleep(300);
+    await sleep(TIMING.normal);
     whiteTerminal.hideCursor();
 
     const navMenu = document.getElementById('nav-menu');
@@ -558,16 +555,10 @@ async function startRabbitTransition() {
       cursorChar.remove();
       await sleep(getRandomDelay(config.linePause*0.5, config.variance));
 
-      // item.className="nav-item"
       prevItem = item;
     }
 
     await sleep(200);
-
-    // // Move selection to "General" (first item)
-    // await sleep(200);
-    // prevItem.classList.remove('selected');
-    // navMenu.querySelector('.nav-item').classList.add('selected');
 
     // Done typing — clean up skip listener
     cleanupSkip();
@@ -602,6 +593,13 @@ async function startRabbitTransition() {
 
   } catch (error) {
     console.error('Rabbit transition failed:', error);
+    // Clean up partial state and show user-facing fallback
+    if (rabbit) { rabbit.destroy(); rabbit = null; }
+    terminalElement.innerHTML = `
+      <div style="color: #fff; padding: 2rem; font-family: monospace;">
+        > Something went wrong. <a href="." style="color: inherit">Reload?</a>
+      </div>
+    `;
   }
 }
 
@@ -625,7 +623,6 @@ async function main() {
     const cursorPos = terminal.getCursorPosition();
     const cursorRect = terminal.getCursorRect();
 
-    // await sleep(2500); // Wait before hiding cursor
     await terminal.rampCursorBrightness(2500, 8);
 
     if (isMobile()) {

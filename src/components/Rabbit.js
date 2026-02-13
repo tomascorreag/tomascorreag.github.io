@@ -183,7 +183,7 @@ export class Rabbit extends Sprite {
 
       const visualWidth = RABBIT_CONFIG.width * this.scale;
       const jumpDist = RABBIT_CONFIG.jumpDistance;
-      const edgeMargin = 20;  // px buffer from screen edge
+      const edgeMargin = RABBIT_CONFIG.edgeMargin;
 
       // Check which directions are valid (won't go off-screen)
       const canGoLeft = this.x - jumpDist >= edgeMargin;
@@ -409,17 +409,11 @@ export class Rabbit extends Sprite {
       this.earlyMouseHandler = null;
     }
     if (this.mouseHandler) {
-      document.removeEventListener('mousemove', this.mouseHandler);
-      this.eventHandlers = this.eventHandlers.filter(
-        h => h.handler !== this.mouseHandler
-      );
+      this.removeEventListener(document, 'mousemove', this.mouseHandler);
       this.mouseHandler = null;
     }
     if (this.clickHandler) {
-      document.removeEventListener('click', this.clickHandler);
-      this.eventHandlers = this.eventHandlers.filter(
-        h => h.handler !== this.clickHandler
-      );
+      this.removeEventListener(document, 'click', this.clickHandler);
       this.clickHandler = null;
     }
   }
