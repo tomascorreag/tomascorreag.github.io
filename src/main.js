@@ -350,6 +350,73 @@ const introSequence = [
 // Track rabbit instance for cleanup
 let rabbit = null;
 
+/**
+ * Transition: rabbit click → freeze → particle dissolve → white terminal → typing
+ *
+ * The rabbit shatters into white particles that converge into a cursor block,
+ * then the DOM cursor is revealed and starts typing the introduction.
+ */
+async function startRabbitTransition() {
+  try {
+    // 1. Freeze rabbit — stop all animations, get position
+    const rabbitRect = rabbit.freeze();
+
+    // 2. Destroy old terminal text instantly
+    terminal.destroy();
+
+    // 3. Hide the rabbit DOM element (particles will represent it)
+    rabbit.element.style.visibility = 'hidden';
+
+    // 4. Set up the new terminal (same green as the first)
+    const whiteTerminal = new Terminal(terminalElement);
+
+    // 5. Measure cursor rect while it exists in layout, then hide it.
+    //    The cursor flashes for 1 frame but the particle canvas covers it.
+    const cursorTargetRect = whiteTerminal.getCursorRect();
+    whiteTerminal.hideCursor();
+
+    // 6. Start particle morph: rabbit sprite → cursor block
+    const spriteImage = await preloadImage(rabbitSpritesheetUrl);
+    const morph = new ParticleMorph(PARTICLE_CONFIG);
+
+    await morph.start({
+      source: {
+        rect: rabbitRect,
+        image: spriteImage,
+        frame: RABBIT_CONFIG.frames.idle,
+        flipped: rabbit.lastDirection === -1,
+      },
+      target: { rect: cursorTargetRect },
+      container: crtScreen,
+      color: PARTICLE_CONFIG.color,
+    });
+
+    // 7. Destroy the rabbit DOM element
+    rabbit.destroy();
+    rabbit = null;
+
+    // 8. Show cursor (locked, no blink) under the canvas
+    whiteTerminal.showCursor(true);
+
+    // 9. Handoff: fade canvas, reveal DOM cursor
+    await morph.handoff();
+    morph.destroy();
+
+    // 10. Start cursor blinking
+    whiteTerminal.showCursor(false);
+    await sleep(400);
+
+    // 11. Type the introduction
+    await whiteTerminal.type("Hi! I'm Tomás,");
+    whiteTerminal.submitLine();
+    await sleep(300);
+    await whiteTerminal.type("Technical Artist");
+
+  } catch (error) {
+    console.error('Rabbit transition failed:', error);
+  }
+}
+
 // Run sequence, then spawn rabbit
 async function main() {
   try {
@@ -390,8 +457,11 @@ async function main() {
       terminal.delayedHideCursor(100)
 
       // Particles animate: scatter → drift → converge → settle
-      await morph.start(cursorRect, targetRect, spriteImage,
-        RABBIT_CONFIG.frames.spawnStart, crtScreen);
+      await morph.start({
+        source: { rect: cursorRect },
+        target: { rect: targetRect, image: spriteImage, frame: RABBIT_CONFIG.frames.spawnStart, flipped: true },
+        container: crtScreen,
+      });
 
       // Place the real DOM rabbit underneath the canvas (hidden)
       rabbit = new Rabbit();
@@ -405,7 +475,10 @@ async function main() {
       rabbit.startDrop();
     }
 
-    rabbit.enableMouseReaction();
+    // Set up rabbit click → white terminal transition
+    rabbit.enableMouseReaction(undefined, {
+      onClick: () => startRabbitTransition(),
+    });
 
   } catch (error) {
     console.error('Failed to initialize terminal:', error);

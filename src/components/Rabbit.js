@@ -29,10 +29,12 @@ export class Rabbit extends Sprite {
     this.lastMouseX = null;
     this.lastMouseY = null;
     this.glowAnimationId = null;
+    this.isFrozen = false;
 
     // Mouse interaction handlers (stored for cleanup)
     this.mouseHandler = null;
     this.clickHandler = null;
+    this.onClickCallback = null;
   }
 
   /**
@@ -337,7 +339,8 @@ export class Rabbit extends Sprite {
    * Enables mouse-triggered jumping and proximity glow
    * @param {number} threshold - Distance in pixels to trigger jump
    */
-  enableMouseReaction(threshold = RABBIT_CONFIG.mouseThreshold) {
+  enableMouseReaction(threshold = RABBIT_CONFIG.mouseThreshold, { onClick } = {}) {
+    this.onClickCallback = onClick || null;
     if (!this.element) return;
 
     // Remove early mouse handler if it exists (was used during spawn)
@@ -373,16 +376,20 @@ export class Rabbit extends Sprite {
       }
     };
 
-    // Click handler for permanent glow boost
+    // Click handler — calls onClick callback if set, otherwise glow boost
     this.clickHandler = (e) => {
+      if (this.isFrozen) return;
       const { distance } = this.getDistanceToBottomCenter(e.clientX, e.clientY);
 
       if (distance < RABBIT_CONFIG.clickRadius) {
+        if (this.onClickCallback) {
+          this.onClickCallback();
+          return;
+        }
         this.permanentGlowBonus = Math.min(
           this.permanentGlowBonus + RABBIT_CONFIG.glowBoostPerClick,
           RABBIT_CONFIG.maxPermanentGlow
         );
-        // Update glow immediately with new permanent bonus
         this.updateGlow(distance);
       }
     };
@@ -415,6 +422,38 @@ export class Rabbit extends Sprite {
       );
       this.clickHandler = null;
     }
+  }
+
+  /**
+   * Freezes the rabbit — stops all animations and disables interaction.
+   * Returns the rabbit's current CSS position as a rect for use as
+   * the particle morph source.
+   *
+   * @returns {{ x: number, y: number, w: number, h: number }}
+   */
+  freeze() {
+    this.isFrozen = true;
+
+    // Stop all interaction
+    this.disableMouseReaction();
+
+    // Stop any in-progress jump
+    this.element.classList.remove('jumping');
+    this.isJumping = false;
+    this.jumpCooldown = false;
+
+    // Reset glow to neutral
+    this.element.style.setProperty('--crt-glow-intensity', 1);
+    this.element.style.setProperty('--crt-glow-spread', 1);
+
+    // Return the CSS position (not visual bounding rect — the particle
+    // morph needs the untransformed position to apply its own flip math)
+    return {
+      x: this.x,
+      y: this.y,
+      w: RABBIT_CONFIG.width,
+      h: RABBIT_CONFIG.height,
+    };
   }
 
   /**

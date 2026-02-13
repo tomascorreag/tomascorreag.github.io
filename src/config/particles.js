@@ -25,15 +25,15 @@ export const PARTICLE_CONFIG = {
   damping: 0.7,            // velocity decay per frame (1 = no decay)
 
   // Turbulence — layered sine waves for organic drift
-  noiseAmplitude: 1.5,      // max displacement per frame (screen px)
+  noiseAmplitude: 2,      // max displacement per frame (screen px)
   noiseFrequency: 0.005,    // spatial frequency of noise
   noiseSpeed: 2.0,          // temporal speed of noise evolution
 
   // Phase durations (ms)
-  dissolveDuration: 400,    // cursor fracture
-  driftDuration: 400,       // free-floating turbulence
-  convergeDuration: 300,   // spring attraction ramp
-  settleDuration: 200,      // final damping
+  dissolveDuration: 300,    // cursor fracture
+  driftDuration: 150,       // free-floating turbulence
+  convergeDuration: 100,   // spring attraction ramp
+  settleDuration: 50,      // final damping
 
   // Handoff — canvas → DOM transition
   handoffDuration: 150,     // canvas opacity fade (ms)

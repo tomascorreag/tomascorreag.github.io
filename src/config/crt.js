@@ -9,7 +9,7 @@
 
 export const CRT_CONFIG = {
   // Scanlines
-  scanlineOpacity: 0.5,      // Base visibility (0-1)
+  scanlineOpacity: 0.4,      // Base visibility (0-1)
   scanlineSpacing: 2,         // px gap between dark lines
   scanlineSize: 2,            // px thickness of dark lines
 
