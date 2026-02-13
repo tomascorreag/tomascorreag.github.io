@@ -27,7 +27,7 @@
  * it pre-discovers all matching assets at compile time.
  */
 const thumbnailModules = import.meta.glob(
-  '../assets/thumbnails/**/*.{jpg,jpeg,png,webp}',
+  '../assets/thumbnails/**/*.{jpg,jpeg,png,webp,mp4}',
   { eager: true, import: 'default' }
 );
 
@@ -54,7 +54,8 @@ export const CATEGORIES = {
     // Empty until you add images to src/assets/thumbnails/3d-assets/
   ],
   '3D Art': [
-    { src: '3d-art/0169.png', alt: '3D Art piece', cols: 2, rows: 2 },
-    { src: '3d-art/t6.png', alt: '3D Art piece', cols: 2, rows: 1 },
+    { src: '3d-art/thumb1.mp4', alt: '3D Art piece', cols: 4, rows: 2 },
+    { src: '3d-art/thumb2.png', alt: '3D Art piece', cols: 2, rows: 2 },
+    { src: '3d-art/thumb3.jpeg', alt: '3D Art piece', cols: 2, rows: 4 },
   ],
 };

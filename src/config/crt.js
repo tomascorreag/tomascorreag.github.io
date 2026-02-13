@@ -36,7 +36,7 @@ export const CRT_CONFIG = {
   // Flicker - JS-driven random spikes
   flickerSpikeChance: 0.1,  // Probability per frame (~60fps) of spike
   flickerSpikeIntensity: 1,// Opacity drop during spike (0-1)
-  flickerSpikeDuration: 50000,   // Base ms duration of spike (+ random 0-100ms)
+  flickerSpikeDuration: 50,      // Base ms duration of spike (+ random 0-100ms)
 
   // Mobile - reduce/disable heavy effects
   mobile: {
@@ -76,10 +76,29 @@ export function getActiveConfig() {
 }
 
 /**
- * Injects CRT config as CSS custom properties
- * Call on page load, after animations.js injection
+ * Injects CRT config as CSS custom properties and listens for
+ * viewport changes that cross the mobile/desktop threshold.
+ *
+ * Without the resize listener, rotating a tablet or resizing the
+ * browser would lock the user into the wrong CRT settings — like
+ * a quality setting that only applies on launch, not at runtime.
  */
+let lastMobileState = null;
+
 export function injectCRTVariables() {
+  const currentMobile = isMobile();
+
+  // Set up resize listener on first call
+  if (lastMobileState === null) {
+    window.addEventListener('resize', () => {
+      const nowMobile = isMobile();
+      if (nowMobile !== lastMobileState) {
+        lastMobileState = nowMobile;
+        injectCRTVariables();
+      }
+    });
+  }
+  lastMobileState = currentMobile;
   const root = document.documentElement;
   const config = getActiveConfig();
 

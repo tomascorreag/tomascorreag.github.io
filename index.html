@@ -33,13 +33,14 @@
       <main id="terminal" class="terminal crt-effects"></main>
       <!-- Nav menu - absolutely positioned center, hidden until after intro -->
       <nav id="nav-menu" class="nav-menu crt-effects" hidden></nav>
-      <!-- Thumbnail mosaic grid - right side, no CRT effects (clean presentation) -->
-      <div id="mosaic" class="mosaic-grid" hidden></div>
       <!-- Rabbit spawns here via JS -->
     </div>
 
     <!-- Scanline overlay - sits above everything, doesn't block clicks -->
     <div class="crt-overlay"></div>
+
+    <!-- Thumbnail mosaic grid - outside #crt-screen so it's above scanline overlay -->
+    <div id="mosaic" class="mosaic-grid" hidden></div>
     <!-- <canvas class="particle-canvas crt-effects"></canvas> -->
 
     <script type="module" src="/src/main.js"></script>

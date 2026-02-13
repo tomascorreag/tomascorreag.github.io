@@ -394,7 +394,7 @@ html, body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 1000;
+  z-index: 100;
 
   /* Scanlines - alternating transparent/dark bands */
   /* Pattern: [spacing gap] [size dark line] repeating */
@@ -605,10 +605,11 @@ html, body {
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   grid-auto-rows: 120px;
   grid-auto-flow: dense;
-  gap: 6px;
+  gap: 12px;
 
   opacity: 0;
   transition: opacity 300ms ease;
+  z-index: 1000;              /* above .crt-overlay (1000) so scanlines don't cover images */
 }
 
 .mosaic-grid.visible {
@@ -618,19 +619,50 @@ html, body {
 /* Mosaic items — each thumbnail cell */
 .mosaic-item {
   overflow: hidden;
-  background: #1a1a1a;   /* placeholder color before image loads */
+  background: #1a1a1a;
+}
+
+.media-wrapper {
+  width: 100%;
+  height: 100%;
+}
+
+.mosaic-item img,
+.mosaic-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Images: scale + brighten on hover */
+.mosaic-item img {
+  transition: transform var(--timing-normal) var(--ease-smooth),
+              filter var(--timing-normal) var(--ease-smooth);
+  will-change: transform;
+}
+
+.mosaic-item:hover img {
+  transform: scale(1.05);
+  filter: brightness(1.2);
+}
+
+/* Videos: brightness only (scaling causes jitter with playing video) */
+.mosaic-item video {
+  transition: filter var(--timing-normal) var(--ease-smooth);
+}
+
+.mosaic-item:hover video {
+  filter: brightness(1.2);
 }
 
 /* Span rules via data attributes — controls the irregular sizing.
  * A 2-col item spans 2 grid columns, a 2-row item spans 2 rows.
  * Combined (data-cols=2 + data-rows=2) gives a large square. */
 .mosaic-item[data-cols="2"] { grid-column: span 2; }
+.mosaic-item[data-cols="3"] { grid-column: span 3; }
+.mosaic-item[data-cols="4"] { grid-column: span 4; }
 .mosaic-item[data-rows="2"] { grid-row: span 2; }
-
-.mosaic-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;    /* crops to fill (like Unity's ScaleMode.ScaleAndCrop) */
-  display: block;
-}
+.mosaic-item[data-rows="3"] { grid-row: span 3; }
+.mosaic-item[data-rows="4"] { grid-row: span 4; }
 

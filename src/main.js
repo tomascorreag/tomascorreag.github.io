@@ -364,12 +364,25 @@ async function renderMosaic(category) {
     div.dataset.cols = item.cols;
     div.dataset.rows = item.rows;
 
-    const img = document.createElement('img');
-    img.src = resolveThumbnail(item.src);
-    img.alt = item.alt;
-    img.loading = 'lazy';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'media-wrapper';
 
-    div.appendChild(img);
+    const isVideo = item.src.endsWith('.mp4');
+    const media = document.createElement(isVideo ? 'video' : 'img');
+    media.src = resolveThumbnail(item.src);
+
+    if (isVideo) {
+      media.autoplay = true;
+      media.loop = true;
+      media.muted = true;        // required for autoplay in most browsers
+      media.playsInline = true;   // prevents fullscreen on iOS
+    } else {
+      media.alt = item.alt;
+      media.loading = 'lazy';
+    }
+
+    wrapper.appendChild(media);
+    div.appendChild(wrapper);
     mosaicEl.appendChild(div);
   }
 
@@ -422,6 +435,9 @@ const introSequence = [
 // Track rabbit instance for cleanup
 let rabbit = null;
 
+// Guard against double-click triggering multiple transitions
+let transitionInProgress = false;
+
 /**
  * Transition: rabbit click → freeze → particle dissolve → white terminal → typing
  *
@@ -429,6 +445,9 @@ let rabbit = null;
  * then the DOM cursor is revealed and starts typing the introduction.
  */
 async function startRabbitTransition() {
+  if (transitionInProgress) return;
+  transitionInProgress = true;
+
   try {
     // 1. Freeze rabbit — stop all animations, get position
     const rabbitRect = rabbit.freeze();
