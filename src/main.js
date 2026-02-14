@@ -13,7 +13,7 @@ import { ParticleMorph } from './components/ParticleMorph.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startFlicker, isMobile } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
-import { CATEGORIES, resolveThumbnail } from './config/content.js';
+import { CATEGORIES, GENERAL_CONTENT, resolveThumbnail } from './config/content.js';
 import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
 
 // Inject CSS variables from centralized config
@@ -428,35 +428,44 @@ async function renderMosaic(category) {
   // Clear and rebuild
   mosaicEl.innerHTML = '';
 
-  for (const item of items) {
-    const div = document.createElement('div');
-    div.className = 'mosaic-item';
-    div.dataset.cols = item.cols;
-    div.dataset.rows = item.rows;
+  // General section renders text content instead of a thumbnail grid.
+  // We reuse the same container but swap the layout mode via a CSS class.
+  const isGeneral = category === 'General';
+  mosaicEl.classList.toggle('general-mode', isGeneral);
 
-    const isVideo = item.src.endsWith('.mp4');
-    const media = document.createElement(isVideo ? 'video' : 'img');
-    media.src = resolveThumbnail(item.src);
+  if (isGeneral) {
+    renderGeneralContent();
+  } else {
+    for (const item of items) {
+      const div = document.createElement('div');
+      div.className = 'mosaic-item';
+      div.dataset.cols = item.cols;
+      div.dataset.rows = item.rows;
 
-    if (isVideo) {
-      media.autoplay = true;
-      media.loop = true;
-      media.muted = true;        // required for autoplay in most browsers
-      media.playsInline = true;   // prevents fullscreen on iOS
-    } else {
-      media.alt = item.alt;
-      media.loading = 'lazy';
+      const isVideo = item.src.endsWith('.mp4');
+      const media = document.createElement(isVideo ? 'video' : 'img');
+      media.src = resolveThumbnail(item.src);
+
+      if (isVideo) {
+        media.autoplay = true;
+        media.loop = true;
+        media.muted = true;        // required for autoplay in most browsers
+        media.playsInline = true;   // prevents fullscreen on iOS
+      } else {
+        media.alt = item.alt;
+        media.loading = 'lazy';
+      }
+
+      div.appendChild(media);
+      mosaicEl.appendChild(div);
+
+      // Click → open detail view for this item
+      div.addEventListener('click', () => {
+        if (activeDetail) return; // already in detail mode
+        clearFocus(); // mouse click resets keyboard focus
+        openDetail(div, item);
+      });
     }
-
-    div.appendChild(media);
-    mosaicEl.appendChild(div);
-
-    // Click → open detail view for this item
-    div.addEventListener('click', () => {
-      if (activeDetail) return; // already in detail mode
-      clearFocus(); // mouse click resets keyboard focus
-      openDetail(div, item);
-    });
   }
 
   mosaicHasContent = true;
@@ -464,6 +473,159 @@ async function renderMosaic(category) {
   // Fade in after a brief frame delay (lets browser paint the new items)
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
+}
+
+/**
+ * Builds the General section — a text-based CV/bio instead of thumbnails.
+ *
+ * Think of it like a UI panel in a game engine: structured data (GENERAL_CONTENT)
+ * gets turned into DOM elements, styled via CSS. No images, just typography.
+ */
+function renderGeneralContent() {
+  const gc = GENERAL_CONTENT;
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'general-content';
+
+  // --- Header block: name + titles ---
+  const header = document.createElement('header');
+  header.className = 'general-header';
+  header.innerHTML = `
+    <h1 class="general-name">${gc.name}</h1>
+    <p class="general-title">${gc.title}</p>
+    <p class="general-subtitle">${gc.subtitle}</p>
+  `;
+  wrapper.appendChild(header);
+
+  // --- Summary ---
+  const summary = document.createElement('p');
+  summary.className = 'general-summary';
+  summary.textContent = gc.summary;
+  wrapper.appendChild(summary);
+
+  // --- Divider ---
+  wrapper.appendChild(createDivider());
+
+  // --- Skills list ---
+  const skillsSection = document.createElement('div');
+  skillsSection.className = 'general-skills';
+  for (const skill of gc.skills) {
+    const row = document.createElement('div');
+    row.className = 'general-skill-row';
+    row.innerHTML = `
+      <span class="general-skill-label">${skill.label}</span>
+      <span class="general-skill-detail">${skill.detail}</span>
+    `;
+    skillsSection.appendChild(row);
+  }
+  wrapper.appendChild(skillsSection);
+
+  // --- Divider ---
+  wrapper.appendChild(createDivider());
+
+  // --- Tools ---
+  const toolsRow = document.createElement('div');
+  toolsRow.className = 'general-tools';
+  toolsRow.innerHTML = gc.tools
+    .map(t => `<span class="general-tool">${t}</span>`)
+    .join('');
+  wrapper.appendChild(toolsRow);
+
+  // --- Contact icons ---
+  if (gc.contacts?.length) {
+    wrapper.appendChild(createDivider());
+
+    const contactRow = document.createElement('div');
+    contactRow.className = 'general-contacts';
+    for (const c of gc.contacts) {
+      // Two kinds: link contacts (open a URL) and copy contacts (show text on hover)
+      if (c.copyText) {
+        const item = document.createElement('div');
+        item.className = 'general-contact-item';
+        item.setAttribute('aria-label', c.label);
+
+        const icon = document.createElement('div');
+        icon.className = 'general-contact-icon';
+        icon.innerHTML = CONTACT_ICONS[c.platform] || c.label;
+
+        const typeout = document.createElement('span');
+        typeout.className = 'general-contact-typeout';
+
+        item.appendChild(icon);
+        item.appendChild(typeout);
+        contactRow.appendChild(item);
+
+        // Typing animation on hover — like a terminal echoing back info.
+        // We store the timeout/interval IDs on the element so we can clean
+        // them up on mouseleave (same pattern as cancelling a coroutine).
+        let typeInterval = null;
+        let charIndex = 0;
+
+        item.addEventListener('mouseenter', () => {
+          charIndex = 0;
+          typeout.textContent = '';
+          typeout.classList.add('typing');
+
+          typeInterval = setInterval(() => {
+            if (charIndex < c.copyText.length) {
+              typeout.textContent += c.copyText[charIndex];
+              charIndex++;
+            } else {
+              clearInterval(typeInterval);
+              typeInterval = null;
+            }
+          }, 40); // ~40ms per char — fast enough to feel snappy, slow enough to read
+        });
+
+        item.addEventListener('mouseleave', () => {
+          if (typeInterval) { clearInterval(typeInterval); typeInterval = null; }
+          typeout.classList.remove('typing');
+          typeout.textContent = '';
+        });
+
+      } else {
+        const a = document.createElement('a');
+        a.href = c.url;
+        a.className = 'general-contact-link';
+        a.setAttribute('aria-label', c.label);
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.innerHTML = CONTACT_ICONS[c.platform] || c.label;
+        contactRow.appendChild(a);
+      }
+    }
+    wrapper.appendChild(contactRow);
+  }
+
+  mosaicEl.appendChild(wrapper);
+}
+
+/**
+ * Inline SVG icons for contact links.
+ * Using inline SVGs instead of an icon library keeps the bundle lean
+ * and lets us style them with currentColor to match the terminal theme.
+ */
+const CONTACT_ICONS = {
+  linkedin: `<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+  </svg>`,
+  github: `<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+  </svg>`,
+  discord: `<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+    <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+  </svg>`,
+  email: `<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+    <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z"/>
+    <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z"/>
+  </svg>`,
+};
+
+/** Creates a styled horizontal divider for the General section. */
+function createDivider() {
+  const hr = document.createElement('div');
+  hr.className = 'general-divider';
+  return hr;
 }
 
 /**
@@ -492,25 +654,28 @@ function getMediaAspectRatio(itemEl) {
  * @param {DOMRect} containerRect - The mosaic container's bounding rect
  * @returns {{ targetRect: {x,y,w,h}, infoSide: 'below'|'left'|'right' }}
  */
+// Height reserved for the detail nav bar (back + prev/next arrows)
+const NAV_BAR_HEIGHT = 40;
+
 function computeDetailLayout(itemEl, containerRect) {
   const ar = getMediaAspectRatio(itemEl);
   const cw = containerRect.width;
-  const ch = containerRect.height;
+  const ch = containerRect.height - NAV_BAR_HEIGHT; // available height below nav bar
 
   let x, y, w, h, infoSide;
 
   if (ar > 1) {
-    // ---- Landscape: image at top, info below ----
+    // ---- Landscape: image at top (below nav), info below ----
     w = cw;
     h = w / ar;
-    // Cap height at 60% of container so info panel has room
+    // Cap height at 60% of available space so info panel has room
     if (h > ch * 0.6) {
       h = ch * 0.6;
       w = h * ar;
     }
     // Center horizontally if width was capped
     x = (cw - w) / 2;
-    y = 0;
+    y = NAV_BAR_HEIGHT;
     infoSide = 'below';
   } else {
     // ---- Portrait: image on one side, info beside it ----
@@ -521,7 +686,7 @@ function computeDetailLayout(itemEl, containerRect) {
       w = cw * 0.5;
       h = w / ar;
     }
-    y = (ch - h) / 2;
+    y = NAV_BAR_HEIGHT;
 
     // Determine side: which edge of the mosaic is the thumbnail closer to?
     const thumbRect = itemEl.getBoundingClientRect();
@@ -576,6 +741,9 @@ function openDetail(itemEl, itemData) {
   // Store layout on the element for closeDetail / navigateDetail
   itemEl._detailLayout = layout;
 
+  // Let clicks pass through grid to nav bar underneath
+  mosaicEl.classList.add('detail-mode');
+
   // Hide siblings
   const allItems = mosaicEl.querySelectorAll('.mosaic-item');
   allItems.forEach(el => {
@@ -607,13 +775,94 @@ function openDetail(itemEl, itemData) {
     fill: 'none',
   });
 
+  // Build nav bar immediately so it's visible during the FLIP animation
+  buildDetailNav(itemData, layout);
+
   anim.onfinish = () => {
     buildDetailInfo(itemData, layout);
   };
 }
 
 /**
- * Creates and injects the detail info panel (back button + title + description).
+ * Creates the detail navigation bar (back + prev/next arrows) at the top
+ * of the mosaic container. Appended as a sibling of mosaic items.
+ *
+ * @param {Object} itemData - Current item data (unused for now, but available)
+ * @param {Object} layout - From computeDetailLayout
+ */
+function buildDetailNav(itemData, layout) {
+  // Remove any existing nav bar (safety)
+  const existing = crtScreen.querySelector('.detail-nav');
+  if (existing) existing.remove();
+
+  const nav = document.createElement('div');
+  nav.className = 'detail-nav crt-effects';
+
+  // Back button (left side)
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '< back';
+  backBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeDetail();
+  });
+
+  // Prev/next arrows (right side)
+  const arrows = document.createElement('div');
+  arrows.className = 'detail-nav-arrows';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'detail-nav-prev';
+  prevBtn.textContent = '<';
+  prevBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    navigateDetail(-1);
+  });
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'detail-nav-next';
+  nextBtn.textContent = '>';
+  nextBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    navigateDetail(1);
+  });
+
+  arrows.appendChild(prevBtn);
+  arrows.appendChild(nextBtn);
+
+  nav.appendChild(backBtn);
+  nav.appendChild(arrows);
+  crtScreen.appendChild(nav);
+
+  // Set disabled state based on current position
+  updateDetailNavButtons();
+
+  // Fade in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      nav.classList.add('visible');
+    });
+  });
+}
+
+/**
+ * Updates the disabled state of prev/next buttons based on current index.
+ */
+function updateDetailNavButtons() {
+  const nav = crtScreen.querySelector('.detail-nav');
+  if (!nav) return;
+
+  const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item')];
+  const currentIdx = activeDetail ? mosaicItems.indexOf(activeDetail.el) : -1;
+
+  const prevBtn = nav.querySelector('.detail-nav-prev');
+  const nextBtn = nav.querySelector('.detail-nav-next');
+
+  if (prevBtn) prevBtn.disabled = currentIdx <= 0;
+  if (nextBtn) nextBtn.disabled = currentIdx >= currentCategoryItems.length - 1;
+}
+
+/**
+ * Creates and injects the detail info panel (title + description).
  * Positioned based on the layout computed by computeDetailLayout.
  *
  * Landscape: below the image, full container width.
@@ -627,16 +876,6 @@ function buildDetailInfo(itemData, layout) {
 
   const info = document.createElement('div');
   info.className = `detail-info ${infoSide === 'below' ? 'landscape' : 'portrait'}`;
-
-  // Back button
-  const backBtn = document.createElement('button');
-  backBtn.className = 'detail-back';
-  backBtn.textContent = '< Back';
-  backBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    closeDetail();
-  });
-  info.appendChild(backBtn);
 
   if (itemData.title) {
     const h2 = document.createElement('h2');
@@ -657,11 +896,13 @@ function buildDetailInfo(itemData, layout) {
     info.style.top = `${targetRect.y + targetRect.h}px`;
   } else if (infoSide === 'right') {
     // Image is on left, info on right
+    info.style.top = `${targetRect.y}px`;
     info.style.left = `${targetRect.x + targetRect.w}px`;
     info.style.width = `${containerRect.width - targetRect.x - targetRect.w}px`;
     info.style.height = `${targetRect.h}px`;
   } else {
     // infoSide === 'left' — image is on right, info on left
+    info.style.top = `${targetRect.y}px`;
     info.style.left = '0px';
     info.style.width = `${targetRect.x}px`;
     info.style.height = `${targetRect.h}px`;
@@ -691,9 +932,12 @@ function closeDetail(instant = false) {
   const { el: itemEl } = activeDetail;
   activeDetail = null;
 
-  // Remove detail info
+  // Remove detail info + nav bar, restore grid pointer events
   const info = mosaicEl.querySelector('.detail-info');
   if (info) info.remove();
+  const nav = crtScreen.querySelector('.detail-nav');
+  if (nav) nav.remove();
+  mosaicEl.classList.remove('detail-mode');
 
   // Cancel any in-progress animation
   itemEl.getAnimations().forEach(a => a.cancel());
@@ -893,7 +1137,7 @@ function handleArrowNav(key) {
  *
  * @param {number} direction - -1 for previous, +1 for next
  */
-function navigateDetail(direction) {
+async function navigateDetail(direction) {
   if (!activeDetail) return;
 
   const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item')];
@@ -907,10 +1151,20 @@ function navigateDetail(direction) {
   const nextData = currentCategoryItems[nextIdx];
   if (!nextEl || !nextData) return;
 
-  // Clean up current item
+  // Fade out current image + info, then swap to new item
   const { el: currentEl } = activeDetail;
+  currentEl.classList.add('detail-fading');
+
+  const info = mosaicEl.querySelector('.detail-info');
+  if (info) info.classList.remove('visible');
+
+  // Wait for the fade-out to finish before swapping
+  const FADE_MS = 250;
+  await new Promise(r => setTimeout(r, FADE_MS));
+
+  // Clean up current item
   currentEl.getAnimations().forEach(a => a.cancel());
-  currentEl.classList.remove('detail-active');
+  currentEl.classList.remove('detail-active', 'detail-fading');
   currentEl.style.left = '';
   currentEl.style.top = '';
   currentEl.style.width = '';
@@ -919,18 +1173,19 @@ function navigateDetail(direction) {
   delete currentEl._detailLayout;
 
   // Remove old detail info
-  const info = mosaicEl.querySelector('.detail-info');
   if (info) info.remove();
 
   // Compute layout for the new item (may be different AR)
   const containerRect = mosaicEl.getBoundingClientRect();
-  // Temporarily show the item so we can read its natural dimensions
+  // Show the item so we can read its natural dimensions.
+  // It was hidden (display:none + fading-out from openDetail), so undo both.
   nextEl.style.display = '';
+  nextEl.classList.remove('fading-out');
   const layout = computeDetailLayout(nextEl, containerRect);
   const { targetRect } = layout;
 
-  // Position the new item
-  nextEl.classList.add('detail-active');
+  // Position the new item (starts invisible, fades in)
+  nextEl.classList.add('detail-active', 'detail-fading');
   nextEl.style.left = `${targetRect.x}px`;
   nextEl.style.top = `${targetRect.y}px`;
   nextEl.style.width = `${targetRect.w}px`;
@@ -940,8 +1195,16 @@ function navigateDetail(direction) {
   activeDetail = { el: nextEl, data: nextData };
   mosaicFocusIndex = nextIdx;
 
-  // Build new detail info with computed layout
+  // Fade in after a frame (let browser paint the positioned element first)
+  requestAnimationFrame(() => {
+    nextEl.classList.remove('detail-fading');
+  });
+
+  // Build new detail info with computed layout (it has its own fade-in)
   buildDetailInfo(nextData, layout);
+
+  // Update prev/next disabled states for new position
+  updateDetailNavButtons();
 }
 
 // ---- Master keydown handler ----
@@ -982,11 +1245,25 @@ document.addEventListener('keydown', (e) => {
 });
 
 /**
- * Unhides the mosaic container (removes hidden attribute).
+ * Unhides the mosaic container and creates the static outline frame.
  * Call this once after the nav menu finishes typing.
+ * The frame lives in #crt-screen (below scanlines) and stays visible
+ * through category switches and detail view — it marks the mosaic area.
  */
 function showMosaic() {
   mosaicEl.hidden = false;
+
+  // Create static outline frame (once)
+  const frame = document.createElement('div');
+  frame.className = 'mosaic-frame crt-effects';
+  crtScreen.appendChild(frame);
+
+  // Fade in after a frame (same pattern as mosaic content)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      frame.classList.add('visible');
+    });
+  });
 }
 
 // ============================================

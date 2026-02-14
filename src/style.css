@@ -449,9 +449,11 @@ html, body {
  * opaque vs. transparent geometry in a game renderer.
  */
 
-/* --- Text CRT: terminal + nav-menu --- */
+/* --- Text CRT: terminal + nav-menu + detail-nav + mosaic-frame --- */
 .terminal.crt-effects,
-.nav-menu.crt-effects {
+.nav-menu.crt-effects,
+.detail-nav.crt-effects,
+.mosaic-frame.crt-effects {
   filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-intensity, 1)));
   text-shadow:
     /* RGB split — red left, blue right */
@@ -577,6 +579,29 @@ html, body {
  * available space they fit, regardless of DOM order.
  */
 
+/* Static outline frame around the mosaic area — lives in #crt-screen
+ * so scanlines cover it. Matches mosaic's position exactly.
+ * Fades in once alongside the first mosaic render, stays visible always. */
+.mosaic-frame {
+  position: absolute;
+  /* Wider than mosaic with margin clearance on all sides */
+  right: calc(2% - 1.5rem);
+  top: calc(5% - 1.5rem);
+  bottom: calc(5% - 1.5rem);
+  width: calc(55% + 3rem);
+  border: 4px solid var(--text-primary);
+  background-color: var(--bg-primary);
+  pointer-events: none;
+  z-index: 1;
+
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+
+.mosaic-frame.visible {
+  opacity: 1;
+}
+
 .mosaic-grid[hidden] {
   display: none !important;
 }
@@ -649,6 +674,196 @@ html, body {
 .mosaic-item[data-rows="4"] { grid-row: span 4; }
 
 /* ============================================
+   General Section (text-based CV)
+   ============================================ */
+
+/*
+ * When .general-mode is active, the mosaic container stops being a CSS Grid
+ * of thumbnails and becomes a single scrollable text panel. We override
+ * the grid properties so the text content can flow naturally.
+ *
+ * Like switching a UI panel from GridLayout to VerticalLayout in Unity.
+ */
+.mosaic-grid.general-mode {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.general-content {
+  max-width: 625px;
+  width: 100%;
+  font-family: 'Martian Mono', monospace;
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* --- Header: name + title stack --- */
+.general-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.general-name {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.1;
+  text-shadow: 0 0 20px var(--glow-color);
+}
+
+.general-title {
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  font-weight: 400;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.general-subtitle {
+  font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+  font-weight: 200;
+  margin: 0;
+  opacity: 0.6;
+}
+
+/* --- Summary paragraph --- */
+.general-summary {
+  font-size: clamp(0.65rem, 1.3vw, 0.8rem);
+  font-weight: 200;
+  line-height: 1.7;
+  margin: 0;
+  opacity: 0.85;
+}
+
+/* --- Divider --- */
+.general-divider {
+  height: 1px;
+  background: var(--text-primary);
+  opacity: 0.2;
+}
+
+/* --- Skills list --- */
+.general-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.general-skill-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.general-skill-label {
+  font-size: clamp(0.7rem, 1.4vw, 0.85rem);
+  font-weight: 600;
+}
+
+.general-skill-detail {
+  font-size: clamp(0.6rem, 1.1vw, 0.7rem);
+  font-weight: 200;
+  opacity: 0.6;
+}
+
+/* --- Tools row --- */
+.general-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.general-tool {
+  font-size: clamp(0.6rem, 1.1vw, 0.7rem);
+  font-weight: 400;
+  padding: 0.25em 0.6em;
+  border: 1px solid var(--text-primary);
+  opacity: 0.7;
+  transition: opacity var(--timing-fast) ease;
+}
+
+.general-tool:hover {
+  opacity: 1;
+}
+
+/* --- Contact icons --- */
+.general-contacts {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.general-contact-link {
+  color: var(--text-primary);
+  opacity: 0.6;
+  transition: opacity var(--timing-normal) ease,
+              filter var(--timing-normal) ease;
+  display: flex;
+  align-items: center;
+}
+
+.general-contact-link svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.general-contact-link:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
+/* Typeout contacts (Discord, Email) — icon + typing text side by side */
+.general-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: default;
+}
+
+.general-contact-icon {
+  color: var(--text-primary);
+  opacity: 0.6;
+  transition: opacity var(--timing-normal) ease,
+              filter var(--timing-normal) ease;
+  display: flex;
+  align-items: center;
+}
+
+.general-contact-icon svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.general-contact-item:hover .general-contact-icon {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
+/* The typed-out text that appears on hover */
+.general-contact-typeout {
+  font-family: 'Martian Mono', monospace;
+  font-size: clamp(0.55rem, 1vw, 0.7rem);
+  font-weight: 200;
+  color: var(--text-primary);
+  white-space: nowrap;
+  min-height: 1em;
+}
+
+/* Blinking cursor after the text while typing */
+.general-contact-typeout.typing::after {
+  content: '█';
+  animation: blink-cursor 600ms step-end infinite;
+}
+
+@keyframes blink-cursor {
+  50% { opacity: 0; }
+}
+
+/* ============================================
    Detail View (expanded thumbnail)
    ============================================ */
 
@@ -661,6 +876,11 @@ html, body {
  * Like setting a UI element's RectTransform directly in Unity
  * instead of relying on layout groups to compute it.
  */
+
+/* In detail mode, let clicks pass through the grid to the nav bar below */
+.mosaic-grid.detail-mode {
+  pointer-events: none;
+}
 
 /* Siblings fade out when detail opens */
 .mosaic-item.fading-out {
@@ -680,6 +900,14 @@ html, body {
   overflow: visible;
   background: transparent;
   cursor: default;
+  pointer-events: auto;  /* re-enable on the active item despite grid's pointer-events: none */
+  opacity: 1;
+  transition: opacity 250ms ease;
+}
+
+/* Applied during navigate fade-out and briefly on fade-in (removed next frame) */
+.mosaic-item.detail-fading {
+  opacity: 0;
 }
 
 /* Media fills the absolutely-positioned container exactly.
@@ -743,24 +971,61 @@ html, body {
   color: #b0b0b0;
 }
 
-/* Back button — top of detail info */
-.detail-back {
-  display: inline-block;
-  margin-bottom: 1rem;
-  padding: 0.3em 0.6em;
+/* Detail nav bar — lives in #crt-screen (below scanlines),
+ * positioned to align with the mosaic's top edge.
+ * Uses the same right/top/width as .mosaic-grid so it overlaps exactly. */
+.detail-nav {
+  position: absolute;
+  right: 2%;
+  top: 5%;
+  width: 55%;
+  height: 2.5rem;
+  z-index: 1;  /* below .crt-overlay (100) so scanlines cover it, like the terminal */
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0.5rem;
+  background-color: var(--bg-primary);
+
   font-family: 'Martian Mono', monospace;
-  font-size: clamp(0.75rem, 1.8vw, 0.9rem);
-  font-weight: 400;
+  font-size: clamp(1.6rem, 1.8vw, 0.9rem);
+  font-weight: 200;
   color: var(--text-primary);
-  background: none;
-  border: 1px solid var(--text-primary);
-  cursor: pointer;
-  transition: background 150ms, color 150ms;
+
+  opacity: 0;
+  transition: opacity 250ms ease;
 }
 
-.detail-back:hover {
-  background: var(--text-primary);
-  color: var(--bg-primary);
+.detail-nav.visible {
+  opacity: 1;
+}
+
+.detail-nav button {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.3em 0.5em;
+  transition: filter 150ms;
+}
+
+.detail-nav button:hover {
+  filter: brightness(1.5);
+}
+
+.detail-nav button:disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.detail-nav-arrows {
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* ============================================

@@ -48,6 +48,35 @@ export function resolveThumbnail(relativePath) {
   return resolved;
 }
 
+/**
+ * General section content — text-based "CV" instead of a thumbnail mosaic.
+ * Structured as data so the rendering logic stays in main.js.
+ */
+export const GENERAL_CONTENT = {
+  name: 'Tomás Correa',
+  title: 'Technical Artist',
+  subtitle: 'Game Developer · Creative Engineer',
+  summary:
+    'I love solving visual problems at the boundary between art and code.' +
+    'I build shaders, VFX, tools, and pipelines that help artists work faster ' +
+    'and games look better — always thinking in systems, always grounded in ' +
+    "real production needs, and always focused on the player's experience.",
+  skills: [
+    { label: 'Shaders & VFX', detail: 'Real-time shaders, particle systems, post-processing' },
+    { label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender' },
+    { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
+    { label: 'Game Development', detail: 'Shipped ARBO: Arena Tactics on Steam — end-to-end' },
+  ],
+  tools: ['Unity', 'Blender', 'HLSL/GLSL', 'C#', 'Python'],
+  contacts: [
+    { platform: 'linkedin', url: 'https://www.linkedin.com/in/tomás-correa-551b0a243', label: 'LinkedIn' },
+    { platform: 'github',   url: 'https://github.com/tomascorreag', label: 'GitHub' },
+    { platform: 'discord',  copyText: 'eltomoco', label: 'Discord' },
+    { platform: 'email',    copyText: 'tomcorrea3+3@gmail.com', label: 'Email' },
+  ],
+  cta: 'Scroll the other sections to see the work.',
+};
+
 export const CATEGORIES = {
   'General': [
     // Empty until you add images to src/assets/thumbnails/general/
