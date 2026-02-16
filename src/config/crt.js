@@ -2,7 +2,7 @@
  * CRT Post-Processing Configuration
  *
  * Central config for all CRT visual effects: scanlines, glow, RGB split,
- * vignette, and flicker. CSS-first approach with optional WebGL later.
+ * vignette, and glow noise. CSS-first approach with optional WebGL later.
  *
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
@@ -17,6 +17,12 @@ export const CRT_CONFIG = Object.freeze({
   glowSpread: 1,              // Multiplier for glow blur radius
   glowIntensity: 1,           // Multiplier for glow opacity (0-1)
 
+  // Glow noise — mostly static, occasional random drops
+  glowNoiseMin: 0.75,          // Lowest a drop can go
+  glowNoiseFrequency: 32,     // Tick rate (Hz) — controls recovery speed
+  glowNoiseDropChance: 0.04,  // Probability per tick of triggering a drop
+  glowNoiseRecovery: 0.5,     // Lerp factor back to baseline (0-1, higher = faster)
+
   // Blur - softens pixel-perfect edges for CRT phosphor feel
   blur: 1.5,                 // px blur on sprites/images
 
@@ -28,21 +34,11 @@ export const CRT_CONFIG = Object.freeze({
   vignetteIntensity: 0.3,     // Darkness at edges (0-1)
   vignetteSize: 40,           // % from center where vignette starts
 
-  // Flicker - base CSS animation
-  flickerIntensity: 0.001,     // Opacity variation amount (0-1)
-  flickerSpeed: 0.1,         // Seconds per flicker cycle
-
-  // Flicker - JS-driven random spikes
-  flickerSpikeChance: 0.1,  // Probability per frame (~60fps) of spike
-  flickerSpikeIntensity: 1,// Opacity drop during spike (0-1)
-  flickerSpikeDuration: 50,      // Base ms duration of spike (+ random 0-100ms)
-
   // Mobile - reduce/disable heavy effects
   mobile: {
     enabled: true,            // Master toggle for mobile
     scanlineOpacity: 0.04,    // Lighter scanlines
     rgbOffset: 0,             // Disable RGB split
-    flickerIntensity: 0,      // Disable flicker
     vignetteIntensity: 0.2,   // Lighter vignette
     blur: 0,                  // Disable blur on mobile
   },
@@ -66,7 +62,6 @@ export function getActiveConfig() {
       ...CRT_CONFIG,
       scanlineOpacity: CRT_CONFIG.mobile.scanlineOpacity,
       rgbOffset: CRT_CONFIG.mobile.rgbOffset,
-      flickerIntensity: CRT_CONFIG.mobile.flickerIntensity,
       vignetteIntensity: CRT_CONFIG.mobile.vignetteIntensity,
       blur: CRT_CONFIG.mobile.blur,
     };
@@ -109,6 +104,8 @@ export function injectCRTVariables() {
   // Glow
   root.style.setProperty('--crt-glow-spread', config.glowSpread);
   root.style.setProperty('--crt-glow-intensity', config.glowIntensity);
+  // Static copy for brightness filters — immune to glow noise
+  root.style.setProperty('--crt-glow-brightness', config.glowIntensity);
 
   // Blur
   root.style.setProperty('--crt-blur', `${config.blur}px`);
@@ -121,42 +118,45 @@ export function injectCRTVariables() {
   root.style.setProperty('--vignette-intensity', config.vignetteIntensity);
   root.style.setProperty('--vignette-size', `${config.vignetteSize}%`);
 
-  // Flicker
-  root.style.setProperty('--flicker-intensity', config.flickerIntensity);
-  root.style.setProperty('--flicker-speed', `${config.flickerSpeed}s`);
 }
 
 /**
- * Starts the flicker spike system.
- * Runs a subtle random flicker on the CRT screen.
- * @param {HTMLElement} screenElement - The CRT screen container
- * @returns {Function} Cleanup function to stop the flicker
+ * Glow noise — mostly holds at baseline, occasionally drops then recovers.
+ *
+ * Like a fluorescent tube that's mostly stable but occasionally dips —
+ * each tick has a small chance of triggering a drop to a random value
+ * between min and baseline, then lerps back up. Same pattern as a
+ * damage flash that decays back to 1.0 in a game shader.
  */
-let flickerInterval = null;
+let glowNoiseInterval = null;
 
-export function startFlicker(screenElement) {
-  if (!screenElement || flickerInterval) return () => {};
+export function startGlowNoise() {
+  if (glowNoiseInterval) return;
 
   const config = getActiveConfig();
-  if (config.flickerIntensity === 0) return () => {};
+  const { glowNoiseMin: min, glowNoiseFrequency: freq,
+          glowNoiseDropChance: chance, glowNoiseRecovery: recovery } = config;
+  const baseline = config.glowIntensity;
+  if (!freq) return;
 
-  flickerInterval = setInterval(() => {
-    // Random chance of spike
-    if (Math.random() < config.flickerSpikeChance) {
-      // Dramatic spike
-      screenElement.style.opacity = 1 - config.flickerSpikeIntensity;
-      setTimeout(() => {
-        screenElement.style.opacity = '';
-      }, config.flickerSpikeDuration + Math.random() * 100);
+  const root = document.documentElement;
+  let current = baseline;
+
+  glowNoiseInterval = setInterval(() => {
+    if (Math.random() < chance) {
+      // Drop to a random depth between min and baseline
+      current = min + Math.random() * (baseline - min);
+    } else {
+      // Recover toward baseline
+      current += (baseline - current) * recovery;
     }
-  }, 16); // ~60fps check
-
-  return () => stopFlicker();
+    root.style.setProperty('--crt-glow-intensity', current.toFixed(3));
+  }, 1000 / freq);
 }
 
-export function stopFlicker() {
-  if (flickerInterval) {
-    clearInterval(flickerInterval);
-    flickerInterval = null;
+export function stopGlowNoise() {
+  if (glowNoiseInterval) {
+    clearInterval(glowNoiseInterval);
+    glowNoiseInterval = null;
   }
 }

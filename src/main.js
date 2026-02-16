@@ -11,7 +11,7 @@
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph } from './components/ParticleMorph.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
-import { injectCRTVariables, startFlicker, isMobile } from './config/crt.js';
+import { injectCRTVariables, startGlowNoise, isMobile } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
 import { CATEGORIES, GENERAL_CONTENT, resolveThumbnail } from './config/content.js';
 import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
@@ -23,8 +23,8 @@ injectCRTVariables();
 // Get CRT container for spawning elements inside it
 const crtScreen = document.getElementById('crt-screen');
 
-// Start flicker effect
-startFlicker(crtScreen);
+// Start glow noise — subtle random dips in glow intensity
+startGlowNoise();
 
 // Alias for cleaner code
 const config = TYPING_CONFIG;
