@@ -1035,6 +1035,69 @@ html, body {
 }
 
 /* ============================================
+   Gaussian Splat 3D Viewer
+   ============================================ */
+
+/*
+ * Container for the WebGL canvas inside a detail-active mosaic item.
+ * Fills the item absolutely, sits on top of the thumbnail.
+ *
+ * filter: none !important — safety net against any inherited CRT filters.
+ * The mosaic grid (z-index 1000) already sits above .crt-overlay (100),
+ * so scanlines don't cover it. This just guards against filter inheritance
+ * from parent selectors that might blur/distort the 3D canvas.
+ */
+.splat-viewer-container {
+  position: absolute;
+  inset: 0;
+  z-index: 2;  /* Above the thumbnail img/video inside the detail-active item */
+  filter: none !important;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.splat-viewer-container.loaded {
+  opacity: 1;
+}
+
+/* Canvas fills container exactly */
+.splat-viewer-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Loading spinner — CSS-only, no extra DOM needed.
+ * Shows a rotating ring while the .spz file downloads.
+ * Hidden once .loaded class is added after SplatMesh.onLoad fires.
+ * Like a loading wheel in a game's asset streaming UI. */
+.splat-viewer-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: splat-spin 0.8s linear infinite;
+  z-index: 3;
+  transition: opacity 300ms ease;
+}
+
+.splat-viewer-container.loaded::before,
+.splat-viewer-container.error::before {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes splat-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================
    Keyboard Focus Indicators
    ============================================ */
 

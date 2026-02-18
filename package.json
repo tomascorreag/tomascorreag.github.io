@@ -10,5 +10,9 @@
   },
   "devDependencies": {
     "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "@sparkjsdev/spark": "^0.1.10",
+    "three": "^0.182.0"
   }
 }
