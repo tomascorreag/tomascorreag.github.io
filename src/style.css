@@ -687,20 +687,21 @@ html, body {
   flex-direction: column;
   gap: 1.5rem;
 
-  /* Half-strength CRT blur + brightness — softens edges like phosphor bleed */
-  filter: blur(calc(var(--crt-blur, 1px) * 0.4)) brightness(calc(1 + 0.33 * var(--crt-glow-brightness, 1)));
+  /* Dark background required for brightness filter to work like the terminal.
+   * Without it, blur() has no dark pixels to mix with, so brightness(2) clips
+   * green text straight to near-white. Same reason the terminal looks vivid:
+   * blur mixes text with dark bg first, then brightness amplifies the blend. */
+  background-color: var(--bg-primary);
 
-  /* Reduced CRT text effect — 50% of the full terminal CRT look.
-   * Overrides the inherited text-shadow from .mosaic-frame.crt-effects
-   * so the CV text feels CRT-flavored without competing with the content. */
+  /* 1/3-strength CRT — scaled down from terminal for readable body text */
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.5)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
+
   text-shadow:
-    /* RGB split at half offset & half opacity */
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
     calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    /* Glow — 3 layers matching terminal spread, full intensity */
     0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(90% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent);
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 
@@ -713,14 +714,16 @@ html, body {
 
 .general-name {
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  font-weight: 600;
+  font-weight: 400;
   margin: 0;
   line-height: 1.1;
-  /* Combine the name's glow with reduced CRT RGB split */
+  /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
   text-shadow:
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    0 0 20px var(--glow-color);
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
+    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 1)),
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(75% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(50), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(25% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 .general-title {
