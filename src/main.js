@@ -614,6 +614,42 @@ function renderGeneralContent() {
       <span class="general-skill-detail">${skill.detail}</span>
     `;
     skillsSection.appendChild(row);
+
+    if (skill.thumbnails?.length) {
+      const thumbsRow = document.createElement('div');
+      thumbsRow.className = 'general-skill-thumbs';
+
+      for (const ref of skill.thumbnails) {
+        const item = CATEGORIES[ref.category]?.[ref.itemIndex];
+        if (!item) continue;
+
+        const thumb = document.createElement('div');
+        thumb.className = 'general-skill-thumb';
+
+        const isVideo = item.src.endsWith('.mp4');
+        const media = document.createElement(isVideo ? 'video' : 'img');
+        media.src = resolveThumbnail(item.src);
+
+        if (isVideo) {
+          media.autoplay = true;
+          media.loop = true;
+          media.muted = true;
+          media.playsInline = true;
+        } else {
+          media.alt = item.alt ?? '';
+          media.loading = 'lazy';
+        }
+
+        thumb.appendChild(media);
+        thumbsRow.appendChild(thumb);
+
+        thumb.addEventListener('click', () => {
+          switchToAndOpenDetail(ref.category, ref.itemIndex);
+        });
+      }
+
+      skillsSection.appendChild(thumbsRow);
+    }
   }
   wrapper.appendChild(skillsSection);
 
@@ -1159,6 +1195,37 @@ function clearFocus() {
   focusZone = null;
   navFocusIndex = -1;
   mosaicFocusIndex = -1;
+}
+
+/**
+ * Switches the mosaic to a category and opens a specific item's detail view.
+ * Used by General section thumbnails to navigate directly to a piece.
+ *
+ * Can't reuse selectNavItem() here because that function doesn't return
+ * the renderMosaic() Promise — we need to await it before querying items.
+ *
+ * @param {string} category - Key from CATEGORIES
+ * @param {number} itemIndex - Index within CATEGORIES[category]
+ */
+async function switchToAndOpenDetail(category, itemIndex) {
+  const navMenu = document.getElementById('nav-menu');
+  const navItem = [...navMenu.querySelectorAll('.nav-item')]
+    .find(n => n.dataset.label === category);
+  if (!navItem) return;
+
+  const current = navMenu.querySelector('.nav-item.selected');
+  if (navItem !== current) {
+    current?.classList.remove('selected');
+    navItem.classList.add('selected');
+    mosaicFocusIndex = -1;
+  }
+
+  await renderMosaic(category);
+
+  const mosaicItems = mosaicEl.querySelectorAll('.mosaic-item');
+  const targetEl = mosaicItems[itemIndex];
+  const targetData = CATEGORIES[category]?.[itemIndex];
+  if (targetEl && targetData) openDetail(targetEl, targetData);
 }
 
 /**

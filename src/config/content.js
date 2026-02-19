@@ -86,13 +86,16 @@ export const GENERAL_CONTENT = {
   title: 'Technical Artist',
   subtitle: 'Game Developer · Creative Engineer',
   summary:
-    'I love solving visual problems at the boundary between art and code.' +
+    'I solve visual problems at the boundary between art and code. ' +
     'I build shaders, VFX, tools, and pipelines that help artists work faster ' +
     'and games look better — always thinking in systems, always grounded in ' +
     "real production needs, and always focused on the player's experience.",
   skills: [
     { label: 'Shaders & VFX', detail: 'Real-time shaders, particle systems, post-processing' },
-    { label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender' },
+    { label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender', thumbnails: [
+      { category: '3D Art', itemIndex: 1 },
+      { category: '3D Art', itemIndex: 2 },
+    ] },
     { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
     { label: 'Game Development', detail: 'Shipped ARBO: Arena Tactics on Steam — end-to-end' },
   ],

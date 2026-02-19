@@ -714,16 +714,18 @@ html, body {
 
 .general-name {
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  font-weight: 400;
+  font-weight: 150;
   margin: 0;
   line-height: 1.1;
+
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.75));;
   /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
     calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 1)),
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(75% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(50), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(25% * var(--crt-glow-intensity, 1)), transparent);
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 .general-title {
@@ -771,13 +773,45 @@ html, body {
 
 .general-skill-label {
   font-size: clamp(0.7rem, 1.4vw, 1rem);
-  font-weight: 600;
+  font-weight: 200;
 }
 
 .general-skill-detail {
   font-size: clamp(0.6rem, 1.1vw, 0.8rem);
   font-weight: 250;
-  opacity: 0.6;
+  opacity: 0.7;
+}
+
+/* --- Skill thumbnail strips --- */
+.general-skill-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.general-skill-thumb {
+  width: 110px;
+  height: 80px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.general-skill-thumb img,
+.general-skill-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--timing-normal) var(--ease-smooth),
+              filter var(--timing-normal) var(--ease-smooth);
+}
+
+.general-skill-thumb:hover img,
+.general-skill-thumb:hover video {
+  transform: scale(1.05);
+  filter: brightness(1.2);
 }
 
 /* --- Tools row --- */
