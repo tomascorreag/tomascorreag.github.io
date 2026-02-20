@@ -7,6 +7,8 @@
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
 
+import { getDeviceTier } from './device.js';
+
 export const CRT_CONFIG = Object.freeze({
   // Scanlines
   scanlineOpacity: 0.4,      // Base visibility (0-1)
@@ -34,19 +36,21 @@ export const CRT_CONFIG = Object.freeze({
   vignetteIntensity: 0.3,     // Darkness at edges (0-1)
   vignetteSize: 40,           // % from center where vignette starts
 
-  // Mobile - reduce/disable heavy effects
-  mobile: {
-    enabled: true,            // Master toggle for mobile
-    scanlineOpacity: 0.04,    // Lighter scanlines
-    rgbOffset: 0,             // Disable RGB split
-    vignetteIntensity: 0.2,   // Lighter vignette
-    blur: 0,                  // Disable blur on mobile
+  // Device tier overrides — merged on top of defaults
+  tiers: {
+    low: {
+      scanlineOpacity: 0.04,    // Lighter scanlines
+      rgbOffset: 0,             // Disable RGB split
+      vignetteIntensity: 0.2,   // Lighter vignette
+      blur: 0,                  // Disable blur
+    },
+    // mid and high: use defaults (no overrides needed)
   },
 });
 
 /**
- * Detects if device is mobile/tablet
- * Uses viewport width + touch detection heuristic
+ * Detects if device is mobile/tablet.
+ * Kept for any remaining viewport-specific checks (layout, not quality).
  */
 export function isMobile() {
   return window.innerWidth <= 768 ||
@@ -54,45 +58,40 @@ export function isMobile() {
 }
 
 /**
- * Gets active config values based on device
+ * Gets active config values based on device tier.
+ * Merges tier-specific overrides on top of the base config.
  */
 export function getActiveConfig() {
-  if (isMobile() && CRT_CONFIG.mobile.enabled) {
-    return {
-      ...CRT_CONFIG,
-      scanlineOpacity: CRT_CONFIG.mobile.scanlineOpacity,
-      rgbOffset: CRT_CONFIG.mobile.rgbOffset,
-      vignetteIntensity: CRT_CONFIG.mobile.vignetteIntensity,
-      blur: CRT_CONFIG.mobile.blur,
-    };
-  }
+  const tier = getDeviceTier();
+  const overrides = CRT_CONFIG.tiers?.[tier];
+  if (overrides) return { ...CRT_CONFIG, ...overrides };
   return CRT_CONFIG;
 }
 
 /**
  * Injects CRT config as CSS custom properties and listens for
- * viewport changes that cross the mobile/desktop threshold.
+ * viewport changes that cross a tier boundary.
  *
  * Without the resize listener, rotating a tablet or resizing the
  * browser would lock the user into the wrong CRT settings — like
  * a quality setting that only applies on launch, not at runtime.
  */
-let lastMobileState = null;
+let lastTier = null;
 
 export function injectCRTVariables() {
-  const currentMobile = isMobile();
+  const currentTier = getDeviceTier();
 
   // Set up resize listener on first call
-  if (lastMobileState === null) {
+  if (lastTier === null) {
     window.addEventListener('resize', () => {
-      const nowMobile = isMobile();
-      if (nowMobile !== lastMobileState) {
-        lastMobileState = nowMobile;
+      const nowTier = getDeviceTier();
+      if (nowTier !== lastTier) {
+        lastTier = nowTier;
         injectCRTVariables();
       }
     });
   }
-  lastMobileState = currentMobile;
+  lastTier = currentTier;
   const root = document.documentElement;
   const config = getActiveConfig();
 

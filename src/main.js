@@ -11,10 +11,98 @@
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph } from './components/ParticleMorph.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
-import { injectCRTVariables, startGlowNoise, isMobile } from './config/crt.js';
+import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
-import { CATEGORIES, GENERAL_CONTENT, resolveThumbnail } from './config/content.js';
+import { deviceTier } from './config/device.js';
+import { CATEGORIES, GENERAL_CONTENT, resolveThumbnail, resolveSplat } from './config/content.js';
+
+/**
+ * Returns particle config with device-tier overrides merged in,
+ * or null if particles are disabled for this tier.
+ */
+function getParticleConfig() {
+  const tierOverrides = PARTICLE_CONFIG.tiers?.[deviceTier];
+  // If the tier explicitly disables particles, return null
+  if (tierOverrides && tierOverrides.enabled === false) return null;
+  // Merge any tier-specific values on top of defaults
+  if (tierOverrides) return { ...PARTICLE_CONFIG, ...tierOverrides };
+  return PARTICLE_CONFIG;
+}
 import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
+
+// --- Splat viewer dynamic import cache ---
+// Three.js + Spark are ~600KB — we don't want them in the initial bundle.
+// Dynamic import() creates a separate Vite chunk loaded only on first splat click.
+// Cache the module promise so subsequent opens are instant (like an asset bundle
+// that stays in memory after the first load).
+let splatViewerModule = null;
+
+// Monotonically increasing ID — each openDetail() call gets a unique session.
+// Prevents stale async splat mounts from overwriting newer viewers.
+// Like a generation counter in an ECS — stale references self-invalidate.
+let detailSessionId = 0;
+
+/**
+ * Lazily imports the SplatViewer module. Returns cached promise on repeat calls.
+ * @returns {Promise<{SplatViewer: typeof import('./components/SplatViewer.js').SplatViewer}>}
+ */
+function getSplatViewerModule() {
+  if (!splatViewerModule) {
+    splatViewerModule = import('./components/SplatViewer.js');
+  }
+  return splatViewerModule;
+}
+
+/**
+ * Creates and mounts a splat viewer inside a detail-active mosaic item.
+ *
+ * @param {HTMLElement} itemEl - The .mosaic-item.detail-active element
+ * @param {Object} itemData - Content data with splat.file and optional splat.camera
+ * @returns {Promise<import('./components/SplatViewer.js').SplatViewer>}
+ */
+async function mountSplatViewer(itemEl, itemData) {
+  const { SplatViewer } = await getSplatViewerModule();
+
+  // Create container div for the WebGL canvas
+  const container = document.createElement('div');
+  container.className = 'splat-viewer-container';
+  itemEl.appendChild(container);
+
+  // Resolve the .spz URL through Vite's asset pipeline
+  const splatUrl = resolveSplat(itemData.splat.file);
+  if (!splatUrl) {
+    // File not found in glob — show error state immediately, skip mount.
+    // Without this guard, SplatMesh would fetch('') — a request to the page root.
+    container.classList.add('error');
+    return null;
+  }
+
+  const viewer = new SplatViewer();
+  viewer.mount(container, splatUrl, {
+    cameraPosition: itemData.splat.camera,
+    onLoad: () => {
+      container.classList.add('loaded');
+    },
+    onError: (err) => {
+      console.error('Splat load failed:', err);
+      container.classList.add('error');
+    },
+  });
+
+  return viewer;
+}
+
+/**
+ * Destroys a splat viewer and removes its container from the DOM.
+ * @param {import('./components/SplatViewer.js').SplatViewer|null} viewer
+ */
+function destroySplatViewer(viewer) {
+  if (!viewer) return;
+  // Grab container ref BEFORE destroy nulls out renderer.domElement
+  const container = viewer.renderer?.domElement?.parentElement;
+  viewer.destroy();
+  if (container) container.remove();
+}
 
 // Inject CSS variables from centralized config
 injectCSSVariables();
@@ -465,6 +553,21 @@ async function renderMosaic(category) {
         clearFocus(); // mouse click resets keyboard focus
         openDetail(div, item);
       });
+
+      // Hover prefetch for splat items — start downloading the .spz file
+      // while the user hovers, before they click. Browser caches the fetch,
+      // so when SplatViewer later requests the same URL, it's already loaded.
+      // One-shot: once: true removes the listener after first hover.
+      if (item.type === 'splat' && item.splat?.file) {
+        div.addEventListener('mouseenter', () => {
+          const url = resolveSplat(item.splat.file);
+          if (!url) return;
+          // Low-priority fetch caches the .spz for when the user clicks.
+          // Using fetch() instead of <link rel=prefetch> to avoid
+          // accumulating orphaned DOM elements in <head>.
+          fetch(url, { priority: 'low' }).catch(() => {});
+        }, { once: true });
+      }
     }
   }
 
@@ -517,6 +620,42 @@ function renderGeneralContent() {
       <span class="general-skill-detail">${skill.detail}</span>
     `;
     skillsSection.appendChild(row);
+
+    if (skill.thumbnails?.length) {
+      const thumbsRow = document.createElement('div');
+      thumbsRow.className = 'general-skill-thumbs';
+
+      for (const ref of skill.thumbnails) {
+        const item = CATEGORIES[ref.category]?.[ref.itemIndex];
+        if (!item) continue;
+
+        const thumb = document.createElement('div');
+        thumb.className = 'general-skill-thumb';
+
+        const isVideo = item.src.endsWith('.mp4');
+        const media = document.createElement(isVideo ? 'video' : 'img');
+        media.src = resolveThumbnail(item.src);
+
+        if (isVideo) {
+          media.autoplay = true;
+          media.loop = true;
+          media.muted = true;
+          media.playsInline = true;
+        } else {
+          media.alt = item.alt ?? '';
+          media.loading = 'lazy';
+        }
+
+        thumb.appendChild(media);
+        thumbsRow.appendChild(thumb);
+
+        thumb.addEventListener('click', () => {
+          switchToAndOpenDetail(ref.category, ref.itemIndex);
+        });
+      }
+
+      skillsSection.appendChild(thumbsRow);
+    }
   }
   wrapper.appendChild(skillsSection);
 
@@ -721,7 +860,8 @@ function computeDetailLayout(itemEl, containerRect) {
  * @param {Object} itemData - The content data (src, title, description, etc.)
  */
 function openDetail(itemEl, itemData) {
-  activeDetail = { el: itemEl, data: itemData };
+  const sessionId = ++detailSessionId;
+  activeDetail = { el: itemEl, data: itemData, viewer: null, sessionId };
 
   const containerRect = mosaicEl.getBoundingClientRect();
 
@@ -780,6 +920,20 @@ function openDetail(itemEl, itemData) {
 
   anim.onfinish = () => {
     buildDetailInfo(itemData, layout);
+
+    // If this is a splat item, mount the 3D viewer on top of the thumbnail
+    if (itemData.type === 'splat' && itemData.splat?.file) {
+      mountSplatViewer(itemEl, itemData).then((viewer) => {
+        // Session ID check: if the user closed/reopened detail while the async
+        // import was in flight, this mount belongs to a stale session.
+        // Without this, rapid open/close/reopen leaks WebGL contexts.
+        if (activeDetail?.sessionId === sessionId) {
+          activeDetail.viewer = viewer;
+        } else {
+          destroySplatViewer(viewer);
+        }
+      });
+    }
   };
 }
 
@@ -929,7 +1083,13 @@ function buildDetailInfo(itemData, layout) {
 function closeDetail(instant = false) {
   if (!activeDetail) return;
 
-  const { el: itemEl } = activeDetail;
+  const { el: itemEl, viewer } = activeDetail;
+
+  // Destroy splat viewer before reversing the FLIP animation.
+  // Must happen first so the WebGL canvas is removed before the
+  // element transitions back to grid size (avoids flash of squished canvas).
+  destroySplatViewer(viewer);
+
   activeDetail = null;
 
   // Remove detail info + nav bar, restore grid pointer events
@@ -1044,18 +1204,40 @@ function clearFocus() {
 }
 
 /**
+ * Switches the mosaic to a category and opens a specific item's detail view.
+ * Used by General section thumbnails to navigate directly to a piece.
+ *
+ * @param {string} category - Key from CATEGORIES
+ * @param {number} itemIndex - Index within CATEGORIES[category]
+ */
+async function switchToAndOpenDetail(category, itemIndex) {
+  const navMenu = document.getElementById('nav-menu');
+  const navItem = [...navMenu.querySelectorAll('.nav-item')]
+    .find(n => n.dataset.label === category);
+  if (!navItem) return;
+
+  await selectNavItem(navItem);
+
+  const mosaicItems = mosaicEl.querySelectorAll('.mosaic-item');
+  const targetEl = mosaicItems[itemIndex];
+  const targetData = CATEGORIES[category]?.[itemIndex];
+  if (targetEl && targetData) openDetail(targetEl, targetData);
+}
+
+/**
  * Selects a nav item — updates .selected class and switches the mosaic.
  * Extracted so both click and keyboard nav can trigger it.
+ * Returns the renderMosaic() Promise so callers can await the render.
  */
 function selectNavItem(navItem) {
   const navMenu = document.getElementById('nav-menu');
   const current = navMenu.querySelector('.nav-item.selected');
-  if (navItem === current) return;
+  if (navItem === current) return Promise.resolve();
 
   current?.classList.remove('selected');
   navItem.classList.add('selected');
   mosaicFocusIndex = -1; // mosaic content is changing, reset its focus
-  renderMosaic(navItem.dataset.label);
+  return renderMosaic(navItem.dataset.label);
 }
 
 /** Activates (clicks) the currently focused element — Enter key handler. */
@@ -1135,76 +1317,101 @@ function handleArrowNav(key) {
  * Recomputes layout for the new item's AR (landscape vs portrait may differ).
  * No FLIP animation — just an instant position swap.
  *
+ * Guard: isNavigating prevents concurrent transitions from rapid arrow key
+ * presses during the 250ms fade-out. Without this, multiple viewers mount
+ * on the same element — leaking WebGL contexts.
+ *
  * @param {number} direction - -1 for previous, +1 for next
  */
+let isNavigating = false;
+
 async function navigateDetail(direction) {
-  if (!activeDetail) return;
+  if (!activeDetail || isNavigating) return;
+  isNavigating = true;
 
   const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item')];
   const currentIdx = mosaicItems.indexOf(activeDetail.el);
   const nextIdx = currentIdx + direction;
 
   // Bounds check
-  if (nextIdx < 0 || nextIdx >= currentCategoryItems.length) return;
+  if (nextIdx < 0 || nextIdx >= currentCategoryItems.length) { isNavigating = false; return; }
 
   const nextEl = mosaicItems[nextIdx];
   const nextData = currentCategoryItems[nextIdx];
-  if (!nextEl || !nextData) return;
+  if (!nextEl || !nextData) { isNavigating = false; return; }
 
-  // Fade out current image + info, then swap to new item
-  const { el: currentEl } = activeDetail;
-  currentEl.classList.add('detail-fading');
+  try {
+    // Destroy current splat viewer before fading out
+    destroySplatViewer(activeDetail.viewer);
+    activeDetail.viewer = null;
 
-  const info = mosaicEl.querySelector('.detail-info');
-  if (info) info.classList.remove('visible');
+    // Fade out current image + info, then swap to new item
+    const { el: currentEl } = activeDetail;
+    currentEl.classList.add('detail-fading');
 
-  // Wait for the fade-out to finish before swapping
-  const FADE_MS = 250;
-  await new Promise(r => setTimeout(r, FADE_MS));
+    const info = mosaicEl.querySelector('.detail-info');
+    if (info) info.classList.remove('visible');
 
-  // Clean up current item
-  currentEl.getAnimations().forEach(a => a.cancel());
-  currentEl.classList.remove('detail-active', 'detail-fading');
-  currentEl.style.left = '';
-  currentEl.style.top = '';
-  currentEl.style.width = '';
-  currentEl.style.height = '';
-  currentEl.style.display = 'none';
-  delete currentEl._detailLayout;
+    // Wait for the fade-out to finish before swapping
+    const FADE_MS = 250;
+    await new Promise(r => setTimeout(r, FADE_MS));
 
-  // Remove old detail info
-  if (info) info.remove();
+    // Clean up current item
+    currentEl.getAnimations().forEach(a => a.cancel());
+    currentEl.classList.remove('detail-active', 'detail-fading');
+    currentEl.style.left = '';
+    currentEl.style.top = '';
+    currentEl.style.width = '';
+    currentEl.style.height = '';
+    currentEl.style.display = 'none';
+    delete currentEl._detailLayout;
 
-  // Compute layout for the new item (may be different AR)
-  const containerRect = mosaicEl.getBoundingClientRect();
-  // Show the item so we can read its natural dimensions.
-  // It was hidden (display:none + fading-out from openDetail), so undo both.
-  nextEl.style.display = '';
-  nextEl.classList.remove('fading-out');
-  const layout = computeDetailLayout(nextEl, containerRect);
-  const { targetRect } = layout;
+    // Remove old detail info
+    if (info) info.remove();
 
-  // Position the new item (starts invisible, fades in)
-  nextEl.classList.add('detail-active', 'detail-fading');
-  nextEl.style.left = `${targetRect.x}px`;
-  nextEl.style.top = `${targetRect.y}px`;
-  nextEl.style.width = `${targetRect.w}px`;
-  nextEl.style.height = `${targetRect.h}px`;
-  nextEl._detailLayout = layout;
+    // Compute layout for the new item (may be different AR)
+    const containerRect = mosaicEl.getBoundingClientRect();
+    nextEl.style.display = '';
+    nextEl.classList.remove('fading-out');
+    const layout = computeDetailLayout(nextEl, containerRect);
+    const { targetRect } = layout;
 
-  activeDetail = { el: nextEl, data: nextData };
-  mosaicFocusIndex = nextIdx;
+    // Position the new item (starts invisible, fades in)
+    nextEl.classList.add('detail-active', 'detail-fading');
+    nextEl.style.left = `${targetRect.x}px`;
+    nextEl.style.top = `${targetRect.y}px`;
+    nextEl.style.width = `${targetRect.w}px`;
+    nextEl.style.height = `${targetRect.h}px`;
+    nextEl._detailLayout = layout;
 
-  // Fade in after a frame (let browser paint the positioned element first)
-  requestAnimationFrame(() => {
-    nextEl.classList.remove('detail-fading');
-  });
+    const sessionId = ++detailSessionId;
+    activeDetail = { el: nextEl, data: nextData, viewer: null, sessionId };
+    mosaicFocusIndex = nextIdx;
 
-  // Build new detail info with computed layout (it has its own fade-in)
-  buildDetailInfo(nextData, layout);
+    // Fade in after a frame (let browser paint the positioned element first)
+    requestAnimationFrame(() => {
+      nextEl.classList.remove('detail-fading');
+    });
 
-  // Update prev/next disabled states for new position
-  updateDetailNavButtons();
+    // Build new detail info with computed layout (it has its own fade-in)
+    buildDetailInfo(nextData, layout);
+
+    // Mount splat viewer for the next item if it's a splat
+    if (nextData.type === 'splat' && nextData.splat?.file) {
+      mountSplatViewer(nextEl, nextData).then((viewer) => {
+        if (activeDetail?.sessionId === sessionId) {
+          activeDetail.viewer = viewer;
+        } else {
+          destroySplatViewer(viewer);
+        }
+      });
+    }
+
+    // Update prev/next disabled states for new position
+    updateDetailNavButtons();
+  } finally {
+    isNavigating = false;
+  }
 }
 
 // ---- Master keydown handler ----
@@ -1333,31 +1540,40 @@ async function startRabbitTransition() {
     whiteTerminal.hideCursor();
 
     // 6. Start particle morph: rabbit sprite → cursor block
-    const spriteImage = await preloadImage(rabbitSpritesheetUrl);
-    const morph = new ParticleMorph(PARTICLE_CONFIG);
+    const particleConfig = getParticleConfig();
 
-    await morph.start({
-      source: {
-        rect: rabbitRect,
-        image: spriteImage,
-        frame: RABBIT_CONFIG.frames.idle,
-        flipped: rabbit.lastDirection === -1,
-      },
-      target: { rect: cursorTargetRect },
-      container: crtScreen,
-      color: PARTICLE_CONFIG.color,
-    });
+    if (particleConfig) {
+      const spriteImage = await preloadImage(rabbitSpritesheetUrl);
+      const morph = new ParticleMorph(particleConfig);
 
-    // 7. Destroy the rabbit DOM element
-    rabbit.destroy();
-    rabbit = null;
+      await morph.start({
+        source: {
+          rect: rabbitRect,
+          image: spriteImage,
+          frame: RABBIT_CONFIG.frames.idle,
+          flipped: rabbit.lastDirection === -1,
+        },
+        target: { rect: cursorTargetRect },
+        container: crtScreen,
+        color: PARTICLE_CONFIG.color,
+      });
 
-    // 8. Show cursor (locked, no blink) under the canvas
-    whiteTerminal.showCursor(true);
+      // 7. Destroy the rabbit DOM element
+      rabbit.destroy();
+      rabbit = null;
 
-    // 9. Handoff: fade canvas, reveal DOM cursor
-    await morph.handoff();
-    morph.destroy();
+      // 8. Show cursor (locked, no blink) under the canvas
+      whiteTerminal.showCursor(true);
+
+      // 9. Handoff: fade canvas, reveal DOM cursor
+      await morph.handoff();
+      morph.destroy();
+    } else {
+      // Low tier: skip particles, instant swap
+      rabbit.destroy();
+      rabbit = null;
+      whiteTerminal.showCursor(true);
+    }
 
     // 10. Start cursor blinking
     whiteTerminal.showCursor(false);
@@ -1496,17 +1712,19 @@ async function main() {
 
     await terminal.rampCursorBrightness(2500, 8);
 
-    if (isMobile()) {
-      // Mobile: skip particles, use existing direct spawn + drop
+    const particleConfig = getParticleConfig();
+
+    if (!particleConfig) {
+      // Low tier: skip particles, direct spawn + drop
       rabbit = new Rabbit();
       rabbit.spawnAndDrop(cursorPos.x, cursorPos.y, crtScreen);
       terminal.hideCursor();
     } else {
-      // Desktop: particle morph — cursor shatters into particles that
+      // Mid/High tier: particle morph — cursor shatters into particles that
       // reassemble into the rabbit shape, then hand off to DOM element
       const spriteImage = await preloadImage(rabbitSpritesheetUrl);
 
-      const morph = new ParticleMorph(PARTICLE_CONFIG);
+      const morph = new ParticleMorph(particleConfig);
       const targetRect = {
         x: cursorPos.x,
         y: cursorPos.y,

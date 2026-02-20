@@ -687,20 +687,21 @@ html, body {
   flex-direction: column;
   gap: 1.5rem;
 
-  /* Half-strength CRT blur + brightness — softens edges like phosphor bleed */
-  filter: blur(calc(var(--crt-blur, 1px) * 0.4)) brightness(calc(1 + 0.33 * var(--crt-glow-brightness, 1)));
+  /* Dark background required for brightness filter to work like the terminal.
+   * Without it, blur() has no dark pixels to mix with, so brightness(2) clips
+   * green text straight to near-white. Same reason the terminal looks vivid:
+   * blur mixes text with dark bg first, then brightness amplifies the blend. */
+  background-color: var(--bg-primary);
 
-  /* Reduced CRT text effect — 50% of the full terminal CRT look.
-   * Overrides the inherited text-shadow from .mosaic-frame.crt-effects
-   * so the CV text feels CRT-flavored without competing with the content. */
+  /* 1/3-strength CRT — scaled down from terminal for readable body text */
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.5)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
+
   text-shadow:
-    /* RGB split at half offset & half opacity */
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
     calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    /* Glow — 3 layers matching terminal spread, full intensity */
     0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(90% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent);
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 
@@ -713,14 +714,18 @@ html, body {
 
 .general-name {
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  font-weight: 600;
+  font-weight: 200;
   margin: 0;
   line-height: 1.1;
-  /* Combine the name's glow with reduced CRT RGB split */
+
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.75));
+  /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
   text-shadow:
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    0 0 20px var(--glow-color);
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
+    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 1)),
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 .general-title {
@@ -768,13 +773,45 @@ html, body {
 
 .general-skill-label {
   font-size: clamp(0.7rem, 1.4vw, 1rem);
-  font-weight: 600;
+  font-weight: 200;
 }
 
 .general-skill-detail {
   font-size: clamp(0.6rem, 1.1vw, 0.8rem);
   font-weight: 250;
-  opacity: 0.6;
+  opacity: 0.7;
+}
+
+/* --- Skill thumbnail strips --- */
+.general-skill-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.general-skill-thumb {
+  width: 110px;
+  height: 80px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.general-skill-thumb img,
+.general-skill-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--timing-normal) var(--ease-smooth),
+              filter var(--timing-normal) var(--ease-smooth);
+}
+
+.general-skill-thumb:hover img,
+.general-skill-thumb:hover video {
+  transform: scale(1.05);
+  filter: brightness(1.2);
 }
 
 /* --- Tools row --- */
@@ -1032,6 +1069,69 @@ html, body {
 .detail-nav-arrows {
   display: flex;
   gap: 0.5rem;
+}
+
+/* ============================================
+   Gaussian Splat 3D Viewer
+   ============================================ */
+
+/*
+ * Container for the WebGL canvas inside a detail-active mosaic item.
+ * Fills the item absolutely, sits on top of the thumbnail.
+ *
+ * filter: none !important — safety net against any inherited CRT filters.
+ * The mosaic grid (z-index 1000) already sits above .crt-overlay (100),
+ * so scanlines don't cover it. This just guards against filter inheritance
+ * from parent selectors that might blur/distort the 3D canvas.
+ */
+.splat-viewer-container {
+  position: absolute;
+  inset: 0;
+  z-index: 2;  /* Above the thumbnail img/video inside the detail-active item */
+  filter: none !important;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.splat-viewer-container.loaded {
+  opacity: 1;
+}
+
+/* Canvas fills container exactly */
+.splat-viewer-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Loading spinner — CSS-only, no extra DOM needed.
+ * Shows a rotating ring while the .spz file downloads.
+ * Hidden once .loaded class is added after SplatMesh.onLoad fires.
+ * Like a loading wheel in a game's asset streaming UI. */
+.splat-viewer-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: splat-spin 0.8s linear infinite;
+  z-index: 3;
+  transition: opacity 300ms ease;
+}
+
+.splat-viewer-container.loaded::before,
+.splat-viewer-container.error::before {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes splat-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ============================================

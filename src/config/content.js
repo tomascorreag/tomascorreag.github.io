@@ -34,6 +34,35 @@ const thumbnailModules = import.meta.glob(
 );
 
 /**
+ * Splat asset glob — same pattern as thumbnails but for .spz files.
+ *
+ * `as: 'url'` tells Vite "give me the resolved URL, don't import the file contents."
+ * At build time this becomes a map like:
+ *   { '../assets/splats/crystal.spz': '/assets/crystal-abc123.spz' }
+ *
+ * The .spz file itself is NOT downloaded at page load — it's just a URL string.
+ * The actual fetch happens when SplatViewer mounts and requests it.
+ */
+const splatModules = import.meta.glob(
+  '../assets/splats/**/*.spz',
+  { eager: true, query: '?url', import: 'default' }
+);
+
+/**
+ * Resolves a splat filename (like 'crystal.spz') to a Vite-processed URL.
+ * Parallel to resolveThumbnail() — same glob-based pattern.
+ */
+export function resolveSplat(filename) {
+  const key = `../assets/splats/${filename}`;
+  const resolved = splatModules[key];
+  if (!resolved) {
+    console.warn(`Splat not found: ${filename}`);
+    return '';
+  }
+  return resolved;
+}
+
+/**
  * Resolves a relative thumbnail path (like '3d-art/0169.png') to a Vite-processed URL.
  * Returns the hashed URL for production or the dev server URL in development.
  */
@@ -57,13 +86,16 @@ export const GENERAL_CONTENT = {
   title: 'Technical Artist',
   subtitle: 'Game Developer · Creative Engineer',
   summary:
-    'I love solving visual problems at the boundary between art and code.' +
+    'I solve visual problems at the boundary between art and code. ' +
     'I build shaders, VFX, tools, and pipelines that help artists work faster ' +
     'and games look better — always thinking in systems, always grounded in ' +
     "real production needs, and always focused on the player's experience.",
   skills: [
     { label: 'Shaders & VFX', detail: 'Real-time shaders, particle systems, post-processing' },
-    { label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender' },
+    { label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender', thumbnails: [
+      { category: '3D Art', itemIndex: 1 },
+      { category: '3D Art', itemIndex: 2 },
+    ] },
     { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
     { label: 'Game Development', detail: 'Shipped ARBO: Arena Tactics on Steam — end-to-end' },
   ],
@@ -82,7 +114,15 @@ export const CATEGORIES = {
     // Empty until you add images to src/assets/thumbnails/general/
   ],
   '3D Assets': [
-    // Empty until you add images to src/assets/thumbnails/3d-assets/
+    // Splat items use type: 'splat' to trigger the 3D viewer in detail view.
+    // The thumbnail shows a static render; clicking opens the interactive viewer.
+    // splat.file → filename in src/assets/splats/, resolved via resolveSplat().
+    // splat.camera → optional [x,y,z] camera position override for this piece.
+
+    // Add entries here as you export splats from Blender:
+    // { src: '3d-assets/crystal.png', alt: 'Crystal material', cols: 2, rows: 2,
+    //   title: 'Crystal', description: '...', type: 'splat',
+    //   splat: { file: 'crystal.spz' } },
   ],
   '3D Art': [
     { src: '3d-art/thumb1.mp4', alt: '3D Art piece', cols: 4, rows: 2, title: 'Animated Scene', description: 'Looping animation rendered in Blender Cycles.' },

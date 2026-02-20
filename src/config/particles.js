@@ -46,6 +46,11 @@ export const PARTICLE_CONFIG = Object.freeze({
   // Color (default — overridable per-morph call)
   color: { r: 242, g: 255, b: 242 },  // rgb(242, 255, 242) terminal green
 
-  // Mobile
-  mobile: { enabled: false },
+  // Device tier overrides (merged on top of defaults)
+  // low = skip particle morph entirely (same as old mobile behavior)
+  // mid = larger particles → fewer pixels to process, still looks good
+  tiers: {
+    low: { enabled: false },
+    mid: { cellSize: 2 },   // 2x2 source pixels per particle → 1/4 the particle count
+  },
 });
