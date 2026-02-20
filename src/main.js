@@ -24,9 +24,9 @@ function getParticleConfig() {
   const tierOverrides = PARTICLE_CONFIG.tiers?.[deviceTier];
   // If the tier explicitly disables particles, return null
   if (tierOverrides && tierOverrides.enabled === false) return null;
-  // Merge any tier-specific values on top of defaults
-  if (tierOverrides) return { ...PARTICLE_CONFIG, ...tierOverrides };
-  return PARTICLE_CONFIG;
+  // Always return a plain mutable copy — never hand out the frozen object
+  // directly, so callers get a consistent type regardless of tier.
+  return { ...PARTICLE_CONFIG, ...(tierOverrides || {}) };
 }
 import rabbitSpritesheetUrl from './assets/spritesheets/RabbitAnimation_V1.png';
 
@@ -507,10 +507,16 @@ async function renderMosaic(category) {
   // Store items array for keyboard detail navigation
   currentCategoryItems = items;
 
-  // If mosaic already has content, fade out first
+  // If mosaic already has content, fade out first.
+  // Listen to transitionend so we don't need to hardcode a duration that
+  // must stay in sync with the CSS value. Fallback timeout prevents hanging
+  // if the element is hidden/display:none and the transition never fires.
   if (mosaicHasContent) {
     mosaicEl.classList.remove('visible');
-    await new Promise(r => setTimeout(r, MOSAIC_CONFIG.fadeDuration));
+    await new Promise(r => {
+      const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
+      mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
+    });
   }
 
   // Clear and rebuild
@@ -532,7 +538,9 @@ async function renderMosaic(category) {
 
       const isVideo = item.src.endsWith('.mp4');
       const media = document.createElement(isVideo ? 'video' : 'img');
-      media.src = resolveThumbnail(item.src);
+      const thumbUrl = resolveThumbnail(item.src);
+      if (!thumbUrl) continue; // skip items with unresolved thumbnails
+      media.src = thumbUrl;
 
       if (isVideo) {
         media.autoplay = true;
@@ -778,7 +786,9 @@ function createDivider() {
  */
 function getMediaAspectRatio(itemEl) {
   const media = itemEl.querySelector('img, video');
-  if (media.tagName === 'VIDEO') return media.videoWidth / media.videoHeight;
+  if (!media) return 1;
+  if (media.tagName === 'VIDEO') return media.videoWidth / media.videoHeight || 1;
+  if (!media.complete || media.naturalWidth === 0) return 1;
   return media.naturalWidth / media.naturalHeight;
 }
 
@@ -1487,7 +1497,14 @@ function showMosaic() {
  */
 const params = new URLSearchParams(window.location.search);
 const rawName = params.get('name');
-const username = rawName ? rawName.trim().slice(0, 20).replace(/[<>]/g, '') : null;
+const username = rawName
+  ? rawName.trim().slice(0, 20)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  : null;
 
 // ============================================
 // Initialize & Run

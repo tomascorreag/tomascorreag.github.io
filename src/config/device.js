@@ -36,8 +36,11 @@ export function getDeviceMemory() {
  * GPU renderer string via WebGL debug extension.
  * Returns null if unavailable. Useful for logging, not great for tiering
  * (thousands of GPU names, inconsistent across drivers).
+ *
+ * Result is cached at module load — the GPU never changes at runtime, and
+ * creating/destroying a WebGL context is expensive (~10-50ms on some devices).
  */
-export function getGPURenderer() {
+function _queryGPURenderer() {
   try {
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl');
@@ -52,6 +55,8 @@ export function getGPURenderer() {
     return null;
   }
 }
+const _gpuRenderer = _queryGPURenderer();
+export function getGPURenderer() { return _gpuRenderer; }
 
 /** Network effective type ('slow-2g', '2g', '3g', '4g'). Chrome/Edge only. */
 export function getNetworkType() {
@@ -64,7 +69,7 @@ export function getSaveData() {
 }
 
 /** True if viewport + touch signals suggest mobile/tablet. */
-function isMobileDevice() {
+export function isMobileDevice() {
   return window.innerWidth <= 768 ||
     ('ontouchstart' in window && window.innerWidth <= 1024);
 }

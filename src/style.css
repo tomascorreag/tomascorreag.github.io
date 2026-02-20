@@ -1034,7 +1034,7 @@ html, body {
   background-color: var(--bg-primary);
 
   font-family: 'Martian Mono', monospace;
-  font-size: clamp(1.6rem, 1.8vw, 0.9rem);
+  font-size: clamp(0.9rem, 1.8vw, 1.6rem);
   font-weight: 200;
   color: var(--text-primary);
 

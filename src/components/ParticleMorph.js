@@ -26,6 +26,18 @@
 // Reference frame duration — physics is tuned at 60fps, dt-scaled at runtime
 const REF_FRAME_MS = 1000 / 60;
 
+// Unbiased Fisher-Yates shuffle — returns a new shuffled copy of the array.
+// Array.sort(() => Math.random() - 0.5) is biased because V8's Timsort does
+// not compare every pair, making some permutations systematically more likely.
+function fisherYates(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+
 // Module-level cache for sampled sprite cells.
 // Map<image.src, Map<cacheKey, cells[]>>
 //   Outer key: image.src string — stable across multiple Image() elements for
@@ -148,6 +160,13 @@ export class ParticleMorph {
     // Extra space on each side: 80px covers the 30px glow spread + ~50px of
     // turbulence drift (noiseAmplitude × drift frames, generously rounded up)
     const PADDING = 80;
+
+    if (!this.particles.length) {
+      // No particles — fall back to a minimal 1x1 canvas so createCanvas() is safe
+      this.canvasLeft = 0; this.canvasTop = 0;
+      this.canvasWidth = 1; this.canvasHeight = 1;
+      return;
+    }
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const p of this.particles) {
@@ -348,9 +367,9 @@ export class ParticleMorph {
     // Build matched pairs: zip source and target cells, handling count mismatch
     const maxLen = Math.max(sourceCells.length, targetCells.length);
 
-    // Shuffle both arrays to randomize pairing
-    const shuffledSource = [...sourceCells].sort(() => Math.random() - 0.5);
-    const shuffledTarget = [...targetCells].sort(() => Math.random() - 0.5);
+    // Shuffle both arrays to randomize pairing (Fisher-Yates — unbiased)
+    const shuffledSource = fisherYates(sourceCells);
+    const shuffledTarget = fisherYates(targetCells);
 
     this.particles = [];
     this.settledCount = 0;
@@ -435,10 +454,6 @@ export class ParticleMorph {
     } = this.config;
 
     const totalDuration = dissolveDuration + driftDuration + convergeDuration + settleDuration;
-    // Precise check: all particles flagged settled AND spawn delay has passed
-    // (the delay guard prevents resolving before staggered particles even start)
-    const allSettled = this.settledCount >= this.particles.length &&
-                       elapsed >= maxSpawnDelay;
 
     // Update each particle
     for (const p of this.particles) {
@@ -499,18 +514,20 @@ export class ParticleMorph {
       }
     }
 
+    // Precise check: all particles flagged settled AND spawn delay has passed
+    // (the delay guard prevents resolving before staggered particles even start).
+    // Evaluated after the loop so this.settledCount reflects the current frame.
+    const allSettled = this.settledCount >= this.particles.length &&
+                       elapsed >= maxSpawnDelay;
+
     // Render
     this.render();
 
     // Continue or resolve
     if (allSettled) {
-      // Snap all particles to exact targets for pixel-perfect result
-      for (const p of this.particles) {
-        p.x = p.targetX;
-        p.y = p.targetY;
-        p.alpha = 1;
-      }
-      this.render();
+      // All particles already have p.x === p.targetX (set in the settle check
+      // above), so no snap pass is needed — render() above already drew the
+      // pixel-perfect final frame.
       this.animationId = null;
       if (this.resolveStart) this.resolveStart();
     } else {
@@ -604,6 +621,9 @@ export function prewarmSampleCache(image, frameOffsets, { cellSize, frameWidth, 
     if (--remaining === 0) worker.terminate();
   };
 
+  // Terminate the worker if it throws an uncaught error
+  worker.onerror = () => worker.terminate();
+
   for (const frameOffset of unique) {
     const srcX = Math.abs(frameOffset);
     // createImageBitmap is async and non-blocking — resolves after browser
@@ -616,6 +636,12 @@ export function prewarmSampleCache(image, frameOffsets, { cellSize, frameWidth, 
           { bitmap, width: frameWidth, height: frameHeight, cellSize, frameOffset },
           [bitmap],
         );
+      })
+      .catch(() => {
+        // createImageBitmap failed for this frame — decrement remaining so the
+        // worker still terminates when all other frames finish (or immediately
+        // if this was the last one).
+        if (--remaining === 0) worker.terminate();
       });
   }
 }

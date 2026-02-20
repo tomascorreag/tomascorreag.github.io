@@ -7,7 +7,7 @@
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
 
-import { getDeviceTier } from './device.js';
+import { getDeviceTier, isMobileDevice } from './device.js';
 
 export const CRT_CONFIG = Object.freeze({
   // Scanlines
@@ -51,11 +51,9 @@ export const CRT_CONFIG = Object.freeze({
 /**
  * Detects if device is mobile/tablet.
  * Kept for any remaining viewport-specific checks (layout, not quality).
+ * Re-exported from device.js to avoid duplicate logic.
  */
-export function isMobile() {
-  return window.innerWidth <= 768 ||
-    ('ontouchstart' in window && window.innerWidth <= 1024);
-}
+export { isMobileDevice as isMobile };
 
 /**
  * Gets active config values based on device tier.
@@ -81,14 +79,20 @@ let lastTier = null;
 export function injectCRTVariables() {
   const currentTier = getDeviceTier();
 
-  // Set up resize listener on first call
+  // Set up resize listener on first call.
+  // Debounced — getDeviceTier() calls isMobileDevice() which reads window.innerWidth,
+  // and a tier change is only meaningful after the resize settles.
   if (lastTier === null) {
+    let resizeTimer;
     window.addEventListener('resize', () => {
-      const nowTier = getDeviceTier();
-      if (nowTier !== lastTier) {
-        lastTier = nowTier;
-        injectCRTVariables();
-      }
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const nowTier = getDeviceTier();
+        if (nowTier !== lastTier) {
+          lastTier = nowTier;
+          injectCRTVariables();
+        }
+      }, 150);
     });
   }
   lastTier = currentTier;
