@@ -720,7 +720,7 @@ html, body {
   margin: 0;
   line-height: 1.1;
 
-  filter: blur(calc(var(--crt-blur, 0.4px) * 0.75));
+  /* No separate blur pass — parent .general-content already blurs at 0.5x */
   /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
@@ -1169,5 +1169,50 @@ html, body {
 /* Nav: focused AND selected — add a slight glow to distinguish from plain selected */
 .nav-item.focused.selected {
   box-shadow: 0 0 8px var(--glow-color);
+}
+
+/* ── Portrait / near-square viewports ───────────────────────────────────────
+   Triggers on all portrait phones, portrait tablets, and 4:3 monitors.
+   Does NOT trigger on standard laptops/desktops (MacBook 14" = 1.54:1).      */
+@media (max-aspect-ratio: 4/3) {
+  /* Terminal: shift anchor from vertical-center to upper area */
+  .terminal-wrapper {
+    top: 20%;
+  }
+
+  /* Nav: horizontal strip below terminal */
+  .nav-menu {
+    left: 0;
+    right: 0;
+    bottom: auto;
+    top: 30%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 1rem 2rem;
+  }
+
+  /* Hide the > prompt — looks wrong in a horizontal nav */
+  .nav-prompt {
+    display: none;
+  }
+
+  /* Mosaic: full width, takes the bottom ~58% of the screen */
+  .mosaic-grid {
+    left: 2%;
+    right: 2%;
+    width: auto;
+    top: 42%;
+    bottom: 2%;
+  }
+
+  /* Mosaic frame mirrors with its standard ±1.5rem offsets */
+  .mosaic-frame {
+    left: calc(2% - 1.5rem);
+    right: calc(2% - 1.5rem);
+    width: auto;
+    top: calc(42% - 1.5rem);
+    bottom: calc(2% - 1.5rem);
+  }
 }
 

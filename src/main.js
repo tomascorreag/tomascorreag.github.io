@@ -9,7 +9,7 @@
  */
 
 import { Rabbit } from './components/Rabbit.js';
-import { ParticleMorph } from './components/ParticleMorph.js';
+import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
@@ -1595,8 +1595,8 @@ async function startRabbitTransition() {
     // Reveal the nav menu (already in DOM, just hidden)
     navMenu.hidden = false;
 
-    // Type menu items one by one
-    const menuItems = ['General', '3D Assets', '3D Art'];
+    // Type menu items bottom to top — 3D Art first, General last (ends selected)
+    const menuItems = ['3D Art', '3D Assets', 'General'];
     await sleep(200);
 
     let prevItem = null;
@@ -1610,7 +1610,7 @@ async function startRabbitTransition() {
       const item = document.createElement('div');
       item.className = 'nav-item selected';  // selected while typing
       item.dataset.label = label;
-      navMenu.appendChild(item);
+      navMenu.prepend(item);  // prepend so each new item appears above the previous
 
       // Build structure: <span class="nav-prompt">> </span><span class="nav-label">Label</span>
       const promptSpan = document.createElement('span');
@@ -1649,15 +1649,9 @@ async function startRabbitTransition() {
     cleanupSkip();
     skipTyping = false;
 
-    // Move selection to last item
-    prevItem.classList.remove('selected');
-
-    const items = navMenu.querySelectorAll('.nav-item');
-    const lastItem = items[items.length - 1];
-    lastItem.classList.add('selected');
-
+    // General was typed last and is already selected — no need to move selection.
     // Show mosaic with the initially selected category
-    const initialCategory = lastItem.dataset.label;
+    const initialCategory = prevItem.dataset.label;
     showMosaic();
     await renderMosaic(initialCategory);
 
@@ -1689,7 +1683,19 @@ async function startRabbitTransition() {
 async function main() {
   try {
     // Preload rabbit spritesheet before starting
-    await preloadImage(rabbitSpritesheetUrl);
+    const spritesheet = await preloadImage(rabbitSpritesheetUrl);
+
+    // Pre-warm sprite cell cache off the main thread — fire and forget.
+    // The worker samples all morph frames during the intro typing sequence,
+    // so the first morph hits the cache instead of paying the ~20ms GPU readback cost.
+    const prewarmConfig = getParticleConfig();
+    if (prewarmConfig) {
+      try {
+        prewarmSampleCache(spritesheet, Object.values(RABBIT_CONFIG.frames), prewarmConfig);
+      } catch (e) {
+        console.warn('[ParticleMorph] Cache prewarm failed (will sample on first morph):', e);
+      }
+    }
 
     // Kick off silent thumbnail preloading — fire and forget.
     // The intro sequence gives us 10+ seconds of idle network time,

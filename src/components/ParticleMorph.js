@@ -26,6 +26,14 @@
 // Reference frame duration — physics is tuned at 60fps, dt-scaled at runtime
 const REF_FRAME_MS = 1000 / 60;
 
+// Module-level cache for sampled sprite cells.
+// Map<image.src, Map<cacheKey, cells[]>>
+//   Outer key: image.src string — stable across multiple Image() elements for
+//              the same URL (preloadImage() creates a new element each call,
+//              so a WeakMap keyed on the element would always miss)
+//   Inner key: `${frameOffset}:${cellSize}` — cellSize varies by device tier
+const _cellCache = new Map();
+
 export class ParticleMorph {
   constructor(config) {
     this.config = config;
@@ -36,6 +44,7 @@ export class ParticleMorph {
     this.startTime = 0;
     this.lastFrameTime = 0;
     this.morphColor = null; // per-morph color override
+    this.settledCount = 0;
   }
 
   /**
@@ -186,6 +195,11 @@ export class ParticleMorph {
   sampleTargetImage(image, frameOffset) {
     const { cellSize, frameWidth, frameHeight } = this.config;
 
+    // Cache hit — same image+frame+cellSize already sampled, return stored cells
+    const cacheKey = `${frameOffset}:${cellSize}`;
+    let frameMap = _cellCache.get(image.src);
+    if (frameMap?.has(cacheKey)) return frameMap.get(cacheKey);
+
     // Frame dimensions — single frame from the spritesheet
     const frameW = frameWidth;
     const frameH = frameHeight;
@@ -194,7 +208,7 @@ export class ParticleMorph {
     const offscreen = document.createElement('canvas');
     offscreen.width = frameW;
     offscreen.height = frameH;
-    const offCtx = offscreen.getContext('2d');
+    const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
 
     // frameOffset is negative (e.g. -512), so the source x = abs(frameOffset)
     const srcX = Math.abs(frameOffset);
@@ -242,6 +256,10 @@ export class ParticleMorph {
         }
       }
     }
+
+    // Store in cache before returning
+    if (!frameMap) { frameMap = new Map(); _cellCache.set(image.src, frameMap); }
+    frameMap.set(cacheKey, cells);
 
     return cells;
   }
@@ -335,6 +353,7 @@ export class ParticleMorph {
     const shuffledTarget = [...targetCells].sort(() => Math.random() - 0.5);
 
     this.particles = [];
+    this.settledCount = 0;
 
     for (let i = 0; i < maxLen; i++) {
       // Wrap around if one side has fewer cells
@@ -416,16 +435,16 @@ export class ParticleMorph {
     } = this.config;
 
     const totalDuration = dissolveDuration + driftDuration + convergeDuration + settleDuration;
-    let allSettled = elapsed >= totalDuration + maxSpawnDelay;
+    // Precise check: all particles flagged settled AND spawn delay has passed
+    // (the delay guard prevents resolving before staggered particles even start)
+    const allSettled = this.settledCount >= this.particles.length &&
+                       elapsed >= maxSpawnDelay;
 
     // Update each particle
     for (const p of this.particles) {
       // Per-particle timeline (accounting for stagger delay)
       const particleElapsed = elapsed - p.delay;
-      if (particleElapsed < 0) {
-        allSettled = false;
-        continue;
-      }
+      if (particleElapsed < 0) continue;
 
       // Skip fully settled particles — alpha is already 1, position is at target
       if (p.settled) continue;
@@ -476,6 +495,7 @@ export class ParticleMorph {
         p.y = p.targetY;
         p.alpha = 1;
         p.settled = true;
+        this.settledCount++;
       }
     }
 
@@ -545,5 +565,57 @@ export class ParticleMorph {
     }
 
     ctx.globalAlpha = 1;
+  }
+}
+
+/**
+ * Pre-warms the sprite cell cache off the main thread.
+ *
+ * Call this once after the spritesheet image loads, passing all frame offsets
+ * the morph will ever use. By the time the user triggers the first morph,
+ * the cache will be populated and sampleTargetImage() returns instantly.
+ *
+ * How it works:
+ *   1. createImageBitmap() extracts each frame asynchronously (non-blocking)
+ *   2. The bitmap is transferred zero-copy to a Web Worker
+ *   3. The worker runs drawImage + getImageData + pixel loop off-thread
+ *   4. Results are stored in _cellCache when the worker responds
+ *
+ * If start() fires before pre-warming completes (race), sampleTargetImage()
+ * falls back to its synchronous path — no breakage, just the one-time cost.
+ *
+ * @param {HTMLImageElement} image       — the loaded spritesheet
+ * @param {number[]}         frameOffsets — e.g. [-512, -288, -32]
+ * @param {{ cellSize, frameWidth, frameHeight }} config — from PARTICLE_CONFIG
+ */
+export function prewarmSampleCache(image, frameOffsets, { cellSize, frameWidth, frameHeight }) {
+  // Deduplicate — e.g. spawnEnd and idle both map to -512
+  const unique = [...new Set(frameOffsets)];
+  let remaining = unique.length;
+
+  const worker = new Worker(new URL('../workers/sampleWorker.js', import.meta.url));
+
+  worker.onmessage = ({ data: { cells, frameOffset } }) => {
+    const cacheKey = `${frameOffset}:${cellSize}`;
+    let frameMap = _cellCache.get(image.src);
+    if (!frameMap) { frameMap = new Map(); _cellCache.set(image.src, frameMap); }
+    frameMap.set(cacheKey, cells);
+
+    if (--remaining === 0) worker.terminate();
+  };
+
+  for (const frameOffset of unique) {
+    const srcX = Math.abs(frameOffset);
+    // createImageBitmap is async and non-blocking — resolves after browser
+    // decodes the sub-region without stalling the main thread
+    createImageBitmap(image, srcX, 0, frameWidth, frameHeight)
+      .then(bitmap => {
+        // Transfer the bitmap zero-copy — main thread loses ownership,
+        // worker receives it directly without copying pixel data
+        worker.postMessage(
+          { bitmap, width: frameWidth, height: frameHeight, cellSize, frameOffset },
+          [bitmap],
+        );
+      });
   }
 }
