@@ -70,6 +70,12 @@ async function mountSplatViewer(itemEl, itemData) {
 
   // Resolve the .spz URL through Vite's asset pipeline
   const splatUrl = resolveSplat(itemData.splat.file);
+  if (!splatUrl) {
+    // File not found in glob — show error state immediately, skip mount.
+    // Without this guard, SplatMesh would fetch('') — a request to the page root.
+    container.classList.add('error');
+    return null;
+  }
 
   const viewer = new SplatViewer();
   viewer.mount(container, splatUrl, {
@@ -1201,9 +1207,6 @@ function clearFocus() {
  * Switches the mosaic to a category and opens a specific item's detail view.
  * Used by General section thumbnails to navigate directly to a piece.
  *
- * Can't reuse selectNavItem() here because that function doesn't return
- * the renderMosaic() Promise — we need to await it before querying items.
- *
  * @param {string} category - Key from CATEGORIES
  * @param {number} itemIndex - Index within CATEGORIES[category]
  */
@@ -1213,14 +1216,7 @@ async function switchToAndOpenDetail(category, itemIndex) {
     .find(n => n.dataset.label === category);
   if (!navItem) return;
 
-  const current = navMenu.querySelector('.nav-item.selected');
-  if (navItem !== current) {
-    current?.classList.remove('selected');
-    navItem.classList.add('selected');
-    mosaicFocusIndex = -1;
-  }
-
-  await renderMosaic(category);
+  await selectNavItem(navItem);
 
   const mosaicItems = mosaicEl.querySelectorAll('.mosaic-item');
   const targetEl = mosaicItems[itemIndex];
@@ -1231,16 +1227,17 @@ async function switchToAndOpenDetail(category, itemIndex) {
 /**
  * Selects a nav item — updates .selected class and switches the mosaic.
  * Extracted so both click and keyboard nav can trigger it.
+ * Returns the renderMosaic() Promise so callers can await the render.
  */
 function selectNavItem(navItem) {
   const navMenu = document.getElementById('nav-menu');
   const current = navMenu.querySelector('.nav-item.selected');
-  if (navItem === current) return;
+  if (navItem === current) return Promise.resolve();
 
   current?.classList.remove('selected');
   navItem.classList.add('selected');
   mosaicFocusIndex = -1; // mosaic content is changing, reset its focus
-  renderMosaic(navItem.dataset.label);
+  return renderMosaic(navItem.dataset.label);
 }
 
 /** Activates (clicks) the currently focused element — Enter key handler. */
@@ -1337,7 +1334,7 @@ async function navigateDetail(direction) {
   const nextIdx = currentIdx + direction;
 
   // Bounds check
-  if (nextIdx < 0 || nextIdx >= currentCategoryItems.length) return;
+  if (nextIdx < 0 || nextIdx >= currentCategoryItems.length) { isNavigating = false; return; }
 
   const nextEl = mosaicItems[nextIdx];
   const nextData = currentCategoryItems[nextIdx];

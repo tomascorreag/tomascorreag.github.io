@@ -37,15 +37,7 @@ export class SplatViewer {
    * @param {Object} [opts] - Optional overrides
    * @param {number[]} [opts.cameraPosition] - [x, y, z] override for initial camera
    * @param {Function} [opts.onLoad] - Called when splat finishes loading
-   * @param {Function} [opts.onProgress] - Called with ProgressEvent during download
-   */
-  /**
-   * @param {HTMLElement} container
-   * @param {string} url
-   * @param {Object} [opts]
-   * @param {number[]} [opts.cameraPosition]
-   * @param {Function} [opts.onLoad]
-   * @param {Function} [opts.onError]
+   * @param {Function} [opts.onError] - Called with error if loading fails
    */
   mount(container, url, opts = {}) {
     const tier = getQualityTier();

@@ -7,6 +7,8 @@
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
 
+import { getDeviceTier } from './device.js';
+
 export const CRT_CONFIG = Object.freeze({
   // Scanlines
   scanlineOpacity: 0.4,      // Base visibility (0-1)
@@ -45,8 +47,6 @@ export const CRT_CONFIG = Object.freeze({
     // mid and high: use defaults (no overrides needed)
   },
 });
-
-import { deviceTier, getDeviceTier } from './device.js';
 
 /**
  * Detects if device is mobile/tablet.

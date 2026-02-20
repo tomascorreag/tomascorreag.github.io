@@ -39,11 +39,15 @@ export function getDeviceMemory() {
  */
 export function getGPURenderer() {
   try {
-    const gl = document.createElement('canvas').getContext('webgl');
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl');
     if (!gl) return null;
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    if (!ext) return null;
-    return gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+    const renderer = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : null;
+    // Release the context immediately — browsers cap WebGL contexts per page (~8–16).
+    // Holding onto a sniff-only context would waste one slot for the lifetime of the tab.
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return renderer;
   } catch {
     return null;
   }

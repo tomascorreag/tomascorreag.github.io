@@ -55,7 +55,13 @@ export const SPLAT_CONFIG = Object.freeze({
 
 /**
  * Returns the active quality tier based on device capability.
- * Call this at viewer creation time (not cached — respects resize).
+ *
+ * Uses the cached `deviceTier` (computed once at module load) rather than
+ * calling `getDeviceTier()` fresh. This is intentional: splat quality is
+ * chosen when the viewer mounts and stays fixed for that session — unlike
+ * CRT settings which re-evaluate on resize to support tablet rotation.
+ * Changing quality mid-session would require tearing down and rebuilding
+ * the renderer, which is not worth it for a portfolio piece.
  */
 export function getQualityTier() {
   return SPLAT_CONFIG.tiers[deviceTier] || SPLAT_CONFIG.tiers.mid;

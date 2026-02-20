@@ -714,11 +714,11 @@ html, body {
 
 .general-name {
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  font-weight: 150;
+  font-weight: 200;
   margin: 0;
   line-height: 1.1;
 
-  filter: blur(calc(var(--crt-blur, 0.4px) * 0.75));;
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.75));
   /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
