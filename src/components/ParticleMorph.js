@@ -23,6 +23,9 @@
  *   morph.destroy();
  */
 
+// Reference frame duration — physics is tuned at 60fps, dt-scaled at runtime
+const REF_FRAME_MS = 1000 / 60;
+
 export class ParticleMorph {
   constructor(config) {
     this.config = config;
@@ -31,6 +34,7 @@ export class ParticleMorph {
     this.particles = [];
     this.animationId = null;
     this.startTime = 0;
+    this.lastFrameTime = 0;
     this.morphColor = null; // per-morph color override
   }
 
@@ -52,17 +56,20 @@ export class ParticleMorph {
     return new Promise(resolve => {
       this.resolveStart = resolve;
       this.morphColor = color || null;
-      this.createCanvas(container);
 
-      // Generate cells for source and target
+      // Generate particles first so we can measure their bounding box
       const sourceCells = this.generateCells(source);
       const targetCells = this.generateCells(target);
-
-      // Create particles mapping source → target positions
       this.generateParticles(source, target, sourceCells, targetCells);
+
+      // Size canvas to a tight bbox around the particles — the CSS filter then
+      // only processes that small region instead of the entire viewport
+      this.computeCanvasBounds();
+      this.createCanvas(container);
 
       // Kick off the animation loop
       this.startTime = performance.now();
+      this.lastFrameTime = 0;
       this.animate = this.animate.bind(this);
       this.animationId = requestAnimationFrame(this.animate);
     });
@@ -117,13 +124,48 @@ export class ParticleMorph {
   // ──────────────────────────────────────────────
 
   /**
-   * Creates a fullscreen fixed canvas for rendering particles.
+   * Computes a tight bounding box around all particle source and target
+   * positions, with padding for turbulence drift and the glow filter bleed.
+   *
+   * Must be called after generateParticles(). Stores:
+   *   this.canvasLeft, this.canvasTop  — viewport offset of canvas origin
+   *   this.canvasWidth, this.canvasHeight — canvas pixel dimensions
+   *
+   * Why: CSS filter cost scales with canvas area. Shrinking the canvas from
+   * fullscreen (~1.5M px) to the actual particle region (~30-100K px) gives
+   * a ~15-50x reduction in filter work with identical visual output.
+   */
+  computeCanvasBounds() {
+    // Extra space on each side: 80px covers the 30px glow spread + ~50px of
+    // turbulence drift (noiseAmplitude × drift frames, generously rounded up)
+    const PADDING = 80;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of this.particles) {
+      minX = Math.min(minX, p.sourceX, p.targetX);
+      minY = Math.min(minY, p.sourceY, p.targetY);
+      maxX = Math.max(maxX, p.sourceX + p.size, p.targetX + p.size);
+      maxY = Math.max(maxY, p.sourceY + p.size, p.targetY + p.size);
+    }
+
+    this.canvasLeft = Math.max(0, minX - PADDING);
+    this.canvasTop  = Math.max(0, minY - PADDING);
+    this.canvasWidth  = Math.min(window.innerWidth,  maxX + PADDING) - this.canvasLeft;
+    this.canvasHeight = Math.min(window.innerHeight, maxY + PADDING) - this.canvasTop;
+  }
+
+  /**
+   * Creates a fixed canvas sized to the particle bounding box.
+   * Must be called after computeCanvasBounds().
    */
   createCanvas(container) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'particle-canvas crt-effects';
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
+    this.canvas.width  = this.canvasWidth;
+    this.canvas.height = this.canvasHeight;
+    // Override the CSS top:0; left:0 defaults to position over the bbox
+    this.canvas.style.left = `${this.canvasLeft}px`;
+    this.canvas.style.top  = `${this.canvasTop}px`;
     container.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
   }
@@ -325,6 +367,7 @@ export class ParticleMorph {
         size: particleSize,
         // Start visible if coming from sprite (they ARE the sprite pixels)
         alpha: sourceIsSprite ? 1 : 0,
+        settled: false,
       });
     }
   }
@@ -346,10 +389,28 @@ export class ParticleMorph {
    * ~60 times per second (matching your monitor's refresh rate).
    */
   animate(timestamp) {
+    // Delta time in ms since last frame, clamped to 3 reference frames max.
+    // The clamp prevents a huge single step when the tab regains focus after
+    // being backgrounded (browsers pause rAF on hidden tabs).
+    const rawDt = this.lastFrameTime ? timestamp - this.lastFrameTime : REF_FRAME_MS;
+    const dt = Math.min(rawDt, REF_FRAME_MS * 3);
+    this.lastFrameTime = timestamp;
+
+    // How many 60fps reference frames fit in this real dt.
+    // dtScale = 1.0 at 60fps, 2.0 at 30fps, 0.5 at 120fps.
+    // All force, damping, and integration are multiplied by this so the
+    // animation plays at identical real-world speed regardless of framerate.
+    const dtScale = dt / REF_FRAME_MS;
+
+    // Pre-compute per-frame damping: correct framerate-independent equivalent
+    // of applying per-frame damping `dtScale` times.
+    // e.g. at 30fps: Math.pow(0.7, 2) = 0.49 ≈ two 60fps damping steps.
+    const dampingFactor = Math.pow(this.config.damping, dtScale);
+
     const elapsed = timestamp - this.startTime;
     const {
       dissolveDuration, driftDuration, convergeDuration, settleDuration,
-      stiffnessStart, stiffnessEnd, damping,
+      stiffnessStart, stiffnessEnd,
       noiseAmplitude, noiseFrequency, noiseSpeed,
       maxSpawnDelay,
     } = this.config;
@@ -366,6 +427,9 @@ export class ParticleMorph {
         continue;
       }
 
+      // Skip fully settled particles — alpha is already 1, position is at target
+      if (p.settled) continue;
+
       // Normalized progress (0 → 1) over the full duration
       const progress = Math.min(particleElapsed / totalDuration, 1);
 
@@ -381,26 +445,38 @@ export class ParticleMorph {
       const forceX = stiffness * (p.targetX - p.x);
       const forceY = stiffness * (p.targetY - p.y);
 
-      // Turbulence: layered sine waves that decay with progress
+      // Turbulence: layered sine waves that decay with progress.
+      // Skip entirely once decay is negligible — saves 6 Math.sin() calls per particle.
       const turbDecay = Math.max(0, 1 - progress * progress);
-      const time = timestamp * noiseSpeed * 0.001;
-      const nx = p.x * noiseFrequency + p.noiseOffset;
-      const ny = p.y * noiseFrequency + p.noiseOffset;
+      let turbX = 0, turbY = 0;
+      if (turbDecay > 0.005) {
+        const time = timestamp * noiseSpeed * 0.001;
+        const nx = p.x * noiseFrequency + p.noiseOffset;
+        const ny = p.y * noiseFrequency + p.noiseOffset;
+        turbX = this.noise2D(nx, ny + time) * noiseAmplitude * turbDecay;
+        turbY = this.noise2D(ny + 31.7, nx - time) * noiseAmplitude * turbDecay;
+      }
 
-      const turbX = this.noise2D(nx, ny + time) * noiseAmplitude * turbDecay;
-      const turbY = this.noise2D(ny + 31.7, nx - time) * noiseAmplitude * turbDecay;
+      // Apply forces scaled by dt — accumulate the right amount of impulse
+      // regardless of how much real time passed since the last frame
+      p.vx += (forceX + turbX) * dtScale;
+      p.vy += (forceY + turbY) * dtScale;
 
-      // Apply forces to velocity
-      p.vx += forceX + turbX;
-      p.vy += forceY + turbY;
+      // Damping scaled by dt — equivalent to applying per-frame damping dtScale times
+      p.vx *= dampingFactor;
+      p.vy *= dampingFactor;
 
-      // Damping
-      p.vx *= damping;
-      p.vy *= damping;
+      // Integrate scaled by dt — move the right number of pixels for this timestep
+      p.x += p.vx * dtScale;
+      p.y += p.vy * dtScale;
 
-      // Integrate
-      p.x += p.vx;
-      p.y += p.vy;
+      // Mark settled when actual displacement this step is negligible
+      if (progress >= 1 && Math.abs(p.vx * dtScale) < 0.1 && Math.abs(p.vy * dtScale) < 0.1) {
+        p.x = p.targetX;
+        p.y = p.targetY;
+        p.alpha = 1;
+        p.settled = true;
+      }
     }
 
     // Render
@@ -437,6 +513,10 @@ export class ParticleMorph {
   /**
    * Renders all particles to the canvas.
    * Uses per-morph color override if set, otherwise config color.
+   *
+   * Two-pass approach: fully opaque particles first (no per-particle state
+   * change), then fading particles. This avoids N globalAlpha + fillStyle
+   * state changes when all particles are settled (the common case).
    */
   render() {
     const ctx = this.ctx;
@@ -444,12 +524,24 @@ export class ParticleMorph {
 
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    for (const p of this.particles) {
-      if (p.alpha <= 0) continue;
+    // Set color once — all particles share the same color
+    ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
 
+    const ox = this.canvasLeft;
+    const oy = this.canvasTop;
+
+    // Pass 1: fully opaque particles (no globalAlpha state change needed)
+    ctx.globalAlpha = 1;
+    for (const p of this.particles) {
+      if (p.alpha < 1) continue;
+      ctx.fillRect((p.x - ox) | 0, (p.y - oy) | 0, p.size, p.size);
+    }
+
+    // Pass 2: fading-in particles (only during the brief spawn delay window)
+    for (const p of this.particles) {
+      if (p.alpha <= 0 || p.alpha >= 1) continue;
       ctx.globalAlpha = p.alpha;
-      ctx.fillStyle = `rgb(${color.r}, ${color.g}, ${color.b})`;
-      ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      ctx.fillRect((p.x - ox) | 0, (p.y - oy) | 0, p.size, p.size);
     }
 
     ctx.globalAlpha = 1;

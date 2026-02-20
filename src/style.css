@@ -538,6 +538,8 @@ html, body {
 }
 
 /* --- Canvas CRT: particle morph overlay --- */
+/* The canvas is sized to a tight bounding box around the particles (not
+ * fullscreen), so this filter only processes the small occupied region. */
 .particle-canvas.crt-effects {
   filter:
     blur(var(--crt-blur, 0.4px))
