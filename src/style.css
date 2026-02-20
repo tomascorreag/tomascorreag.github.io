@@ -102,7 +102,7 @@ html, body {
   font-family: 'Martian Mono', monospace;
   font-weight: 200;
   font-style: normal;
-  font-size: clamp(1.25rem, 4vw, 2rem);
+  font-size: clamp(1.25rem, 1.667vw, 2rem);
 
   /* Subtle glow on all text - uses era-specific glow */
   text-shadow: 0 0 10px var(--glow-color);
@@ -503,7 +503,7 @@ html, body {
   font-family: 'Martian Mono', monospace;
   font-weight: 200;
   font-style: normal;
-  font-size: clamp(1.25rem, 4vw, 2rem);
+  font-size: clamp(1.25rem, 1.667vw, 2rem);
   color: var(--text-primary);
   background-color: var(--bg-primary);
   gap: 0.5em;
