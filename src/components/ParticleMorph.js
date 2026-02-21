@@ -74,6 +74,9 @@ export class ParticleMorph {
    * `flipped` controls X-axis mirror math (default false).
    */
   start({ source, target, container, color }) {
+    // Pre-assign so skip() is safe to call from the moment the listener
+    // is registered — before the Promise executor actually runs.
+    this.resolveStart = null;
     return new Promise(resolve => {
       this.resolveStart = resolve;
       this.morphColor = color || null;
@@ -121,6 +124,26 @@ export class ParticleMorph {
       this.canvas.style.opacity = '0';
       setTimeout(resolve, duration);
     });
+  }
+
+  /**
+   * Immediately snaps all particles to their targets and resolves start().
+   * Call this to skip the animation on user input (same idea as skipTyping).
+   */
+  skip() {
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+    for (const p of this.particles) {
+      p.x = p.targetX;
+      p.y = p.targetY;
+      p.alpha = 1;
+      p.settled = true;
+    }
+    this.settledCount = this.particles.length;
+    this.render();
+    if (this.resolveStart) this.resolveStart();
   }
 
   /**

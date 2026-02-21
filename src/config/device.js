@@ -110,13 +110,18 @@ export function getDeviceTier() {
 /**
  * Cached tier — computed once on module load.
  * Import this for quick checks: `if (deviceTier === 'low') ...`
+ *
+ * Debug override: append ?tier=low / ?tier=mid / ?tier=high to the URL.
  */
-export const deviceTier = getDeviceTier();
+const _debugTier = new URLSearchParams(window.location.search).get('tier');
+const _validTiers = ['low', 'mid', 'high'];
+export const deviceTier = _validTiers.includes(_debugTier) ? _debugTier : getDeviceTier();
 
 // Log once for debugging (visible in DevTools console)
 if (import.meta.env.DEV) {
+  const override = _validTiers.includes(_debugTier) ? ` (DEBUG OVERRIDE: ?tier=${_debugTier})` : '';
   console.log(
-    `[device] tier: ${deviceTier} | cores: ${getCoreCount()} | ` +
+    `[device] tier: ${deviceTier}${override} | cores: ${getCoreCount()} | ` +
     `mem: ${getDeviceMemory() ?? '?'}GB | gpu: ${getGPURenderer() ?? '?'} | ` +
     `net: ${getNetworkType() ?? '?'} | dpr: ${devicePixelRatio}`
   );

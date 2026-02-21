@@ -99,7 +99,7 @@ export const GENERAL_CONTENT = {
     { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
     { label: 'Game Development', detail: 'Shipped ARBO: Arena Tactics on Steam — end-to-end' },
   ],
-  tools: ['Unity', 'Blender', 'HLSL/GLSL', 'C#', 'Python'],
+  tools: ['Unity', 'Blender', 'C#', 'Python', 'HLSL/GLSL', 'SQL'],
   contacts: [
     { platform: 'linkedin', url: 'https://www.linkedin.com/in/tomás-correa-551b0a243', label: 'LinkedIn' },
     { platform: 'github',   url: 'https://github.com/tomascorreag', label: 'GitHub' },

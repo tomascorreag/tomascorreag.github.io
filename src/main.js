@@ -128,6 +128,12 @@ function enableSkipOnClick() {
   return () => document.removeEventListener('click', handler);
 }
 
+function enableSkipMorphOnClick(morph) {
+  const handler = () => morph.skip();
+  document.addEventListener('click', handler, { once: true });
+  return () => document.removeEventListener('click', handler);
+}
+
 // ============================================
 // Terminal Class
 // ============================================
@@ -481,6 +487,7 @@ function preloadThumbnails() {
  */
 const mosaicEl = document.getElementById('mosaic');
 let mosaicHasContent = false;
+let staggerTimeouts = [];
 
 // ---- Detail view state ----
 // Tracks which mosaic item is currently expanded (null = grid mode).
@@ -584,6 +591,18 @@ async function renderMosaic(category) {
   // Fade in after a brief frame delay (lets browser paint the new items)
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
+
+  // Trigger staggered reveal for General section on mid/high tier.
+  // Each element cascades in 210ms after the previous, starting as the
+  // parent fade begins — the multiplied opacities create a natural reveal.
+  staggerTimeouts.forEach(clearTimeout);
+  staggerTimeouts = [];
+  if (isGeneral && deviceTier !== 'low') {
+    const targets = [...mosaicEl.querySelectorAll('.stagger-reveal')];
+    staggerTimeouts = targets.map((el, i) =>
+      setTimeout(() => el.classList.add('visible'), i * 200)
+    );
+  }
 }
 
 /**
@@ -598,14 +617,25 @@ function renderGeneralContent() {
   const wrapper = document.createElement('div');
   wrapper.className = 'general-content';
 
-  // --- Header block: name + titles ---
+  // --- Header block: name + titles (individual elements for stagger) ---
   const header = document.createElement('header');
   header.className = 'general-header';
-  header.innerHTML = `
-    <h1 class="general-name">${gc.name}</h1>
-    <p class="general-title">${gc.title}</p>
-    <p class="general-subtitle">${gc.subtitle}</p>
-  `;
+
+  const gcName = document.createElement('h1');
+  gcName.className = 'general-name';
+  gcName.textContent = gc.name;
+
+  const gcTitle = document.createElement('p');
+  gcTitle.className = 'general-title';
+  gcTitle.textContent = gc.title;
+
+  const gcSubtitle = document.createElement('p');
+  gcSubtitle.className = 'general-subtitle';
+  gcSubtitle.textContent = gc.subtitle;
+
+  header.appendChild(gcName);
+  header.appendChild(gcTitle);
+  header.appendChild(gcSubtitle);
   wrapper.appendChild(header);
 
   // --- Summary ---
@@ -615,7 +645,8 @@ function renderGeneralContent() {
   wrapper.appendChild(summary);
 
   // --- Divider ---
-  wrapper.appendChild(createDivider());
+  const divider1 = createDivider();
+  wrapper.appendChild(divider1);
 
   // --- Skills list ---
   const skillsSection = document.createElement('div');
@@ -623,10 +654,14 @@ function renderGeneralContent() {
   for (const skill of gc.skills) {
     const row = document.createElement('div');
     row.className = 'general-skill-row';
-    row.innerHTML = `
-      <span class="general-skill-label">${skill.label}</span>
-      <span class="general-skill-detail">${skill.detail}</span>
-    `;
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'general-skill-label';
+    labelSpan.textContent = skill.label;
+    const detailSpan = document.createElement('span');
+    detailSpan.className = 'general-skill-detail';
+    detailSpan.textContent = skill.detail;
+    row.appendChild(labelSpan);
+    row.appendChild(detailSpan);
     skillsSection.appendChild(row);
 
     if (skill.thumbnails?.length) {
@@ -668,21 +703,28 @@ function renderGeneralContent() {
   wrapper.appendChild(skillsSection);
 
   // --- Divider ---
-  wrapper.appendChild(createDivider());
+  const divider2 = createDivider();
+  wrapper.appendChild(divider2);
 
   // --- Tools ---
   const toolsRow = document.createElement('div');
   toolsRow.className = 'general-tools';
-  toolsRow.innerHTML = gc.tools
-    .map(t => `<span class="general-tool">${t}</span>`)
-    .join('');
+  for (const t of gc.tools) {
+    const span = document.createElement('span');
+    span.className = 'general-tool';
+    span.textContent = t;
+    toolsRow.appendChild(span);
+  }
   wrapper.appendChild(toolsRow);
 
   // --- Contact icons ---
+  let divider3 = null;
+  let contactRow = null;
   if (gc.contacts?.length) {
-    wrapper.appendChild(createDivider());
+    divider3 = createDivider();
+    wrapper.appendChild(divider3);
 
-    const contactRow = document.createElement('div');
+    contactRow = document.createElement('div');
     contactRow.className = 'general-contacts';
     for (const c of gc.contacts) {
       // Two kinds: link contacts (open a URL) and copy contacts (show text on hover)
@@ -707,12 +749,14 @@ function renderGeneralContent() {
         // them up on mouseleave (same pattern as cancelling a coroutine).
         let typeInterval = null;
         let charIndex = 0;
+        let copiedTimeout = null;
+        let isHovering = false;
 
-        item.addEventListener('mouseenter', () => {
+        const startTypeout = () => {
+          if (typeInterval) { clearInterval(typeInterval); typeInterval = null; }
           charIndex = 0;
-          typeout.textContent = '';
+          typeout.textContent = '\u00A0'; // non-breaking space — preserved by browser, creates gap before text
           typeout.classList.add('typing');
-
           typeInterval = setInterval(() => {
             if (charIndex < c.copyText.length) {
               typeout.textContent += c.copyText[charIndex];
@@ -721,27 +765,63 @@ function renderGeneralContent() {
               clearInterval(typeInterval);
               typeInterval = null;
             }
-          }, 40); // ~40ms per char — fast enough to feel snappy, slow enough to read
+          }, 40);
+        };
+
+        item.addEventListener('mouseenter', () => {
+          isHovering = true;
+          if (typeout.classList.contains('copied')) return; // let "Copied!" finish showing
+          startTypeout();
         });
 
         item.addEventListener('mouseleave', () => {
+          isHovering = false;
           if (typeInterval) { clearInterval(typeInterval); typeInterval = null; }
+          if (typeout.classList.contains('copied')) return; // don't wipe "Copied!" early
           typeout.classList.remove('typing');
           typeout.textContent = '';
         });
 
+        item.addEventListener('click', () => {
+          navigator.clipboard.writeText(c.copyText).catch(() => {});
+          if (typeInterval) { clearInterval(typeInterval); typeInterval = null; }
+          if (copiedTimeout) { clearTimeout(copiedTimeout); }
+          typeout.classList.remove('typing');
+          typeout.classList.add('copied');
+          typeout.textContent = '\u00A0Copied!';
+          copiedTimeout = setTimeout(() => {
+            typeout.classList.remove('copied');
+            typeout.textContent = '';
+            copiedTimeout = null;
+            if (isHovering) startTypeout(); // resume typeout if still hovering
+          }, 1000);
+        });
+
       } else {
+        if (!/^https?:\/\//i.test(c.url)) {
+          console.warn(`Skipping non-http contact URL: ${c.url}`);
+          continue;
+        }
         const a = document.createElement('a');
         a.href = c.url;
         a.className = 'general-contact-link';
         a.setAttribute('aria-label', c.label);
         a.target = '_blank';
-        a.rel = 'noopener';
+        a.rel = 'noopener noreferrer';
         a.innerHTML = CONTACT_ICONS[c.platform] || c.label;
         contactRow.appendChild(a);
       }
     }
     wrapper.appendChild(contactRow);
+  }
+
+  // Stagger reveal on mid/high tier — mark each top-level block.
+  // JS triggers .visible on each sequentially after the mosaic fades in.
+  if (deviceTier !== 'low') {
+    const staggerTargets = [gcName, gcTitle, gcSubtitle, summary, divider1, skillsSection, divider2, toolsRow];
+    if (divider3) staggerTargets.push(divider3);
+    if (contactRow) staggerTargets.push(contactRow);
+    for (const el of staggerTargets) el.classList.add('stagger-reveal');
   }
 
   mosaicEl.appendChild(wrapper);
@@ -1463,24 +1543,40 @@ document.addEventListener('keydown', (e) => {
 
 /**
  * Unhides the mosaic container and creates the static outline frame.
+ * Call this while the nav menu is still being typed to start the frame
+ * sweep early. Creates the frame element and triggers the CSS animation.
+ */
+function showMosaicFrame() {
+  if (crtScreen.querySelector('.mosaic-frame')) return;
+  const frame = document.createElement('div');
+  frame.className = 'mosaic-frame crt-effects';
+
+  const handle = document.createElement('div');
+  handle.className = 'mosaic-handle';
+  frame.appendChild(handle);
+
+  crtScreen.appendChild(frame);
+
+  if (deviceTier === 'low') {
+    // Add visible before first paint — browser skips the transition entirely
+    frame.classList.add('visible');
+  } else {
+    // Double rAF ensures initial clipped/transparent state is painted first,
+    // so the transition fires from the start state rather than snapping
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        frame.classList.add('visible');
+      });
+    });
+  }
+}
+
+/**
  * Call this once after the nav menu finishes typing.
- * The frame lives in #crt-screen (below scanlines) and stays visible
- * through category switches and detail view — it marks the mosaic area.
+ * The frame is already animating — this just reveals the mosaic content.
  */
 function showMosaic() {
   mosaicEl.hidden = false;
-
-  // Create static outline frame (once)
-  const frame = document.createElement('div');
-  frame.className = 'mosaic-frame crt-effects';
-  crtScreen.appendChild(frame);
-
-  // Fade in after a frame (same pattern as mosaic content)
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      frame.classList.add('visible');
-    });
-  });
 }
 
 // ============================================
@@ -1563,6 +1659,7 @@ async function startRabbitTransition() {
       const spriteImage = await preloadImage(rabbitSpritesheetUrl);
       const morph = new ParticleMorph(particleConfig);
 
+      const cleanupMorphSkip = enableSkipMorphOnClick(morph);
       await morph.start({
         source: {
           rect: rabbitRect,
@@ -1574,6 +1671,7 @@ async function startRabbitTransition() {
         container: crtScreen,
         color: PARTICLE_CONFIG.color,
       });
+      cleanupMorphSkip();
 
       // 7. Destroy the rabbit DOM element
       rabbit.destroy();
@@ -1645,6 +1743,9 @@ async function startRabbitTransition() {
       cursorChar.className = 'cursor';
       cursorChar.textContent = '█';
       item.appendChild(cursorChar);
+
+      // Start frame sweep as the last nav item begins typing
+      if (label === menuItems[menuItems.length - 1]) showMosaicFrame();
 
       // First 2 chars ("> ") go into promptSpan, rest into labelSpan
       for (let i = 0; i < fullText.length; i++) {
@@ -1757,12 +1858,14 @@ async function main() {
 
       terminal.delayedHideCursor(100)
 
-      // Particles animate: scatter → drift → converge → settle
+      // Particles animate: scatter → drift → converge → settle (click to skip)
+      const cleanupMorphSkip = enableSkipMorphOnClick(morph);
       await morph.start({
         source: { rect: cursorRect },
         target: { rect: targetRect, image: spriteImage, frame: RABBIT_CONFIG.frames.spawnStart, flipped: true },
         container: crtScreen,
       });
+      cleanupMorphSkip();
 
       // Place the real DOM rabbit underneath the canvas (hidden)
       rabbit = new Rabbit();

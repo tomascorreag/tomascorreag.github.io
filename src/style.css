@@ -575,17 +575,64 @@ html, body {
   top: calc(5% - 1.5rem);
   bottom: calc(5% - 1.5rem);
   width: calc(55% + 3rem);
-  border: 4px solid var(--text-primary);
   background-color: var(--bg-primary);
   pointer-events: none;
   z-index: 1;
-
-  opacity: 0;
-  transition: opacity 300ms ease;
 }
 
-.mosaic-frame.visible {
+/* Outer border (1px) — sweeps in from bottom-right to top-left.
+ * Triangle starts as a point at (100%,100%) and expands until
+ * its hypotenuse (a 45° line) has swept across the full rect. */
+.mosaic-frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  clip-path: polygon(100% 100%, 100% 100%, 100% 100%);
+  transition: clip-path 1000ms ease-in-out, opacity 1000ms ease-in-out;
+}
+
+.mosaic-frame.visible::before {
   opacity: 1;
+  clip-path: polygon(100% 100%, -200% 100%, 100% -200%);
+}
+
+/* Inner border (2px) — sweeps in from top-left to bottom-right.
+ * Mirror of ::before: triangle grows from (0%,0%) corner. */
+.mosaic-frame::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 2px solid var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  clip-path: polygon(0% 0%, 0% 0%, 0% 0%);
+  transition: clip-path 1000ms ease-in-out, opacity 1000ms ease-in-out;
+}
+
+.mosaic-frame.visible::after {
+  opacity: 1;
+  clip-path: polygon(0% 0%, 300% 0%, 0% 300%);
+}
+
+/* Retro handle bar — solid green fill, floating inside the double border.
+ * 8px from frame edges = 2px clearance past the inner border (which ends at 6px). */
+.mosaic-handle {
+  position: absolute;
+  top: 13px;
+  left: 12px;
+  right: 12px;
+  height: 20px;
+  background: var(--text-primary);
+  opacity: 0.33;
+  clip-path: polygon(0% 0%, 0% 0%, 0% 0%);
+  transition: clip-path 1000ms ease-in-out;
+}
+
+.mosaic-frame.visible .mosaic-handle {
+  clip-path: polygon(0% 0%, 300% 0%, 0% 300%);
 }
 
 .mosaic-grid[hidden] {
@@ -673,15 +720,36 @@ html, body {
 .mosaic-grid.general-mode {
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   overflow-y: auto;
-  padding: 2rem;
+  padding: calc(2rem + 20px) 2rem 2rem 2rem;
   z-index: 99;  /* Drop below .crt-overlay (100) so global scanlines cover the CV */
+}
+
+/* Staggered reveal for General section elements (mid/high tier).
+ * JS adds .stagger-reveal to each target, then adds .visible sequentially.
+ *
+ * :not(.visible) gives specificity (0,2,0) — beats any single-class opacity
+ * rule (e.g. .general-summary { opacity: 0.9 }) that would otherwise win
+ * and make the element start partially visible.
+ *
+ * .visible omits opacity so each element transitions back to its own natural
+ * opacity rather than forcing everything to 1. */
+.stagger-reveal {
+  transition: opacity 800ms ease, transform 800ms ease;
+}
+
+.stagger-reveal:not(.visible) {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.stagger-reveal.visible {
+  transform: translateY(0);
 }
 
 .general-content {
   position: relative;
-  max-width: 625px;
   width: 100%;
   font-family: 'Martian Mono', monospace;
   color: var(--text-primary);
@@ -738,7 +806,7 @@ html, body {
 }
 
 .general-subtitle {
-  font-size: clamp(0.7rem, 1.5vw, 0.85rem);
+  font-size: clamp(0.7rem, 1.5vw, 0.9rem);
   font-weight: 200;
   margin: 0;
   opacity: 0.65;
@@ -746,7 +814,7 @@ html, body {
 
 /* --- Summary paragraph --- */
 .general-summary {
-  font-size: clamp(0.65rem, 1.3vw, 0.85rem);
+  font-size: clamp(0.65rem, 1.3vw, 0.9rem);
   font-weight: 250;
   line-height: 1.7;
   margin: 0;
@@ -755,9 +823,8 @@ html, body {
 
 /* --- Divider --- */
 .general-divider {
-  height: 2px;
-  background: var(--text-primary);
-  opacity: 0.2;
+  height: 3px;
+  background: color-mix(in srgb, var(--text-primary) 20%, rgb(0 0 0 / 0));
 }
 
 /* --- Skills list --- */
@@ -865,8 +932,7 @@ html, body {
 .general-contact-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  cursor: default;
+  cursor: pointer;
 }
 
 .general-contact-icon {
@@ -896,6 +962,12 @@ html, body {
   color: var(--text-primary);
   white-space: nowrap;
   min-height: 1em;
+}
+
+/* "Copied!" confirmation state */
+.general-contact-typeout.copied {
+  color: var(--glow-color);
+  filter: drop-shadow(0 0 4px var(--glow-color));
 }
 
 /* Blinking cursor after the text while typing */
