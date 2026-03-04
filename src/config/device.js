@@ -113,7 +113,9 @@ export function getDeviceTier() {
  *
  * Debug override: append ?tier=low / ?tier=mid / ?tier=high to the URL.
  */
-const _debugTier = new URLSearchParams(window.location.search).get('tier');
+const _debugTier = import.meta.env.DEV
+  ? new URLSearchParams(window.location.search).get('tier')
+  : null;
 const _validTiers = ['low', 'mid', 'high'];
 export const deviceTier = _validTiers.includes(_debugTier) ? _debugTier : getDeviceTier();
 

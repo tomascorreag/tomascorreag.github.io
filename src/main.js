@@ -448,7 +448,7 @@ function preloadThumbnails() {
         const url = resolveThumbnail(item.src);
         if (!url) return;
 
-        if (item.src.endsWith('.mp4')) {
+        if (item.src.endsWith('.mp4') || item.src.endsWith('.webm')) {
           // For video: a low-priority fetch pulls it into browser's HTTP cache.
           // 'no-cors' + low priority = invisible background fetch.
           fetch(url, { priority: 'low' }).catch(() => {});
@@ -483,7 +483,7 @@ function preloadThumbnails() {
  * On subsequent calls (category switch), fades out first, swaps content, fades back in.
  * The fade uses CSS opacity transition (300ms) — we await it with transitionend events.
  *
- * @param {string} category - Key from CATEGORIES ('General', '3D Assets', '3D Art')
+ * @param {string} category - Key from CATEGORIES ('General', '3D Assets', 'Art')
  */
 const mosaicEl = document.getElementById('mosaic');
 let mosaicHasContent = false;
@@ -493,6 +493,7 @@ let staggerTimeouts = [];
 // Tracks which mosaic item is currently expanded (null = grid mode).
 // Like a "selected" reference in a UI controller — only one at a time.
 let activeDetail = null;
+let detailFullscreen = false;
 
 // ---- Keyboard navigation state ----
 // Two focus "zones" — nav menu and mosaic grid — with arrow keys moving
@@ -543,7 +544,7 @@ async function renderMosaic(category) {
       div.dataset.cols = item.cols;
       div.dataset.rows = item.rows;
 
-      const isVideo = item.src.endsWith('.mp4');
+      const isVideo = item.src.endsWith('.mp4') || item.src.endsWith('.webm');
       const media = document.createElement(isVideo ? 'video' : 'img');
       const thumbUrl = resolveThumbnail(item.src);
       if (!thumbUrl) continue; // skip items with unresolved thumbnails
@@ -675,7 +676,7 @@ function renderGeneralContent() {
         const thumb = document.createElement('div');
         thumb.className = 'general-skill-thumb';
 
-        const isVideo = item.src.endsWith('.mp4');
+        const isVideo = item.src.endsWith('.mp4') || item.src.endsWith('.webm');
         const media = document.createElement(isVideo ? 'video' : 'img');
         media.src = resolveThumbnail(item.src);
 
@@ -735,7 +736,11 @@ function renderGeneralContent() {
 
         const icon = document.createElement('div');
         icon.className = 'general-contact-icon';
-        icon.innerHTML = CONTACT_ICONS[c.platform] || c.label;
+        if (CONTACT_ICONS[c.platform]) {
+          icon.innerHTML = CONTACT_ICONS[c.platform];
+        } else {
+          icon.textContent = c.label;
+        }
 
         const typeout = document.createElement('span');
         typeout.className = 'general-contact-typeout';
@@ -808,7 +813,11 @@ function renderGeneralContent() {
         a.setAttribute('aria-label', c.label);
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        a.innerHTML = CONTACT_ICONS[c.platform] || c.label;
+        if (CONTACT_ICONS[c.platform]) {
+          a.innerHTML = CONTACT_ICONS[c.platform];
+        } else {
+          a.textContent = c.label;
+        }
         contactRow.appendChild(a);
       }
     }
@@ -883,8 +892,9 @@ function getMediaAspectRatio(itemEl) {
  * @param {DOMRect} containerRect - The mosaic container's bounding rect
  * @returns {{ targetRect: {x,y,w,h}, infoSide: 'below'|'left'|'right' }}
  */
-// Height reserved for the detail nav bar (back + prev/next arrows)
-const NAV_BAR_HEIGHT = 40;
+// Height reserved for the detail nav bar (back + prev/next arrows).
+// 20px offset matches the CSS top: calc(5% + 20px) on .detail-nav.
+const NAV_BAR_HEIGHT = 70;
 
 function computeDetailLayout(itemEl, containerRect) {
   const ar = getMediaAspectRatio(itemEl);
@@ -936,6 +946,136 @@ function computeDetailLayout(itemEl, containerRect) {
   return { targetRect: { x, y, w, h }, infoSide };
 }
 
+// ============================================
+// Detail View Enhancements
+// ============================================
+
+/**
+ * Computes the largest AR-preserved rect that fits the full container.
+ * Used for fullscreen mode — fills wall-to-wall, centered.
+ *
+ * @param {number} ar - Aspect ratio (width / height)
+ * @param {DOMRect} containerRect - The mosaic container's bounding rect
+ * @returns {{ x, y, w, h }}
+ */
+function computeFullscreenRect(ar, containerRect) {
+  const cw = containerRect.width, ch = containerRect.height;
+  let w, h;
+  if (cw / ch > ar) { h = ch; w = h * ar; } else { w = cw; h = w / ar; }
+  return { x: (cw - w) / 2, y: (ch - h) / 2, w, h };
+}
+
+/**
+ * Expands the detail image to fill the container (AR-preserved).
+ * Fades out the info panel and hides the prev/next arrows.
+ */
+function enterDetailFullscreen() {
+  if (!activeDetail || detailFullscreen) return;
+  const { el: itemEl } = activeDetail;
+  const layout = itemEl._detailLayout;
+  if (!layout) return;
+
+  const containerRect = mosaicEl.getBoundingClientRect();
+  const { targetRect } = layout;
+  const ar = targetRect.w / targetRect.h;
+  const fsRect = computeFullscreenRect(ar, containerRect);
+
+  itemEl.classList.add('detail-transitioning');
+  itemEl.style.left = `${fsRect.x}px`;
+  itemEl.style.top = `${fsRect.y}px`;
+  itemEl.style.width = `${fsRect.w}px`;
+  itemEl.style.height = `${fsRect.h}px`;
+
+  const info = mosaicEl.querySelector('.detail-info');
+  if (info) { info.style.opacity = '0'; info.style.pointerEvents = 'none'; }
+
+  const arrows = crtScreen.querySelector('.detail-nav-arrows');
+  if (arrows) arrows.classList.add('hidden');
+
+  detailFullscreen = true;
+}
+
+/**
+ * Returns from fullscreen back to the normal detail layout.
+ */
+function exitDetailFullscreen() {
+  if (!activeDetail || !detailFullscreen) return;
+  const { el: itemEl } = activeDetail;
+  const layout = itemEl._detailLayout;
+  if (!layout) return;
+
+  const { targetRect } = layout;
+  itemEl.style.left = `${targetRect.x}px`;
+  itemEl.style.top = `${targetRect.y}px`;
+  itemEl.style.width = `${targetRect.w}px`;
+  itemEl.style.height = `${targetRect.h}px`;
+
+  const info = mosaicEl.querySelector('.detail-info');
+  if (info) { info.style.opacity = ''; info.style.pointerEvents = ''; }
+
+  const arrows = crtScreen.querySelector('.detail-nav-arrows');
+  if (arrows) arrows.classList.remove('hidden');
+
+  detailFullscreen = false;
+
+  // Remove transition class once the CSS animation completes (fallback: 350ms)
+  const cleanup = () => itemEl.classList.remove('detail-transitioning');
+  itemEl.addEventListener('transitionend', cleanup, { once: true });
+  setTimeout(cleanup, 350);
+}
+
+/**
+ * Swaps the main detail image with a crossfade.
+ * Destroys any active splat viewer before swapping.
+ *
+ * @param {string} newSrc - Resolved URL to swap to
+ * @param {HTMLElement} clickedThumb - The gallery thumb that was clicked
+ */
+function swapDetailImage(newSrc, clickedThumb) {
+  if (!activeDetail) return;
+  if (activeDetail.viewer) {
+    destroySplatViewer(activeDetail.viewer);
+    activeDetail.viewer = null;
+  }
+
+  const media = activeDetail.el.querySelector('img, video');
+  if (!media) return;
+
+  media.style.transition = 'opacity 150ms ease';
+  media.style.opacity = '0';
+  media.addEventListener('transitionend', () => {
+    media.src = newSrc;
+    media.style.opacity = '';
+    // Clean up the transition override after the fade-in settles
+    setTimeout(() => { media.style.transition = ''; }, 160);
+  }, { once: true });
+
+  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
+  clickedThumb.classList.add('active');
+}
+
+/**
+ * Attaches the fullscreen click handler to the media element inside itemEl.
+ * Stores handler + element refs on activeDetail for later cleanup.
+ */
+function attachMediaClickHandler(itemEl) {
+  const media = itemEl.querySelector('img, video');
+  if (!media) return;
+  const handler = () => enterDetailFullscreen();
+  media.addEventListener('click', handler);
+  if (activeDetail) {
+    activeDetail._mediaEl = media;
+    activeDetail._mediaHandler = handler;
+  }
+}
+
+/** Removes the fullscreen click handler registered by attachMediaClickHandler. */
+function detachMediaClickHandler() {
+  if (activeDetail?._mediaEl && activeDetail?._mediaHandler) {
+    activeDetail._mediaEl.removeEventListener('click', activeDetail._mediaHandler);
+  }
+}
+
 /**
  * Opens the detail view for a clicked mosaic item using FLIP animation.
  *
@@ -951,7 +1091,7 @@ function computeDetailLayout(itemEl, containerRect) {
  */
 function openDetail(itemEl, itemData) {
   const sessionId = ++detailSessionId;
-  activeDetail = { el: itemEl, data: itemData, viewer: null, sessionId };
+  activeDetail = { el: itemEl, data: itemData, viewer: null, sessionId, placeholder: null };
 
   const containerRect = mosaicEl.getBoundingClientRect();
 
@@ -974,13 +1114,20 @@ function openDetail(itemEl, itemData) {
   // Let clicks pass through grid to nav bar underneath
   mosaicEl.classList.add('detail-mode');
 
-  // Hide siblings
+  // Insert a placeholder before itemEl to hold its grid slot while it's
+  // position:absolute. Without this, the grid reflows the moment itemEl
+  // leaves flow and every subsequent sibling jumps to fill the gap.
+  const placeholder = document.createElement('div');
+  placeholder.className = 'mosaic-item mosaic-placeholder';
+  placeholder.dataset.cols = itemEl.dataset.cols;
+  placeholder.dataset.rows = itemEl.dataset.rows;
+  mosaicEl.insertBefore(placeholder, itemEl);
+  activeDetail.placeholder = placeholder;
+
+  // Fade out siblings (placeholder included — it fades to transparent)
   const allItems = mosaicEl.querySelectorAll('.mosaic-item');
   allItems.forEach(el => {
-    if (el !== itemEl) {
-      el.classList.add('fading-out');
-      el.style.display = 'none';
-    }
+    if (el !== itemEl) el.classList.add('fading-out');
   });
 
   // Position the item absolutely at the target rect
@@ -1010,6 +1157,8 @@ function openDetail(itemEl, itemData) {
 
   anim.onfinish = () => {
     buildDetailInfo(itemData, layout);
+    // Attach click-to-fullscreen on the media element
+    if (activeDetail?.sessionId === sessionId) attachMediaClickHandler(itemEl);
 
     // If this is a splat item, mount the 3D viewer on top of the thumbnail
     if (itemData.type === 'splat' && itemData.splat?.file) {
@@ -1047,7 +1196,8 @@ function buildDetailNav(itemData, layout) {
   backBtn.textContent = '< back';
   backBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    closeDetail();
+    if (detailFullscreen) exitDetailFullscreen();
+    else closeDetail();
   });
 
   // Prev/next arrows (right side)
@@ -1133,11 +1283,46 @@ function buildDetailInfo(itemData, layout) {
     info.appendChild(p);
   }
 
-  // Position based on layout
+  // Gallery strip — shows additional images for items that have them.
+  // The item's own thumbnail is always the first (active) thumb.
+  if (itemData.gallery && itemData.gallery.length > 0) {
+    const galleryEl = document.createElement('div');
+    galleryEl.className = 'detail-gallery';
+
+    // First thumb = current main image (always active)
+    const mainThumb = document.createElement('div');
+    mainThumb.className = 'gallery-thumb active';
+    const mainImg = document.createElement('img');
+    mainImg.src = resolveThumbnail(itemData.src);
+    mainImg.alt = itemData.alt || '';
+    mainThumb.appendChild(mainImg);
+    mainThumb.addEventListener('click', () => swapDetailImage(resolveThumbnail(itemData.src), mainThumb));
+    galleryEl.appendChild(mainThumb);
+
+    // Extra gallery images
+    itemData.gallery.forEach((extraSrc) => {
+      const resolvedSrc = resolveThumbnail(extraSrc);
+      const thumb = document.createElement('div');
+      thumb.className = 'gallery-thumb';
+      const img = document.createElement('img');
+      img.src = resolvedSrc;
+      img.alt = '';
+      thumb.appendChild(img);
+      thumb.addEventListener('click', () => swapDetailImage(resolvedSrc, thumb));
+      galleryEl.appendChild(thumb);
+    });
+
+    info.appendChild(galleryEl);
+  }
+
+  // Position based on layout — also set height so overflow-y: auto works.
+  // Without an explicit height, the browser can't know when to scroll.
   const containerRect = mosaicEl.getBoundingClientRect();
 
   if (infoSide === 'below') {
+    const infoHeight = containerRect.height - (targetRect.y + targetRect.h);
     info.style.top = `${targetRect.y + targetRect.h}px`;
+    info.style.height = `${infoHeight}px`;
   } else if (infoSide === 'right') {
     // Image is on left, info on right
     info.style.top = `${targetRect.y}px`;
@@ -1173,7 +1358,25 @@ function buildDetailInfo(itemData, layout) {
 function closeDetail(instant = false) {
   if (!activeDetail) return;
 
-  const { el: itemEl, viewer } = activeDetail;
+  const { el: itemEl, viewer, placeholder } = activeDetail;
+
+  // Clean up fullscreen state if active — reset inline position back to
+  // targetRect so the reverse FLIP starts from the correct position.
+  if (detailFullscreen) {
+    detachMediaClickHandler();
+    const layout = itemEl._detailLayout;
+    if (layout) {
+      const { targetRect } = layout;
+      itemEl.style.left = `${targetRect.x}px`;
+      itemEl.style.top = `${targetRect.y}px`;
+      itemEl.style.width = `${targetRect.w}px`;
+      itemEl.style.height = `${targetRect.h}px`;
+    }
+    itemEl.classList.remove('detail-transitioning');
+    detailFullscreen = false;
+  } else {
+    detachMediaClickHandler();
+  }
 
   // Destroy splat viewer before reversing the FLIP animation.
   // Must happen first so the WebGL canvas is removed before the
@@ -1196,16 +1399,13 @@ function closeDetail(instant = false) {
   delete itemEl._detailLayout;
 
   if (instant) {
+    placeholder?.remove();
     itemEl.classList.remove('detail-active');
     itemEl.style.left = '';
     itemEl.style.top = '';
     itemEl.style.width = '';
     itemEl.style.height = '';
-    const allItems = mosaicEl.querySelectorAll('.mosaic-item');
-    allItems.forEach(el => {
-      el.style.display = '';
-      el.classList.remove('fading-out');
-    });
+    mosaicEl.querySelectorAll('.mosaic-item').forEach(el => el.classList.remove('fading-out'));
     return;
   }
 
@@ -1221,16 +1421,16 @@ function closeDetail(instant = false) {
     h: itemRect.height,
   };
 
-  // Remove absolute positioning → item returns to grid flow
+  // Remove placeholder + detail-active simultaneously so the grid sees the same
+  // number of items as before (placeholder gone, itemEl back in flow).
+  placeholder?.remove();
   itemEl.classList.remove('detail-active');
   itemEl.style.left = '';
   itemEl.style.top = '';
   itemEl.style.width = '';
   itemEl.style.height = '';
 
-  // Show siblings (still fading-out = invisible)
   const allItems = mosaicEl.querySelectorAll('.mosaic-item');
-  allItems.forEach(el => el.style.display = '');
 
   // LAST: measure grid position
   const gridRect = itemEl.getBoundingClientRect();
@@ -1255,8 +1455,12 @@ function closeDetail(instant = false) {
     fill: 'none',
   });
 
-  // Fade siblings back in alongside the animation
-  allItems.forEach(el => el.classList.remove('fading-out'));
+  // Fade siblings back in with a delay so they appear as the FLIP lands,
+  // not the moment it starts. 150ms delay + 300ms CSS transition = visible at ~450ms,
+  // just after the 400ms FLIP completes.
+  setTimeout(() => {
+    allItems.forEach(el => el.classList.remove('fading-out'));
+  }, 150);
 }
 
 // ============================================
@@ -1419,7 +1623,8 @@ async function navigateDetail(direction) {
   if (!activeDetail || isNavigating) return;
   isNavigating = true;
 
-  const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item')];
+  // Exclude placeholder from index calculation — it's a synthetic element
+  const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item:not(.mosaic-placeholder)')];
   const currentIdx = mosaicItems.indexOf(activeDetail.el);
   const nextIdx = currentIdx + direction;
 
@@ -1431,6 +1636,24 @@ async function navigateDetail(direction) {
   if (!nextEl || !nextData) { isNavigating = false; return; }
 
   try {
+    // Reset fullscreen before navigating — restore targetRect so we
+    // cleanly hand off from the correct position.
+    if (detailFullscreen) {
+      detachMediaClickHandler();
+      const layout = activeDetail.el._detailLayout;
+      if (layout) {
+        const { targetRect } = layout;
+        activeDetail.el.style.left = `${targetRect.x}px`;
+        activeDetail.el.style.top = `${targetRect.y}px`;
+        activeDetail.el.style.width = `${targetRect.w}px`;
+        activeDetail.el.style.height = `${targetRect.h}px`;
+      }
+      activeDetail.el.classList.remove('detail-transitioning');
+      detailFullscreen = false;
+    } else {
+      detachMediaClickHandler();
+    }
+
     // Destroy current splat viewer before fading out
     destroySplatViewer(activeDetail.viewer);
     activeDetail.viewer = null;
@@ -1446,36 +1669,39 @@ async function navigateDetail(direction) {
     const FADE_MS = 250;
     await new Promise(r => setTimeout(r, FADE_MS));
 
-    // Clean up current item
+    // Clean up current item — add fading-out BEFORE removing detail-active so
+    // it returns to grid flow at opacity:0, never flashing its grid position.
+    activeDetail.placeholder?.remove();
     currentEl.getAnimations().forEach(a => a.cancel());
+    currentEl.classList.add('fading-out');
     currentEl.classList.remove('detail-active', 'detail-fading');
     currentEl.style.left = '';
     currentEl.style.top = '';
     currentEl.style.width = '';
     currentEl.style.height = '';
-    currentEl.style.display = 'none';
     delete currentEl._detailLayout;
 
     // Remove old detail info
     if (info) info.remove();
 
-    // Compute layout for the new item (may be different AR)
+    // Compute layout for the new item before touching its classes
     const containerRect = mosaicEl.getBoundingClientRect();
-    nextEl.style.display = '';
-    nextEl.classList.remove('fading-out');
     const layout = computeDetailLayout(nextEl, containerRect);
     const { targetRect } = layout;
 
-    // Position the new item (starts invisible, fades in)
+    // Pull nextEl out of grid flow while still invisible (detail-fading = opacity:0),
+    // THEN remove fading-out — it never appears at its grid position.
     nextEl.classList.add('detail-active', 'detail-fading');
     nextEl.style.left = `${targetRect.x}px`;
     nextEl.style.top = `${targetRect.y}px`;
     nextEl.style.width = `${targetRect.w}px`;
     nextEl.style.height = `${targetRect.h}px`;
     nextEl._detailLayout = layout;
+    // Now safe — nextEl is already absolutely positioned and invisible via detail-fading
+    nextEl.classList.remove('fading-out');
 
     const sessionId = ++detailSessionId;
-    activeDetail = { el: nextEl, data: nextData, viewer: null, sessionId };
+    activeDetail = { el: nextEl, data: nextData, viewer: null, sessionId, placeholder: null };
     mosaicFocusIndex = nextIdx;
 
     // Fade in after a frame (let browser paint the positioned element first)
@@ -1485,6 +1711,8 @@ async function navigateDetail(direction) {
 
     // Build new detail info with computed layout (it has its own fade-in)
     buildDetailInfo(nextData, layout);
+    // Attach click-to-fullscreen for the new item
+    attachMediaClickHandler(nextEl);
 
     // Mount splat viewer for the next item if it's a splat
     if (nextData.type === 'splat' && nextData.splat?.file) {
@@ -1514,14 +1742,19 @@ document.addEventListener('keydown', (e) => {
   // --- Detail view mode ---
   if (activeDetail) {
     if (key === 'Escape') {
-      closeDetail();
-      // Restore mosaic focus to the item that was open
-      if (mosaicFocusIndex >= 0) setFocus('mosaic', mosaicFocusIndex);
+      if (detailFullscreen) {
+        exitDetailFullscreen();
+      } else {
+        closeDetail();
+        // Restore mosaic focus to the item that was open
+        if (mosaicFocusIndex >= 0) setFocus('mosaic', mosaicFocusIndex);
+      }
       return;
     }
+    // Block arrow navigation while in fullscreen (arrows are hidden too)
     if (key === 'ArrowLeft' || key === 'ArrowRight') {
       e.preventDefault();
-      navigateDetail(key === 'ArrowLeft' ? -1 : 1);
+      if (!detailFullscreen) navigateDetail(key === 'ArrowLeft' ? -1 : 1);
       return;
     }
     return; // swallow other keys in detail mode
@@ -1657,7 +1890,7 @@ async function startRabbitTransition() {
 
     if (particleConfig) {
       const spriteImage = await preloadImage(rabbitSpritesheetUrl);
-      const morph = new ParticleMorph(particleConfig);
+      const morph = new ParticleMorph({ ...particleConfig, particleScale: 1.5, particleSkip: 2 });
 
       const cleanupMorphSkip = enableSkipMorphOnClick(morph);
       await morph.start({
@@ -1710,8 +1943,8 @@ async function startRabbitTransition() {
     // Reveal the nav menu (already in DOM, just hidden)
     navMenu.hidden = false;
 
-    // Type menu items bottom to top — 3D Art first, General last (ends selected)
-    const menuItems = ['3D Art', '3D Assets', 'General'];
+    // Type menu items bottom to top — Art first, General last (ends selected)
+    const menuItems = ['Art', '3D Assets', 'General'];
     await sleep(200);
 
     let prevItem = null;

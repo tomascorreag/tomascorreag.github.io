@@ -571,10 +571,10 @@ html, body {
 .mosaic-frame {
   position: absolute;
   /* Wider than mosaic with margin clearance on all sides */
-  right: calc(2% - 1.5rem);
-  top: calc(5% - 1.5rem);
-  bottom: calc(5% - 1.5rem);
-  width: calc(55% + 3rem);
+  right: calc(2% - 2rem);
+  top: calc(5% - 2rem);
+  bottom: calc(5% - 2rem);
+  width: calc(55% + 4rem);
   background-color: var(--bg-primary);
   pointer-events: none;
   z-index: 1;
@@ -651,6 +651,11 @@ html, body {
   grid-auto-rows: 120px;
   grid-auto-flow: dense;
   gap: 12px;
+  /* Push first row below the handle bar in .mosaic-frame.
+   * Handle bar: top 13px + height 20px = 33px from frame top.
+   * Frame sits 1.5rem above the grid, so handle bleeds calc(33px - 1.5rem) into grid.
+   * Add one grid gap (12px) of breathing room. */
+  padding-top: calc(33px - 1.5rem + 12px);
 
   opacity: 0;
   transition: opacity 300ms ease;
@@ -665,6 +670,7 @@ html, body {
 .mosaic-item {
   overflow: hidden;
   background: #1a1a1a;
+  transition: opacity 300ms ease;
 }
 
 .mosaic-item img,
@@ -1003,7 +1009,12 @@ html, body {
 .mosaic-item.fading-out {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 300ms ease;
+}
+
+/* Placeholder holds the clicked item's grid slot while it's detail-active.
+ * Inherits .mosaic-item styles (background, spans) — renders as a dark rectangle. */
+.mosaic-item.mosaic-placeholder {
+  pointer-events: none;
 }
 
 /*
@@ -1035,6 +1046,7 @@ html, body {
   height: 100%;
   object-fit: contain;
   transition: none;
+  cursor: zoom-in;
 }
 
 /* Disable hover effects on expanded item */
@@ -1054,6 +1066,9 @@ html, body {
   opacity: 0;
   transition: opacity 250ms ease;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
 }
 
 .detail-info.visible {
@@ -1094,7 +1109,7 @@ html, body {
 .detail-nav {
   position: absolute;
   right: 2%;
-  top: 5%;
+  top: calc(5% + 12px);
   width: 55%;
   height: 2.5rem;
   z-index: 1;  /* below .crt-overlay (100) so scanlines cover it, like the terminal */
@@ -1143,6 +1158,7 @@ html, body {
 .detail-nav-arrows {
   display: flex;
   gap: 0.5rem;
+  transition: opacity 250ms ease;
 }
 
 /* ============================================
@@ -1241,6 +1257,57 @@ html, body {
 /* Nav: focused AND selected — add a slight glow to distinguish from plain selected */
 .nav-item.focused.selected {
   box-shadow: 0 0 8px var(--glow-color);
+}
+
+/* ============================================
+   Detail View Enhancements
+   ============================================ */
+
+/* Gallery thumbnail strip — horizontal scroll inside .detail-info */
+.detail-gallery {
+  display: flex;
+  gap: 8px;
+  padding: 0.75rem 0;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
+}
+
+.gallery-thumb {
+  width: 80px;
+  height: 60px;
+  flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 150ms ease;
+  border: 1px solid transparent;
+}
+
+.gallery-thumb.active,
+.gallery-thumb:hover { opacity: 1; border-color: var(--text-primary); }
+
+.gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Smooth position/size transition when entering/exiting fullscreen */
+.detail-transitioning {
+  transition:
+    left 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Nav arrows fade when in fullscreen */
+.detail-nav-arrows.hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* ── Portrait / near-square viewports ───────────────────────────────────────

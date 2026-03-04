@@ -381,8 +381,20 @@ export class ParticleMorph {
    * @param {Array<{localX: number, localY: number, r: number, g: number, b: number, a: number}>} targetCells
    */
   generateParticles(source, target, sourceCells, targetCells) {
-    const { cellSize, displayScale, maxSpawnDelay } = this.config;
-    const particleSize = cellSize * displayScale;
+    const { cellSize, displayScale, maxSpawnDelay, particleScale = 1, particleSkip = 1 } = this.config;
+    const particleSize = cellSize * displayScale * particleScale;
+
+    // Thin out cells via checkerboard — keeps 1/particleSkip of all cells based
+    // on grid position (col+row) % particleSkip === 0, giving even spatial coverage
+    if (particleSkip > 1) {
+      const thin = cells => cells.filter(c => {
+        const col = Math.round(c.localX / cellSize);
+        const row = Math.round(c.localY / cellSize);
+        return (col + row) % particleSkip === 0;
+      });
+      sourceCells = thin(sourceCells);
+      targetCells = thin(targetCells);
+    }
 
     // Determine if source is a sprite (pixel-aligned start) or random-in-rect
     const sourceIsSprite = !!source.image;

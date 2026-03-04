@@ -29,7 +29,7 @@
  * it pre-discovers all matching assets at compile time.
  */
 const thumbnailModules = import.meta.glob(
-  '../assets/thumbnails/**/*.{jpg,jpeg,png,webp,mp4}',
+  '../assets/thumbnails/**/*.{jpg,jpeg,png,webp,mp4,webm}',
   { eager: true, import: 'default' }
 );
 
@@ -93,8 +93,8 @@ export const GENERAL_CONTENT = {
   skills: [
     { label: 'Shaders & VFX', detail: 'Real-time shaders, particle systems, post-processing' },
     { label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender', thumbnails: [
-      { category: '3D Art', itemIndex: 1 },
-      { category: '3D Art', itemIndex: 2 },
+      { category: 'Art', itemIndex: 1 },
+      { category: 'Art', itemIndex: 2 },
     ] },
     { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
     { label: 'Game Development', detail: 'Shipped ARBO: Arena Tactics on Steam — end-to-end' },
@@ -123,10 +123,26 @@ export const CATEGORIES = {
     // { src: '3d-assets/crystal.png', alt: 'Crystal material', cols: 2, rows: 2,
     //   title: 'Crystal', description: '...', type: 'splat',
     //   splat: { file: 'crystal.spz' } },
+    { src: '3d-assets/fabricThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Procedural Fabric Material', description: 'Procedural fabric material pack. Multiple weave patterns — basket, plaid, knit, chenille — driven by a single node group with exposed parameters.' },
+    { src: '3d-assets/iceThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Procedural Ice & Glass', description: 'Subsurface scattering study using ice and whiskey glass. Focus on light transmission, caustics, and volumetric absorption.' },
+    { src: '3d-assets/toonThumb.jpg', alt: '3D asset', cols: 4, rows: 2, title: 'NPR Toon Shader', description: 'Non-photorealistic render shader replicating a hand-drawn ink and watercolour look entirely within Blender.' },
+    { src: '3d-assets/eyeThumb.png', alt: '3D asset', cols: 2, rows: 2, title: 'Procedural Eyes Asset, rigged', description: 'Anatomically detailed procedural eye. Iris pattern, sclera veins, and cornea wetness all generated without textures.',
+      // gallery: ['3d-assets/eyeThumb.png'],  // Add extra view images here when ready
+    },
+    { src: '3d-assets/fleshThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Procedural Raw Flesh Material', description: 'Procedural organic flesh material with colour variant controls. Used in the Ardo sculpt.' },
+    { src: '3d-assets/paintThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Oil Paint Shader', description: 'Procedural oil paint shader applied to a canvas scene. Brush stroke texture and impasto thickness driven by input image data.' },
+    { src: '3d-assets/benchThumb.jpg', alt: '3D asset', cols: 2, rows: 1, title: 'Park Bench', description: 'Photorealistic park bench with wrought iron and wood slats, inspired by New Orleans benches. Study in material layering.' },
   ],
-  '3D Art': [
-    { src: '3d-art/thumb1.mp4', alt: '3D Art piece', cols: 4, rows: 2, title: 'Animated Scene', description: 'Looping animation rendered in Blender Cycles.' },
-    { src: '3d-art/thumb2.png', alt: '3D Art piece', cols: 2, rows: 2, title: 'Crystal Material', description: 'Procedural crystal material built in Blender.' },
-    { src: '3d-art/thumb3.jpeg', alt: '3D Art piece', cols: 2, rows: 4, title: 'Environment Study', description: 'Stylized environment concept.' },
+  'Art': [
+    { src: '3d-art/thumb1.mp4', alt: 'Art piece', cols: 4, rows: 2, title: 'ALternate Realities Challenge', description: 'Inspired by the 2021 challenge from Pwnisher. Study in lighting, animation and simulation. Scene fully created and rendered in Blender Cycles, composited in DaVinci Resolve.',
+      gallery: ['3d-art/thumb1_static.png'],
+    },
+    { src: '3d-art/thumb2.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Ardo.', description: 'A study in organic sculpting and material design. Uses procedural flesh and skin assets shown in 3D asset section.' },
+    { src: '3d-art/thumb3.jpeg', alt: 'Art piece', cols: 2, rows: 4, title: 'Menpō (面頬)', description: 'Study in hard-surface sculpting and composition.' },
+    { src: '3d-art/marsThumb.png', alt: 'Art piece', cols: 4, rows: 2, title: 'Brain Farm', description: 'Surrealist Mars landscape. Stylized composite rendered in Blender Cycles.' },
+    { src: '3d-art/ciudadFaroThumb.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Ciudad Faro', description: 'Inspired by Burning Caravan\'s Album Cover by the same name. Surrealist scene featuring a lighthouse surrounded by levitating whales.' },
+    { src: '3d-art/ascensionThumb.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Ascension V', description: 'Inspired by Mobius\' piece "Ascension". Abstract study in volumetric lighting and particle simulation. Rendered in Blender Cycles.' },
+    { src: '3d-art/donutThumb.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Donut', description: 'The one that started it all, my first 3D piece. Classic Blender Guru tutorial.' },
+    { src: '3d-art/bioshockThumb.webm', alt: 'Art piece', cols: 2, rows: 2, title: 'Bioshock Hallway', description: 'A hallway from the classic Bioshock game, study in modeling, materials, and composition.' },
   ],
 };

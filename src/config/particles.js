@@ -43,6 +43,13 @@ export const PARTICLE_CONFIG = Object.freeze({
   // Stagger — per-particle random start delay
   maxSpawnDelay: 300,       // max ms before a particle begins moving
 
+  // Particle size multiplier (default 1 — overridable per-morph via config)
+  particleScale: 1,
+
+  // Particle density — keep 1 in every N cells (checkerboard pattern).
+  // 1 = all cells, 2 = half (every other in a checkerboard), etc.
+  particleSkip: 1,
+
   // Color (default — overridable per-morph call)
   color: { r: 242, g: 255, b: 242 },  // rgb(242, 255, 242) terminal green
 
