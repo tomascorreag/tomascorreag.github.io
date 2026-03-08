@@ -14,7 +14,7 @@ import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier } from './config/device.js';
-import { CATEGORIES, GENERAL_CONTENT, resolveThumbnail, resolveSplat } from './config/content.js';
+import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat } from './config/content.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -483,7 +483,7 @@ function preloadThumbnails() {
  * On subsequent calls (category switch), fades out first, swaps content, fades back in.
  * The fade uses CSS opacity transition (300ms) — we await it with transitionend events.
  *
- * @param {string} category - Key from CATEGORIES ('General', '3D Assets', 'Art')
+ * @param {string} category - Key from CATEGORIES ('General', '3D Tech', '3D Art')
  */
 const mosaicEl = document.getElementById('mosaic');
 let mosaicHasContent = false;
@@ -533,6 +533,7 @@ async function renderMosaic(category) {
   // General section renders text content instead of a thumbnail grid.
   // We reuse the same container but swap the layout mode via a CSS class.
   const isGeneral = category === 'General';
+  mosaicEl.classList.remove('games-mode');
   mosaicEl.classList.toggle('general-mode', isGeneral);
 
   if (isGeneral) {
@@ -604,6 +605,76 @@ async function renderMosaic(category) {
       setTimeout(() => el.classList.add('visible'), i * 200)
     );
   }
+}
+
+async function renderGames() {
+  if (activeDetail) closeDetail(true);
+  currentCategoryItems = [];
+
+  if (mosaicHasContent) {
+    mosaicEl.classList.remove('visible');
+    await new Promise(r => {
+      const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
+      mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
+    });
+  }
+
+  mosaicEl.innerHTML = '';
+  mosaicEl.classList.remove('general-mode');
+  mosaicEl.classList.add('games-mode');
+
+  for (const game of GAMES) {
+    const card = document.createElement('div');
+    card.className = 'game-card';
+
+    if (game.src) {
+      const url = resolveThumbnail(game.src);
+      if (url) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = game.title;
+        img.className = 'game-banner';
+        card.appendChild(img);
+      }
+    }
+
+    const info = document.createElement('div');
+    info.className = 'game-info';
+
+    const h2 = document.createElement('h2');
+    h2.textContent = game.title;
+    info.appendChild(h2);
+
+    if (game.description) {
+      const p = document.createElement('p');
+      p.textContent = game.description;
+      info.appendChild(p);
+    }
+
+    if (game.links?.length) {
+      const linksEl = document.createElement('div');
+      linksEl.className = 'game-links';
+      for (const link of game.links) {
+        const a = document.createElement('a');
+        a.href = link.url;
+        a.title = link.label;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'game-link';
+        const icon = CONTACT_ICONS[link.icon] ?? CONTACT_ICONS.website;
+        a.innerHTML = icon;
+        linksEl.appendChild(a);
+      }
+      info.appendChild(linksEl);
+    }
+
+    card.appendChild(info);
+    mosaicEl.appendChild(card);
+  }
+
+  mosaicHasContent = true;
+  await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
+  mosaicEl.classList.add('visible');
 }
 
 /**
@@ -855,6 +926,12 @@ const CONTACT_ICONS = {
     <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z"/>
     <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z"/>
   </svg>`,
+  steam: `<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+    <path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.029 4.524 4.524s-2.03 4.523-4.524 4.523h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.624 0 11.998-5.375 11.998-12S18.603 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.252 0-2.265-1.014-2.265-2.265z"/>
+  </svg>`,
+  website: `<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+    <path d="M21.721 12.752a9.711 9.711 0 00-.945-5.003 12.754 12.754 0 01-4.339 2.708 18.991 18.991 0 01-.214 4.772 17.165 17.165 0 005.498-2.477zM14.634 15.55a17.324 17.324 0 00.332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 00.332 4.647 17.385 17.385 0 005.268 0zM9.772 17.119a18.963 18.963 0 004.456 0A17.182 17.182 0 0112 21.724a17.18 17.18 0 01-2.228-4.605zM7.777 15.23a18.87 18.87 0 01-.214-4.772 12.753 12.753 0 01-4.34-2.708 9.711 9.711 0 00-.944 5.004 17.165 17.165 0 005.498 2.477zM21.356 14.752a9.765 9.765 0 01-7.478 6.817 18.64 18.64 0 001.988-4.718 18.627 18.627 0 005.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 001.988 4.718 9.765 9.765 0 01-7.478-6.816zM13.878 2.43a9.755 9.755 0 016.116 3.986 11.267 11.267 0 01-3.746 2.504 18.63 18.63 0 00-2.37-6.49zM12 2.276a17.152 17.152 0 012.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0112 2.276zM10.122 2.43a18.629 18.629 0 00-2.37 6.49 11.266 11.266 0 01-3.746-2.504 9.754 9.754 0 016.116-3.985z"/>
+  </svg>`,
 };
 
 /** Creates a styled horizontal divider for the General section. */
@@ -896,15 +973,32 @@ function getMediaAspectRatio(itemEl) {
 // 20px offset matches the CSS top: calc(5% + 20px) on .detail-nav.
 const NAV_BAR_HEIGHT = 70;
 
-function computeDetailLayout(itemEl, containerRect) {
+function computeDetailLayout(itemEl, containerRect, itemData = {}) {
   const ar = getMediaAspectRatio(itemEl);
   const cw = containerRect.width;
   const ch = containerRect.height - NAV_BAR_HEIGHT; // available height below nav bar
 
   let x, y, w, h, infoSide;
+  y = NAV_BAR_HEIGHT;
 
-  if (ar > 1) {
-    // ---- Landscape: image at top (below nav), info below ----
+  const forced = itemData.detailLayout;
+
+  if (forced === 'info-left' || forced === 'info-right') {
+    // Portrait sizing — image on one side, info on the other
+    h = ch * 0.85;
+    w = h * ar;
+    if (w > cw * 0.5) { w = cw * 0.5; h = w / ar; }
+    if (forced === 'info-left') { x = cw - w; infoSide = 'left'; }
+    else                        { x = 0;      infoSide = 'right'; }
+  } else if (forced === 'info-below' || forced === 'below-split') {
+    // Landscape sizing — image on top, info below (or split below)
+    w = cw;
+    h = w / ar;
+    if (h > ch * 0.6) { h = ch * 0.6; w = h * ar; }
+    x = (cw - w) / 2;
+    infoSide = forced === 'below-split' ? 'below-split' : 'below';
+  } else if (ar > 1) {
+    // ---- Auto landscape: image at top (below nav), info below ----
     w = cw;
     h = w / ar;
     // Cap height at 60% of available space so info panel has room
@@ -914,10 +1008,9 @@ function computeDetailLayout(itemEl, containerRect) {
     }
     // Center horizontally if width was capped
     x = (cw - w) / 2;
-    y = NAV_BAR_HEIGHT;
     infoSide = 'below';
   } else {
-    // ---- Portrait: image on one side, info beside it ----
+    // ---- Auto portrait: image on one side, info beside it ----
     h = ch * 0.85;
     w = h * ar;
     // Cap width at 50% so info panel gets the other half
@@ -925,7 +1018,6 @@ function computeDetailLayout(itemEl, containerRect) {
       w = cw * 0.5;
       h = w / ar;
     }
-    y = NAV_BAR_HEIGHT;
 
     // Determine side: which edge of the mosaic is the thumbnail closer to?
     const thumbRect = itemEl.getBoundingClientRect();
@@ -958,11 +1050,11 @@ function computeDetailLayout(itemEl, containerRect) {
  * @param {DOMRect} containerRect - The mosaic container's bounding rect
  * @returns {{ x, y, w, h }}
  */
-function computeFullscreenRect(ar, containerRect) {
-  const cw = containerRect.width, ch = containerRect.height;
+function computeFullscreenRect(ar, containerRect, topMargin = 0) {
+  const cw = containerRect.width, ch = containerRect.height - topMargin;
   let w, h;
   if (cw / ch > ar) { h = ch; w = h * ar; } else { w = cw; h = w / ar; }
-  return { x: (cw - w) / 2, y: (ch - h) / 2, w, h };
+  return { x: (cw - w) / 2, y: topMargin + (ch - h) / 2, w, h };
 }
 
 /**
@@ -978,19 +1070,33 @@ function enterDetailFullscreen() {
   const containerRect = mosaicEl.getBoundingClientRect();
   const { targetRect } = layout;
   const ar = targetRect.w / targetRect.h;
-  const fsRect = computeFullscreenRect(ar, containerRect);
+  // Reserve space for the back button nav bar — measure its actual bottom
+  // relative to the mosaic top so the image never slides under it.
+  const nav = crtScreen.querySelector('.detail-nav');
+  const topMargin = nav
+    ? Math.max(0, nav.getBoundingClientRect().bottom - containerRect.top) + 8
+    : 0;
+  const fsRect = computeFullscreenRect(ar, containerRect, topMargin);
 
   itemEl.classList.add('detail-transitioning');
+  void itemEl.offsetWidth; // force reflow so browser commits "from" state before animating
   itemEl.style.left = `${fsRect.x}px`;
   itemEl.style.top = `${fsRect.y}px`;
   itemEl.style.width = `${fsRect.w}px`;
   itemEl.style.height = `${fsRect.h}px`;
 
   const info = mosaicEl.querySelector('.detail-info');
-  if (info) { info.style.opacity = '0'; info.style.pointerEvents = 'none'; }
+  if (info) { info.classList.remove('visible'); info.style.pointerEvents = 'none'; }
 
   const arrows = crtScreen.querySelector('.detail-nav-arrows');
   if (arrows) arrows.classList.add('hidden');
+
+  // Backdrop behind itemEl — clicking outside the image exits fullscreen
+  const backdrop = document.createElement('div');
+  backdrop.className = 'gallery-fs-backdrop';
+  backdrop.addEventListener('click', exitDetailFullscreen);
+  mosaicEl.appendChild(backdrop);
+  activeDetail._mainFsBackdrop = backdrop;
 
   detailFullscreen = true;
 }
@@ -998,11 +1104,118 @@ function enterDetailFullscreen() {
 /**
  * Returns from fullscreen back to the normal detail layout.
  */
+/**
+ * Enters fullscreen for a gallery companion image (e.g. the side panel image
+ * in a 'below-split' layout). Creates a temporary overlay div that FLIP-animates
+ * from the image's current position to fill the container, then fades out the
+ * info panel — mirroring the main-thumb fullscreen experience.
+ */
+function enterGalleryImageFullscreen(imgEl) {
+  if (!activeDetail || detailFullscreen) return;
+
+  const containerRect = mosaicEl.getBoundingClientRect();
+  const imgRect = imgEl.getBoundingClientRect();
+
+  const fromX = imgRect.left - containerRect.left;
+  const fromY = imgRect.top - containerRect.top;
+  const fromW = imgRect.width;
+  const fromH = imgRect.height;
+
+  const ar = fromW / fromH;
+  const nav = crtScreen.querySelector('.detail-nav');
+  const topMargin = nav
+    ? Math.max(0, nav.getBoundingClientRect().bottom - containerRect.top) + 8
+    : 0;
+  const toRect = computeFullscreenRect(ar, containerRect, topMargin);
+
+  // Backdrop covers the full mosaic so clicking outside the image also exits
+  const backdrop = document.createElement('div');
+  backdrop.className = 'gallery-fs-backdrop';
+  backdrop.addEventListener('click', exitDetailFullscreen);
+  mosaicEl.appendChild(backdrop);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'gallery-fs-overlay';
+  overlay.style.left = `${fromX}px`;
+  overlay.style.top = `${fromY}px`;
+  overlay.style.width = `${fromW}px`;
+  overlay.style.height = `${fromH}px`;
+
+  const overlayImg = document.createElement('img');
+  overlayImg.src = imgEl.src;
+  overlay.appendChild(overlayImg);
+  mosaicEl.appendChild(overlay);
+
+  // FLIP: commit "from" state then animate to "to"
+  void overlay.offsetWidth;
+  overlay.style.left = `${toRect.x}px`;
+  overlay.style.top = `${toRect.y}px`;
+  overlay.style.width = `${toRect.w}px`;
+  overlay.style.height = `${toRect.h}px`;
+
+  // Fade out main detail image alongside the info panel
+  const { el: itemEl } = activeDetail;
+  itemEl.style.opacity = '0';
+
+  const info = mosaicEl.querySelector('.detail-info');
+  if (info) { info.classList.remove('visible'); info.style.pointerEvents = 'none'; }
+
+  const arrows = crtScreen.querySelector('.detail-nav-arrows');
+  if (arrows) arrows.classList.add('hidden');
+
+  activeDetail._galleryOverlay = overlay;
+  activeDetail._galleryBackdrop = backdrop;
+  activeDetail._galleryFromRect = { x: fromX, y: fromY, w: fromW, h: fromH };
+  detailFullscreen = true;
+}
+
 function exitDetailFullscreen() {
   if (!activeDetail || !detailFullscreen) return;
+
+  // Gallery image fullscreen — animate overlay back, restore main image + info
+  if (activeDetail._galleryOverlay) {
+    const overlay = activeDetail._galleryOverlay;
+    const backdrop = activeDetail._galleryBackdrop;
+    const fromRect = activeDetail._galleryFromRect;
+    activeDetail._galleryOverlay = null;
+    activeDetail._galleryBackdrop = null;
+    activeDetail._galleryFromRect = null;
+    detailFullscreen = false;
+
+    // Remove backdrop immediately — no animation needed
+    backdrop?.remove();
+
+    // Block re-click during exit animation
+    overlay.style.pointerEvents = 'none';
+
+    // Reverse FLIP: animate overlay back to where the side image was
+    overlay.style.left = `${fromRect.x}px`;
+    overlay.style.top = `${fromRect.y}px`;
+    overlay.style.width = `${fromRect.w}px`;
+    overlay.style.height = `${fromRect.h}px`;
+
+    // Restore main detail image opacity (fades in while overlay retreats)
+    if (activeDetail) activeDetail.el.style.opacity = '';
+
+    // After animation: remove overlay, restore info + arrows
+    const cleanup = () => {
+      overlay.remove();
+      const info = mosaicEl.querySelector('.detail-info');
+      if (info) { info.classList.add('visible'); info.style.pointerEvents = ''; }
+      const arrows = crtScreen.querySelector('.detail-nav-arrows');
+      if (arrows) arrows.classList.remove('hidden');
+    };
+    overlay.addEventListener('transitionend', cleanup, { once: true });
+    setTimeout(cleanup, 350);
+    return;
+  }
+
   const { el: itemEl } = activeDetail;
   const layout = itemEl._detailLayout;
   if (!layout) return;
+
+  activeDetail._mainFsBackdrop?.remove();
+  activeDetail._mainFsBackdrop = null;
 
   const { targetRect } = layout;
   itemEl.style.left = `${targetRect.x}px`;
@@ -1011,7 +1224,7 @@ function exitDetailFullscreen() {
   itemEl.style.height = `${targetRect.h}px`;
 
   const info = mosaicEl.querySelector('.detail-info');
-  if (info) { info.style.opacity = ''; info.style.pointerEvents = ''; }
+  if (info) { info.classList.add('visible'); info.style.pointerEvents = ''; }
 
   const arrows = crtScreen.querySelector('.detail-nav-arrows');
   if (arrows) arrows.classList.remove('hidden');
@@ -1105,7 +1318,7 @@ function openDetail(itemEl, itemData) {
   };
 
   // ---- Compute target rect (no CSS layout switching needed) ----
-  const layout = computeDetailLayout(itemEl, containerRect);
+  const layout = computeDetailLayout(itemEl, containerRect, itemData);
   const { targetRect } = layout;
 
   // Store layout on the element for closeDetail / navigateDetail
@@ -1269,57 +1482,73 @@ function buildDetailInfo(itemData, layout) {
   const { targetRect, infoSide } = layout;
 
   const info = document.createElement('div');
-  info.className = `detail-info ${infoSide === 'below' ? 'landscape' : 'portrait'}`;
+  const isBelow = infoSide === 'below' || infoSide === 'below-split';
+  info.className = `detail-info ${isBelow ? 'landscape' : 'portrait'}${infoSide === 'below-split' ? ' below-split' : ''}`;
 
-  if (itemData.title) {
-    const h2 = document.createElement('h2');
-    h2.textContent = itemData.title;
-    info.appendChild(h2);
-  }
+  if (infoSide === 'below-split') {
+    // Split layout: text on left, first gallery image filling the right column
+    const textCol = document.createElement('div');
+    textCol.className = 'detail-info-text';
+    if (itemData.title) {
+      const h2 = document.createElement('h2');
+      h2.textContent = itemData.title;
+      textCol.appendChild(h2);
+    }
+    if (itemData.description) {
+      const p = document.createElement('p');
+      p.textContent = itemData.description;
+      textCol.appendChild(p);
+    }
+    info.appendChild(textCol);
 
-  if (itemData.description) {
-    const p = document.createElement('p');
-    p.textContent = itemData.description;
-    info.appendChild(p);
-  }
-
-  // Gallery strip — shows additional images for items that have them.
-  // The item's own thumbnail is always the first (active) thumb.
-  if (itemData.gallery && itemData.gallery.length > 0) {
-    const galleryEl = document.createElement('div');
-    galleryEl.className = 'detail-gallery';
-
-    // First thumb = current main image (always active)
-    const mainThumb = document.createElement('div');
-    mainThumb.className = 'gallery-thumb active';
-    const mainImg = document.createElement('img');
-    mainImg.src = resolveThumbnail(itemData.src);
-    mainImg.alt = itemData.alt || '';
-    mainThumb.appendChild(mainImg);
-    mainThumb.addEventListener('click', () => swapDetailImage(resolveThumbnail(itemData.src), mainThumb));
-    galleryEl.appendChild(mainThumb);
-
-    // Extra gallery images
-    itemData.gallery.forEach((extraSrc) => {
-      const resolvedSrc = resolveThumbnail(extraSrc);
-      const thumb = document.createElement('div');
-      thumb.className = 'gallery-thumb';
+    if (itemData.gallery && itemData.gallery.length > 0) {
+      const sideImg = document.createElement('div');
+      sideImg.className = 'detail-info-side-image';
       const img = document.createElement('img');
-      img.src = resolvedSrc;
+      img.src = resolveThumbnail(itemData.gallery[0]);
       img.alt = '';
-      thumb.appendChild(img);
-      thumb.addEventListener('click', () => swapDetailImage(resolvedSrc, thumb));
-      galleryEl.appendChild(thumb);
-    });
+      sideImg.appendChild(img);
+      sideImg.addEventListener('click', () => enterGalleryImageFullscreen(img));
+      info.appendChild(sideImg);
+    }
+  } else {
+    if (itemData.title) {
+      const h2 = document.createElement('h2');
+      h2.textContent = itemData.title;
+      info.appendChild(h2);
+    }
+    if (itemData.description) {
+      const p = document.createElement('p');
+      p.textContent = itemData.description;
+      info.appendChild(p);
+    }
 
-    info.appendChild(galleryEl);
+    // Gallery strip — shows additional images for items that have them.
+    if (itemData.gallery && itemData.gallery.length > 0) {
+      const galleryEl = document.createElement('div');
+      galleryEl.className = 'detail-gallery';
+
+      itemData.gallery.forEach((extraSrc) => {
+        const resolvedSrc = resolveThumbnail(extraSrc);
+        const thumb = document.createElement('div');
+        thumb.className = 'gallery-thumb';
+        const img = document.createElement('img');
+        img.src = resolvedSrc;
+        img.alt = '';
+        thumb.appendChild(img);
+        thumb.addEventListener('click', () => swapDetailImage(resolvedSrc, thumb));
+        galleryEl.appendChild(thumb);
+      });
+
+      info.appendChild(galleryEl);
+    }
   }
 
   // Position based on layout — also set height so overflow-y: auto works.
   // Without an explicit height, the browser can't know when to scroll.
   const containerRect = mosaicEl.getBoundingClientRect();
 
-  if (infoSide === 'below') {
+  if (infoSide === 'below' || infoSide === 'below-split') {
     const infoHeight = containerRect.height - (targetRect.y + targetRect.h);
     info.style.top = `${targetRect.y + targetRect.h}px`;
     info.style.height = `${infoHeight}px`;
@@ -1364,15 +1593,26 @@ function closeDetail(instant = false) {
   // targetRect so the reverse FLIP starts from the correct position.
   if (detailFullscreen) {
     detachMediaClickHandler();
-    const layout = itemEl._detailLayout;
-    if (layout) {
-      const { targetRect } = layout;
-      itemEl.style.left = `${targetRect.x}px`;
-      itemEl.style.top = `${targetRect.y}px`;
-      itemEl.style.width = `${targetRect.w}px`;
-      itemEl.style.height = `${targetRect.h}px`;
+    if (activeDetail._galleryOverlay) {
+      activeDetail._galleryOverlay.remove();
+      activeDetail._galleryBackdrop?.remove();
+      activeDetail._galleryOverlay = null;
+      activeDetail._galleryBackdrop = null;
+      activeDetail._galleryFromRect = null;
+      itemEl.style.opacity = '';
+    } else {
+      activeDetail._mainFsBackdrop?.remove();
+      activeDetail._mainFsBackdrop = null;
+      const layout = itemEl._detailLayout;
+      if (layout) {
+        const { targetRect } = layout;
+        itemEl.style.left = `${targetRect.x}px`;
+        itemEl.style.top = `${targetRect.y}px`;
+        itemEl.style.width = `${targetRect.w}px`;
+        itemEl.style.height = `${targetRect.h}px`;
+      }
+      itemEl.classList.remove('detail-transitioning');
     }
-    itemEl.classList.remove('detail-transitioning');
     detailFullscreen = false;
   } else {
     detachMediaClickHandler();
@@ -1531,7 +1771,10 @@ function selectNavItem(navItem) {
   current?.classList.remove('selected');
   navItem.classList.add('selected');
   mosaicFocusIndex = -1; // mosaic content is changing, reset its focus
-  return renderMosaic(navItem.dataset.label);
+
+  const label = navItem.dataset.label;
+  if (label === 'Games') return renderGames();
+  return renderMosaic(label);
 }
 
 /** Activates (clicks) the currently focused element — Enter key handler. */
@@ -1640,15 +1883,26 @@ async function navigateDetail(direction) {
     // cleanly hand off from the correct position.
     if (detailFullscreen) {
       detachMediaClickHandler();
-      const layout = activeDetail.el._detailLayout;
-      if (layout) {
-        const { targetRect } = layout;
-        activeDetail.el.style.left = `${targetRect.x}px`;
-        activeDetail.el.style.top = `${targetRect.y}px`;
-        activeDetail.el.style.width = `${targetRect.w}px`;
-        activeDetail.el.style.height = `${targetRect.h}px`;
+      if (activeDetail._galleryOverlay) {
+        activeDetail._galleryOverlay.remove();
+        activeDetail._galleryBackdrop?.remove();
+        activeDetail._galleryOverlay = null;
+        activeDetail._galleryBackdrop = null;
+        activeDetail._galleryFromRect = null;
+        activeDetail.el.style.opacity = '';
+      } else {
+        activeDetail._mainFsBackdrop?.remove();
+        activeDetail._mainFsBackdrop = null;
+        const layout = activeDetail.el._detailLayout;
+        if (layout) {
+          const { targetRect } = layout;
+          activeDetail.el.style.left = `${targetRect.x}px`;
+          activeDetail.el.style.top = `${targetRect.y}px`;
+          activeDetail.el.style.width = `${targetRect.w}px`;
+          activeDetail.el.style.height = `${targetRect.h}px`;
+        }
+        activeDetail.el.classList.remove('detail-transitioning');
       }
-      activeDetail.el.classList.remove('detail-transitioning');
       detailFullscreen = false;
     } else {
       detachMediaClickHandler();
@@ -1686,7 +1940,7 @@ async function navigateDetail(direction) {
 
     // Compute layout for the new item before touching its classes
     const containerRect = mosaicEl.getBoundingClientRect();
-    const layout = computeDetailLayout(nextEl, containerRect);
+    const layout = computeDetailLayout(nextEl, containerRect, nextData);
     const { targetRect } = layout;
 
     // Pull nextEl out of grid flow while still invisible (detail-fading = opacity:0),
@@ -1944,7 +2198,7 @@ async function startRabbitTransition() {
     navMenu.hidden = false;
 
     // Type menu items bottom to top — Art first, General last (ends selected)
-    const menuItems = ['Art', '3D Assets', 'General'];
+    const menuItems = ['3D Tech', '3D Art', 'Games', 'General'];
     await sleep(200);
 
     let prevItem = null;

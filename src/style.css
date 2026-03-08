@@ -732,6 +732,83 @@ html, body {
   z-index: 99;  /* Drop below .crt-overlay (100) so global scanlines cover the CV */
 }
 
+/* ---- Games page ---- */
+.mosaic-grid.games-mode {
+  display: block;
+  overflow-y: auto;
+  padding: calc(2rem + 20px) 2rem 2rem 2rem;
+  z-index: 99;
+}
+
+.game-card {
+  margin-bottom: 3rem;
+  font-family: 'Martian Mono', monospace;
+  color: #e0e0e0;
+}
+
+.game-banner {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  background: #111; /* placeholder colour if image missing */
+}
+
+.game-info {
+  padding: 1.25rem 0 0.5rem;
+  background-color: var(--bg-primary);
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.5)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
+  text-shadow:
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
+    calc(var(--rgb-offset, 1px) * 1)  0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
+    0 0 calc(5px  * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+}
+
+.game-info h2 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 200;
+  color: var(--text-primary);
+}
+
+.game-info p {
+  margin: 0 0 1.25rem;
+  font-size: clamp(0.65rem, 1.3vw, 0.9rem);
+  font-weight: 250;
+  line-height: 1.7;
+  color: var(--text-primary);
+  opacity: 0.9;
+  max-width: 70ch;
+}
+
+.game-links {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.game-link {
+  color: var(--text-primary);
+  opacity: 0.65;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  transition: opacity var(--timing-normal) ease, filter var(--timing-normal) ease;
+}
+
+.game-link svg {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.game-link:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
 /* Staggered reveal for General section elements (mid/high tier).
  * JS adds .stagger-reveal to each target, then adds .visible sequentially.
  *
@@ -925,8 +1002,8 @@ html, body {
 }
 
 .general-contact-link svg {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 .general-contact-link:hover {
@@ -951,8 +1028,8 @@ html, body {
 }
 
 .general-contact-icon svg {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 .general-contact-item:hover .general-contact-icon {
@@ -1061,6 +1138,7 @@ html, body {
  * Portrait: beside the image (position: absolute, side panel). */
 .detail-info {
   position: absolute;
+  pointer-events: auto; /* re-enable: .mosaic-grid.detail-mode sets pointer-events: none */
   color: #e0e0e0;
   font-family: 'Martian Mono', monospace;
   opacity: 0;
@@ -1263,6 +1341,66 @@ html, body {
    Detail View Enhancements
    ============================================ */
 
+/* Below-split layout: text left, companion image right */
+.detail-info.below-split {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 1.5rem;
+  overflow: hidden;
+}
+
+.detail-info-text {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
+}
+
+.detail-info-side-image {
+  flex: 0 0 auto;
+  aspect-ratio: 1;
+  height: 100%;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+.detail-info-side-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Invisible hit-area covering the full mosaic — clicking outside the image exits fullscreen */
+.gallery-fs-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: auto;
+  cursor: zoom-out;
+}
+
+/* Overlay created by enterGalleryImageFullscreen — animates from side image to fill container */
+.gallery-fs-overlay {
+  position: absolute;
+  overflow: hidden;
+  z-index: 10;
+  cursor: zoom-out;
+  transition:
+    left 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gallery-fs-overlay img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 /* Gallery thumbnail strip — horizontal scroll inside .detail-info */
 .detail-gallery {
   display: flex;
@@ -1275,8 +1413,8 @@ html, body {
 }
 
 .gallery-thumb {
-  width: 80px;
-  height: 60px;
+  width: 120px;
+  height: 90px;
   flex-shrink: 0;
   overflow: hidden;
   cursor: pointer;
@@ -1295,9 +1433,12 @@ html, body {
   display: block;
 }
 
-/* Smooth position/size transition when entering/exiting fullscreen */
-.detail-transitioning {
+/* Smooth position/size transition when entering/exiting fullscreen.
+ * Must be more specific than .mosaic-item.detail-active (0-2-0) to win
+ * on the transition property — CSS transition is not additive. */
+.mosaic-item.detail-active.detail-transitioning {
   transition:
+    opacity 250ms ease,
     left 300ms cubic-bezier(0.4, 0, 0.2, 1),
     top 300ms cubic-bezier(0.4, 0, 0.2, 1),
     width 300ms cubic-bezier(0.4, 0, 0.2, 1),
