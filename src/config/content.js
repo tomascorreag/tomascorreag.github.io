@@ -136,6 +136,14 @@ export const GAMES = [
       { label: 'Website', icon: 'website', url: 'https://arbo.xyz/' }, // TODO: replace with real URL
     ],
   },
+  {
+    src: 'games/matrixThumb.png',     // place a 2:1 banner in src/assets/thumbnails/games/
+    title: 'The Matrix',
+    description: 'A pixel-art Metroidvania vertical slice set in the Matrix universe. Explore a hand-crafted slice of a glitching digital city, uncovering hidden paths and abilities. Built in Unity.',
+    links: [
+      { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/the-matrix-vertical-slice/' }, // TODO: replace with itch.io or hosted WebGL URL
+    ],
+  },
 ];
 
 export const CATEGORIES = {
