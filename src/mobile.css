@@ -153,12 +153,6 @@ html.mobile-mode {
   margin: 0 0 0.35em;
   min-height: 1.45em;           /* reserves space so layout doesn't jump while typing */
   white-space: nowrap;
-  /*
-   * Each line lays out as inline-block so the body span's width controls
-   * visible glyph count. `overflow: hidden` clips the body to its animated
-   * width so the rest of the text stays offscreen until the steps() timing
-   * function advances the reveal one character at a time.
-   */
 }
 
 .m-intro-terminal .prompt {
@@ -167,33 +161,43 @@ html.mobile-mode {
 }
 
 /*
- * CSS-driven typewriter. The full text is in the DOM from the start, but
- * the .body span's width expands from 0 to N × 1ch via steps(N) timing —
- * one discrete step per character. Because Martian Mono is monospace, 1ch
- * equals the advance of every glyph, so the reveal lands on glyph boundaries.
+ * CSS-driven typewriter — pure CSS, no JS timing.
  *
- * Animations are deterministic and browser-managed: no JS timer, no async
- * race. A single composited width change per frame = buttery smooth.
+ * Each .body span holds its full text from the start but is clipped to
+ * invisible via clip-path: inset(0 100% 0 0). A steps() animation walks
+ * the right inset from 100% to 0%, producing N discrete reveals. Because
+ * clip-path percentages are relative to the element's OWN box (not font
+ * metrics like `ch`), the reveal matches the text length on every font,
+ * weight, and zoom level. This fixes the previous bug where line 2 stopped
+ * on the 't' because ch < glyph-advance for this particular font.
+ *
+ * Timing is entirely declarative via animation-delay — nothing for JS to
+ * mis-sequence. Line 1 starts at 220ms, line 2 at 1180ms (220 + 620 +
+ * 340ms dwell), rabbit + hint at 2200ms (1180 + 760 + 260ms dwell).
  */
 .m-intro-terminal .body {
   display: inline-block;
-  overflow: hidden;
   vertical-align: bottom;
   white-space: nowrap;
-  width: 0;                      /* hidden until typing kicks in */
+  clip-path: inset(0 100% 0 0);
+  /*
+   * will-change + GPU hint so the animation composites cleanly on first
+   * paint (some Android Chromes drop the first step otherwise).
+   */
+  will-change: clip-path;
 }
 
-/* Line 1: 14 chars ("Hi, I'm Tomás.") — starts 220ms after intro mounts */
-.m-intro-terminal .line-1.typing .body {
-  animation: m-type-14 620ms steps(14, end) forwards;
+.m-intro-terminal .line-1 .body {
+  animation: m-reveal 620ms steps(14, end) 220ms forwards;
 }
-/* Line 2: 17 chars ("Technical Artist.") — triggered by JS after line 1's dwell */
-.m-intro-terminal .line-2.typing .body {
-  animation: m-type-17 760ms steps(17, end) forwards;
+.m-intro-terminal .line-2 .body {
+  animation: m-reveal 760ms steps(17, end) 1180ms forwards;
 }
 
-@keyframes m-type-14 { from { width: 0; } to { width: 14ch; } }
-@keyframes m-type-17 { from { width: 0; } to { width: 17ch; } }
+@keyframes m-reveal {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0   0 0); }
+}
 
 .m-intro-terminal .cursor {
   display: inline-block;
@@ -202,11 +206,24 @@ html.mobile-mode {
   animation: m-blink 900ms step-end infinite;
 }
 
-/* Reduced motion: skip the reveal, show everything immediately */
-@media (prefers-reduced-motion: reduce) {
-  .m-intro-terminal .body { width: auto; animation: none; }
+/*
+ * Line 1's cursor fades out the moment line 2 starts typing, so only
+ * the currently active line shows a caret. Line 2's cursor stays
+ * blinking until the whole intro dismisses.
+ */
+.m-intro-terminal .line-1 .cursor {
+  animation:
+    m-blink 900ms step-end infinite,
+    m-cursor-off 0s 1180ms forwards;
 }
+@keyframes m-cursor-off { to { opacity: 0; } }
 
+/*
+ * Rabbit + tap hint reveal is now CSS-driven too, scheduled to land right
+ * after line 2 finishes (1180ms delay + 760ms reveal + 260ms dwell ≈ 2200ms).
+ * No JS class toggle required, so the "revealed from the start" failure
+ * mode is impossible by construction.
+ */
 .m-intro-rabbit {
   flex: 0 0 auto;
   display: flex;
@@ -216,12 +233,11 @@ html.mobile-mode {
   margin-top: auto;              /* push to bottom half of intro */
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 400ms ease, transform 400ms ease;
+  animation: m-rabbit-enter 420ms ease 2200ms forwards;
 }
 
-.m-intro-rabbit.revealed {
-  opacity: 1;
-  transform: translateY(0);
+@keyframes m-rabbit-enter {
+  to { opacity: 1; transform: none; }
 }
 
 /*
@@ -1028,9 +1044,17 @@ html.mobile-mode {
    ============================================================================ */
 
 @media (prefers-reduced-motion: reduce) {
+  /* Intro: drop clip-path + animation, show everything instantly */
+  .m-intro-terminal .body {
+    clip-path: none;
+    animation: none;
+  }
+  .m-intro-terminal .line-1 .cursor { opacity: 0; animation: none; }
+  .m-intro-terminal .cursor { animation: none; opacity: 1; }
+  .m-intro-rabbit { animation: none; opacity: 1; transform: none; }
+
   .m-rabbit-sprite { animation: none; }
   .m-tap-hint { animation: none; opacity: 0.9; }
-  .m-intro-terminal .cursor { animation: none; opacity: 1; }
   .m-swipe-hint { animation: none; opacity: 0; }
   .m-content > .m-fade { animation: none; opacity: 1; transform: none; }
   .m-sheet { transition: opacity 200ms ease; }

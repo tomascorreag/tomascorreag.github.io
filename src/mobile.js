@@ -121,24 +121,12 @@ export async function boot() {
 // ---------------------------------------------------------------------------
 // Intro
 //
-// Typing is driven by CSS `steps()` animation on each line's body span
-// (see .m-intro-terminal .line-*.typing .body in mobile.css). Building the
-// full text into the DOM upfront avoids every async pitfall the earlier
-// JS-driven approach had — the browser handles frame-by-frame rendering
-// and there's no way line 1 can be "skipped" by a stray pointerdown.
-// JS here only:
-//   1. Builds the DOM with both lines of text already in place.
-//   2. Toggles the `.typing` class on each line to trigger the CSS animation.
-//   3. Reveals the rabbit + tap hint once typing has finished.
-//   4. Waits for the dismiss tap and fades the intro out.
+// 100% CSS-driven. Both lines are mounted with their full text in a single
+// paint, then mobile.css's clip-path + steps() animation reveals each line
+// character-by-character on a fixed schedule (see keyframes m-reveal and
+// m-rabbit-enter). JS only appends the DOM and waits for the dismiss tap —
+// no JS timers means no missed-frame races and no font-metric dependency.
 // ---------------------------------------------------------------------------
-
-// Timing must stay in sync with the keyframes in mobile.css.
-// Line 1: 620ms reveal, Line 2: 760ms reveal. Dwells keep the eye from rushing.
-const INTRO_LINE1_MS = 620;
-const INTRO_LINE2_MS = 760;
-const INTRO_DWELL_BETWEEN = 360;
-const INTRO_DWELL_AFTER = 420;
 
 function buildIntroLine(text, lineClass) {
   return h('p', { class: `line ${lineClass}` }, [
@@ -161,36 +149,12 @@ async function runIntro() {
   const intro = h('div', { class: 'm-intro' }, [terminal, rabbitWrap]);
   appEl.appendChild(intro);
 
-  if (prefersReducedMotion) {
-    // Skip every animation — show everything at once.
-    line1.classList.add('typing');
-    line2.classList.add('typing');
-    rabbitWrap.classList.add('revealed');
-  } else {
-    // Double rAF: commit the initial (width: 0) state to the GPU before
-    // adding the class that kicks off the animation. Without this, some
-    // browsers coalesce the two DOM mutations and skip straight to the
-    // final frame — which would look identical to "text appears instantly".
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    line1.classList.add('typing');
-
-    await sleep(INTRO_LINE1_MS + INTRO_DWELL_BETWEEN);
-    // Line 1 is done — drop its cursor so only the currently-typing line has one
-    line1.querySelector('.cursor')?.remove();
-    line2.classList.add('typing');
-
-    await sleep(INTRO_LINE2_MS + INTRO_DWELL_AFTER);
-    rabbitWrap.classList.add('revealed');
-  }
-
   // Wait for a tap to dismiss. Short grace period prevents a stray
   // queued page-load pointerdown from immediately closing the intro.
   await new Promise((resolve) => {
-    const onTap = () => {
-      intro.removeEventListener('pointerdown', onTap);
-      resolve();
-    };
-    setTimeout(() => intro.addEventListener('pointerdown', onTap, { once: true }), 180);
+    setTimeout(() => {
+      intro.addEventListener('pointerdown', resolve, { once: true });
+    }, 220);
   });
 
   intro.classList.add('fading');
