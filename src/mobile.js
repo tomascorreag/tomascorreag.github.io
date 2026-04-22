@@ -135,31 +135,29 @@ async function runIntro() {
   const intro = h('div', { class: 'm-intro' }, [terminal, rabbitWrap]);
   appEl.appendChild(intro);
 
-  // Skip-typing: tap anywhere during typing to fast-forward
-  let skip = false;
-  const onSkipTap = () => { skip = true; };
-  intro.addEventListener('pointerdown', onSkipTap, { once: true });
+  // Give the browser a frame to paint the intro before we start typing,
+  // and let any stray page-load touch resolve before attaching listeners.
+  // Without this, iOS occasionally delivers a queued pointerdown on the
+  // brand-new intro element the moment it's attached, which used to
+  // short-circuit line 1's typing on the previous (skip-enabled) design.
+  await sleep(prefersReducedMotion ? 0 : 140);
 
-  // Type line 1
-  await typeInto(line1, "Hi, I'm Tomás.", { speed: 34, skip: () => skip });
-  if (!skip) await sleep(260);
+  // Type both lines, uninterrupted. No mid-type skip — the animation is
+  // short enough (~1.2s total) that any skip logic would add more race
+  // hazards than it saves. User can tap to dismiss once typing finishes.
+  await typeInto(line1, "Hi, I'm Tomás.", { speed: 42 });
+  await sleep(prefersReducedMotion ? 0 : 340);
+  await typeInto(line2, 'Technical Artist.', { speed: 42 });
+  await sleep(prefersReducedMotion ? 0 : 360);
 
-  // Type line 2
-  await typeInto(line2, 'Technical Artist.', { speed: 34, skip: () => skip });
-  if (!skip) await sleep(320);
-
-  intro.removeEventListener('pointerdown', onSkipTap);
-
-  // Reveal rabbit + tap hint
+  // Reveal rabbit + tap hint, then wait for a tap to dismiss.
   rabbitWrap.classList.add('revealed');
-
-  // Lock a second tap handler — this one dismisses the intro
   await new Promise((resolve) => {
     const onTap = () => {
       intro.removeEventListener('pointerdown', onTap);
       resolve();
     };
-    // Slight delay so the reveal animation isn't immediately interrupted
+    // Short grace so the reveal animation plays through the first frames
     setTimeout(() => intro.addEventListener('pointerdown', onTap, { once: true }), 180);
   });
 
@@ -170,32 +168,27 @@ async function runIntro() {
 
 /**
  * Types text into an element character-by-character with a blinking cursor.
- * `speed` is ms per character; a 25% variance keeps it from feeling robotic.
+ * `speed` is the base ms per character; a 25% variance keeps it organic.
+ * Honours prefers-reduced-motion by dumping the full text instantly.
  */
-async function typeInto(el, text, { speed = 40, skip } = {}) {
-  // Structure: <span class="prompt">&gt;</span><span class="body"></span><span class="cursor">█</span>
+async function typeInto(el, text, { speed = 42 } = {}) {
+  // Structure: <span class="prompt">&gt;</span><span class="body"></span><span class="cursor">▮</span>
   const prompt = h('span', { class: 'prompt', text: '>' });
   const body = h('span', { class: 'body' });
   const cursor = h('span', { class: 'cursor', text: '▮' });
   el.append(prompt, body, cursor);
 
-  // Reduced motion / skip: dump full text instantly
-  if (prefersReducedMotion || skip?.()) {
+  if (prefersReducedMotion) {
     body.textContent = text;
+    cursor.remove();
     return;
   }
 
   for (let i = 0; i < text.length; i++) {
-    if (skip?.()) {
-      body.textContent = text;
-      break;
-    }
     body.textContent += text[i];
     const variance = (Math.random() - 0.5) * speed * 0.5;
     await sleep(speed + variance);
   }
-  // Remove cursor after typing (intro won't need it after tap anyway,
-  // but for the moment between typing + rabbit reveal it shouldn't linger)
   cursor.remove();
 }
 

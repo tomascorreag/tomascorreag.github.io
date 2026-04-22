@@ -73,8 +73,9 @@ html.mobile-mode {
 
 /*
  * Scanline overlay — single repeating-gradient, ~60 FPS cheap. Sits on top
- * of everything except the detail sheet & toasts.  pointer-events: none
- * so taps pass through.
+ * of chrome & text so the CRT feel reads; pointer-events: none so taps pass
+ * through. Media containers below opt out by stacking above z-index 50,
+ * keeping artwork clean.
  */
 #mobile-app::after {
   content: '';
@@ -91,6 +92,24 @@ html.mobile-mode {
   );
   /* Vignette — slightly darker at edges to frame the content */
   box-shadow: inset 0 0 80px 20px rgba(0, 0, 0, 0.35);
+}
+
+/*
+ * Media opt-out — feed thumbnails, gallery strips, skill strips, banners,
+ * and the detail-sheet hero all promote above the z:50 scanline so images
+ * render pixel-clean. Each needs position:relative for z-index to take
+ * effect (CSS spec: z-index only applies to positioned elements).
+ *
+ * Scoped to inside #mobile-app so this doesn't leak into the sheet — the
+ * sheet carries its own scanline layer (see .m-sheet::after below) which
+ * has a twin rule for .m-sheet-media further down.
+ */
+#mobile-app .m-card-media,
+#mobile-app .m-skill-thumb,
+#mobile-app .m-gallery-thumb,
+#mobile-app .m-game-banner {
+  position: relative;
+  z-index: 51;
 }
 
 
@@ -824,6 +843,8 @@ html.mobile-mode {
 
 .m-sheet-media {
   position: relative;
+  /* Promote above .m-sheet::after (z:50) so scanlines don't paint over art */
+  z-index: 51;
   margin: var(--gutter) calc(-1 * (var(--gutter) + var(--safe-r)))
           var(--gutter) calc(-1 * (var(--gutter) + var(--safe-l)));
   background: var(--bg-sunk);
