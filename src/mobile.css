@@ -152,7 +152,13 @@ html.mobile-mode {
 .m-intro-terminal .line {
   margin: 0 0 0.35em;
   min-height: 1.45em;           /* reserves space so layout doesn't jump while typing */
-  white-space: pre-wrap;
+  white-space: nowrap;
+  /*
+   * Each line lays out as inline-block so the body span's width controls
+   * visible glyph count. `overflow: hidden` clips the body to its animated
+   * width so the rest of the text stays offscreen until the steps() timing
+   * function advances the reveal one character at a time.
+   */
 }
 
 .m-intro-terminal .prompt {
@@ -160,11 +166,45 @@ html.mobile-mode {
   margin-right: 0.45em;
 }
 
+/*
+ * CSS-driven typewriter. The full text is in the DOM from the start, but
+ * the .body span's width expands from 0 to N × 1ch via steps(N) timing —
+ * one discrete step per character. Because Martian Mono is monospace, 1ch
+ * equals the advance of every glyph, so the reveal lands on glyph boundaries.
+ *
+ * Animations are deterministic and browser-managed: no JS timer, no async
+ * race. A single composited width change per frame = buttery smooth.
+ */
+.m-intro-terminal .body {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  white-space: nowrap;
+  width: 0;                      /* hidden until typing kicks in */
+}
+
+/* Line 1: 14 chars ("Hi, I'm Tomás.") — starts 220ms after intro mounts */
+.m-intro-terminal .line-1.typing .body {
+  animation: m-type-14 620ms steps(14, end) forwards;
+}
+/* Line 2: 17 chars ("Technical Artist.") — triggered by JS after line 1's dwell */
+.m-intro-terminal .line-2.typing .body {
+  animation: m-type-17 760ms steps(17, end) forwards;
+}
+
+@keyframes m-type-14 { from { width: 0; } to { width: 14ch; } }
+@keyframes m-type-17 { from { width: 0; } to { width: 17ch; } }
+
 .m-intro-terminal .cursor {
   display: inline-block;
   width: 0.6em;
   margin-left: 1px;
   animation: m-blink 900ms step-end infinite;
+}
+
+/* Reduced motion: skip the reveal, show everything immediately */
+@media (prefers-reduced-motion: reduce) {
+  .m-intro-terminal .body { width: auto; animation: none; }
 }
 
 .m-intro-rabbit {
