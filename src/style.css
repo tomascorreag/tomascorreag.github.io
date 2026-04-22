@@ -174,6 +174,19 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /*
+   * Mobile browsers resize the viewport as the URL bar shows/hides, which
+   * makes 100vh taller than what's actually visible. svh = "small viewport
+   * height" (always assumes chrome is visible), dvh = "dynamic viewport
+   * height" (updates as chrome changes). Using 100dvh as a progressive
+   * upgrade prevents the bottom of the mosaic from being hidden under
+   * the browser UI on iOS/Android.
+   */
+  height: 100dvh;
+  /* Stop iOS Safari from bouncing the whole page when reaching scroll edges */
+  overscroll-behavior: none;
+  /* Disable tap highlight on iOS/Android — we provide our own focus styles */
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ============================================
@@ -1558,9 +1571,20 @@ html, body {
   pointer-events: none;
 }
 
-/* ── Portrait / near-square viewports ───────────────────────────────────────
-   Triggers on all portrait phones, portrait tablets, and 4:3 monitors.
-   Does NOT trigger on standard laptops/desktops (MacBook 14" = 1.54:1).      */
+/* ============================================================================
+   RESPONSIVE LAYERS
+   ----------------------------------------------------------------------------
+   Three tiers, each building on the last:
+     1. Portrait / near-square (tablets, 4:3 monitors) — restack to single col
+     2. Mobile (≤ 720px) — dedicated phone experience, larger type, tab bar nav
+     3. Short mobile landscape — cram everything a bit tighter
+   Desktop layout is the default (all three do nothing on wide screens).
+   ============================================================================ */
+
+
+/* ── Tier 1: Portrait / near-square viewports ──────────────────────────────
+   Triggers on portrait tablets and 4:3 monitors. Phones also match here but
+   Tier 2 overrides most of it. Does NOT trigger on laptops (≥ 1.54:1).       */
 @media (max-aspect-ratio: 4/3) {
   /* Terminal: shift anchor from vertical-center to upper area */
   .terminal-wrapper {
@@ -1579,10 +1603,7 @@ html, body {
     padding: 1rem 2rem;
   }
 
-  /* Hide the > prompt — looks wrong in a horizontal nav */
-  .nav-prompt {
-    display: none;
-  }
+  .nav-prompt { display: none; }
 
   /* Mosaic: full width, takes the bottom ~58% of the screen */
   .mosaic-grid {
@@ -1593,13 +1614,338 @@ html, body {
     bottom: 2%;
   }
 
-  /* Mosaic frame mirrors with its standard ±1.5rem offsets */
   .mosaic-frame {
     left: calc(2% - 1.5rem);
     right: calc(2% - 1.5rem);
     width: auto;
     top: calc(42% - 1.5rem);
     bottom: calc(2% - 1.5rem);
+  }
+}
+
+
+/* ── Tier 2: Mobile (≤ 720px) ──────────────────────────────────────────────
+   Phone-first re-implementation. Every layout region gets bespoke rules so
+   touch targets, line-heights, and proportions feel native to the device
+   rather than a scaled-down desktop.
+
+   Design intent — same aesthetic system (CRT phosphor, pixel type, subtle
+   scanlines) but recomposed for a narrow vertical canvas:
+     · Terminal stays anchored at screen-top (rabbit still owns the bottom)
+     · Nav becomes a fixed bottom tab-bar — thumb-reach + safe-area aware
+     · Mosaic grows into the remaining middle, with a tight decorative frame
+     · Detail view is always vertical-stacked: image on top, info scrolls below
+     · General/CV collapses to a single column with horizontal-scroll thumb
+       strips so nothing wraps awkwardly on narrow widths
+   ============================================================================ */
+@media (max-width: 720px) {
+  :root {
+    --mobile-gutter: 12px;
+    --mobile-tap: 44px;       /* min touch target (Apple HIG) */
+    --mosaic-bottom-inset: calc(
+      env(safe-area-inset-bottom, 0px) + var(--mobile-tap) + 2 * var(--mobile-gutter)
+    );
+    /* Soften CRT effects — heavy text-shadow/blur kills readability on small type */
+    --crt-blur: 0.25px;
+    --rgb-offset: 0.7px;
+  }
+
+  /* ---- Canvas & chrome ---------------------------------------------------- */
+
+  .terminal {
+    padding: 1rem;
+    font-size: clamp(1rem, 4.5vw, 1.4rem);
+    line-height: 1.55;
+  }
+
+  .terminal-wrapper {
+    left: calc(1rem + env(safe-area-inset-left, 0px));
+    right: calc(1rem + env(safe-area-inset-right, 0px));
+    top: 18%;
+  }
+
+  /* Rabbit is a fixed-size pixel sprite — keep the scale but make sure the
+     jump-distance CSS variable gets clamped to viewport width by JS.        */
+
+  /* ---- Navigation: bottom tab bar ---------------------------------------- */
+  /* Sits above the scanline overlay so the border + glow read cleanly.
+     bottom-anchored so it lives inside the thumb-reach zone, and respects
+     iOS home-indicator with env(safe-area-inset-bottom).                    */
+  .nav-menu {
+    left: env(safe-area-inset-left, 0px);
+    right: env(safe-area-inset-right, 0px);
+    bottom: env(safe-area-inset-bottom, 0px);
+    top: auto;
+    padding: var(--mobile-gutter);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 6px;
+    font-size: clamp(0.72rem, 3.2vw, 0.95rem);
+    background-color: transparent;
+    /* Soft gradient behind the bar so items read against the mosaic */
+    background-image: linear-gradient(
+      to top,
+      color-mix(in srgb, var(--bg-primary) 95%, transparent) 0%,
+      color-mix(in srgb, var(--bg-primary) 70%, transparent) 60%,
+      transparent 100%
+    );
+    z-index: 101;             /* above scanline overlay (100) for crisp borders */
+  }
+
+  .nav-item {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: var(--mobile-tap);
+    padding: 0.5em 0.25em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    letter-spacing: 0.02em;
+    border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+    background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+    font-weight: 300;
+    /* Truncate rather than wrap — keeps the bar a single row */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-item.selected {
+    border-color: var(--text-primary);
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    font-weight: 700;
+    box-shadow:
+      0 0 12px color-mix(in srgb, var(--glow-color) 60%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--bg-primary) 30%, transparent);
+  }
+
+  .nav-item.focused:not(.selected) {
+    background: color-mix(in srgb, var(--text-primary) 15%, transparent);
+  }
+
+  /* ---- Mosaic area ------------------------------------------------------- */
+  /* Starts below terminal intro, ends above bottom tab bar + safe-area.     */
+  .mosaic-grid {
+    left: var(--mobile-gutter);
+    right: var(--mobile-gutter);
+    width: auto;
+    top: 38%;
+    bottom: var(--mosaic-bottom-inset);
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: minmax(70px, 1fr);
+    gap: 6px;
+    padding-top: 30px;        /* clearance for the handle bar inside mosaic-frame */
+  }
+
+  /* 3-col spans become 2-col on mobile to prevent single-item rows */
+  .mosaic-grid .mosaic-item[data-cols="3"] { grid-column: span 2; }
+  .mosaic-grid .mosaic-item[data-cols="4"] { grid-column: span 4; }
+  .mosaic-grid .mosaic-item[data-rows="3"] { grid-row: span 2; }
+  .mosaic-grid .mosaic-item[data-rows="4"] { grid-row: span 3; }
+
+  /* Frame mirrors the grid rect — offset kept tight so it doesn't eat the viewport */
+  .mosaic-frame {
+    left: calc(var(--mobile-gutter) - 8px);
+    right: calc(var(--mobile-gutter) - 8px);
+    width: auto;
+    top: calc(38% - 8px);
+    bottom: calc(var(--mosaic-bottom-inset) - 8px);
+  }
+
+  /* Slim the frame's internal borders — the double-border reads cluttered at this size */
+  .mosaic-frame::before { border-width: 1px; }
+  .mosaic-frame::after { border-width: 1px; inset: 3px; }
+
+  .mosaic-handle {
+    top: 7px;
+    left: 6px;
+    right: 6px;
+    height: 16px;
+  }
+
+  /* General/Games panels: unpad the sides a little and add bottom space for tab bar */
+  .mosaic-grid.general-mode,
+  .mosaic-grid.games-mode {
+    padding: calc(1rem + 22px) 1rem 1.5rem 1rem;
+  }
+
+  /* ---- Thumbnail interactions — touch-appropriate ------------------------ */
+  /* :hover on touch devices can sticky. Use :active for feedback instead.   */
+  .mosaic-item:hover img,
+  .mosaic-item:hover video {
+    transform: none;
+    filter: none;
+  }
+  .mosaic-item:active img { transform: scale(0.97); filter: brightness(1.3); }
+  .mosaic-item:active video { filter: brightness(1.3); }
+
+  /* ---- Detail view ------------------------------------------------------- */
+  .detail-nav {
+    right: var(--mobile-gutter);
+    top: calc(38% + 4px);
+    width: auto;
+    left: var(--mobile-gutter);
+    height: var(--mobile-tap);
+    padding: 0 0.75rem;
+    font-size: 1rem;
+  }
+  .detail-nav button {
+    min-width: var(--mobile-tap);
+    min-height: var(--mobile-tap);
+    padding: 0.25em 0.4em;
+  }
+
+  .detail-info.landscape,
+  .detail-info.portrait {
+    left: 0;
+    width: 100%;
+    padding: 0.9rem 0.5rem 1.25rem;
+  }
+
+  .detail-info h2 {
+    font-size: 1.05rem;
+    margin-bottom: 0.5rem;
+  }
+  .detail-info p {
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+
+  /* below-split is reassembled as two stacked blocks on mobile */
+  .detail-info.below-split {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .detail-info-side-image {
+    aspect-ratio: auto;
+    height: auto;
+    max-height: 40vh;
+  }
+  .detail-info-side-image img {
+    height: 100%;
+  }
+
+  /* Gallery thumb strip: smaller, and already horizontal-scrolls */
+  .gallery-thumb {
+    width: 80px;
+    height: 60px;
+  }
+  .detail-gallery {
+    gap: 6px;
+    padding: 0.5rem 0;
+    /* Momentum scroll + fade at the right edge hinting there's more */
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(
+      to right, black 0, black calc(100% - 18px), transparent 100%
+    );
+  }
+
+  /* ---- General / CV panel ------------------------------------------------ */
+  .general-content { gap: 1rem; }
+  .general-name { font-size: 1.7rem; }
+  .general-title { font-size: 0.95rem; }
+  .general-subtitle { font-size: 0.75rem; }
+  .general-summary { font-size: 0.85rem; line-height: 1.65; }
+
+  .general-skill-row { gap: 0.2rem; }
+  .general-skill-label { font-size: 0.9rem; }
+  .general-skill-detail { font-size: 0.72rem; line-height: 1.45; }
+
+  /* Skill thumbs: horizontal scroll, no wrapping — keeps the page short */
+  .general-skill-thumbs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 6px;
+    margin: 6px -1rem 0;      /* bleed to container edges for full-width scroll */
+    padding: 0 1rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      to right, black 0, black calc(100% - 20px), transparent 100%
+    );
+  }
+  .general-skill-thumbs::-webkit-scrollbar { display: none; }
+  .general-skill-thumb { width: 88px; height: 66px; }
+
+  .general-tools { gap: 0.35rem; }
+  .general-tool {
+    font-size: 0.7rem;
+    padding: 0.45em 0.65em;
+  }
+
+  /* Contact row: bigger icons, spacing friendly to thumbs */
+  .general-contacts {
+    flex-wrap: wrap;
+    gap: 0.9rem 1.1rem;
+  }
+  .general-contact-link,
+  .general-contact-icon {
+    /* Pre-lit at 100% opacity on mobile — no hover state exists */
+    opacity: 1;
+  }
+  .general-contact-link svg,
+  .general-contact-icon svg {
+    width: 1.6rem;
+    height: 1.6rem;
+  }
+  /* Pre-revealed copyText sits next to the icon — JS fills it on mobile so
+     users can read the email/handle before tapping. Desktop keeps the
+     hover-typing pattern from the base rule. */
+  .general-contact-typeout {
+    font-size: 0.78rem;
+    margin-left: 0.25rem;
+    opacity: 0.85;
+  }
+  .general-contact-item {
+    /* One contact per row — prevents the email wrapping onto the icon */
+    flex: 1 0 100%;
+    gap: 0.35rem;
+  }
+
+  /* ---- Games cards ------------------------------------------------------- */
+  .game-card { margin-bottom: 2rem; }
+  .game-info { padding: 0.9rem 0 0.25rem; }
+  .game-info h2 { font-size: 1.15rem; margin-bottom: 0.5rem; }
+  .game-info p { font-size: 0.78rem; line-height: 1.55; }
+  .game-link svg { width: 1.6rem; height: 1.6rem; }
+  .game-link { opacity: 0.9; }  /* pre-lit — no hover state */
+
+  /* ---- Splat viewer loading spinner — scale to mobile -------------------- */
+  .splat-viewer-container::before {
+    width: 32px;
+    height: 32px;
+    margin: -16px 0 0 -16px;
+    border-width: 2px;
+  }
+
+  /* ---- Scanlines — tighter lines read as noise at small scale ------------ */
+  .crt-overlay {
+    --scanline-spacing: 3px;
+    --scanline-size: 1.5px;
+    --scanline-opacity: 0.07;
+  }
+}
+
+
+/* ── Tier 3: Short mobile landscape ────────────────────────────────────────
+   Phone rotated horizontally — height becomes the scarce axis. Shrink the
+   terminal intro and mosaic top-offset so content still fits.               */
+@media (max-width: 900px) and (max-height: 500px) and (orientation: landscape) {
+  .terminal-wrapper { top: 10%; }
+  .mosaic-grid {
+    top: 28%;
+    grid-template-columns: repeat(6, 1fr);
+    grid-auto-rows: minmax(56px, 1fr);
+  }
+  .mosaic-frame {
+    top: calc(28% - 8px);
+  }
+  .detail-nav {
+    top: calc(28% + 4px);
   }
 }
 

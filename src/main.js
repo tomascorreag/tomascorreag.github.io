@@ -875,6 +875,13 @@ function renderGeneralContent() {
         const typeout = document.createElement('span');
         typeout.className = 'general-contact-typeout';
 
+        // Mobile has no hover — pre-reveal the copyText so the user can read
+        // what they'll copy before tapping. Desktop keeps the on-hover type-in.
+        const mobileReveal = isMobileViewport();
+        if (mobileReveal) {
+          typeout.textContent = ' ' + c.copyText;
+        }
+
         item.appendChild(icon);
         item.appendChild(typeout);
         contactRow.appendChild(item);
@@ -926,7 +933,9 @@ function renderGeneralContent() {
           typeout.textContent = '\u00A0Copied!';
           copiedTimeout = setTimeout(() => {
             typeout.classList.remove('copied');
-            typeout.textContent = '';
+            // Mobile: restore the pre-revealed copyText; desktop: clear back
+            // to empty (hover will retype it). mobileReveal is stable per-item.
+            typeout.textContent = mobileReveal ? ' ' + c.copyText : '';
             copiedTimeout = null;
             if (isHovering) startTypeout(); // resume typeout if still hovering
           }, 1000);
@@ -1030,17 +1039,30 @@ function getMediaAspectRatio(itemEl) {
  */
 // Height reserved for the detail nav bar (back + prev/next arrows).
 // 20px offset matches the CSS top: calc(5% + 20px) on .detail-nav.
-const NAV_BAR_HEIGHT = 70;
+// Mobile gets a shorter bar (44px tap target + 8px top offset + breathing room).
+const NAV_BAR_HEIGHT_DESKTOP = 70;
+const NAV_BAR_HEIGHT_MOBILE = 56;
+const MOBILE_BREAKPOINT = 720;
+
+/** True when the current viewport should use the mobile layout. */
+function isMobileViewport() {
+  return window.innerWidth <= MOBILE_BREAKPOINT;
+}
 
 function computeDetailLayout(itemEl, containerRect, itemData = {}) {
   const ar = getMediaAspectRatio(itemEl);
   const cw = containerRect.width;
+  const mobile = isMobileViewport();
+  const NAV_BAR_HEIGHT = mobile ? NAV_BAR_HEIGHT_MOBILE : NAV_BAR_HEIGHT_DESKTOP;
   const ch = containerRect.height - NAV_BAR_HEIGHT; // available height below nav bar
 
   let x, y, w, h, infoSide;
   y = NAV_BAR_HEIGHT;
 
-  const forced = itemData.detailLayout;
+  // On mobile, always stack: image on top, info below. No side-by-side
+  // layout fits in a narrow viewport without squeezing both to useless sizes.
+  // forced 'info-left'/'info-right'/'below-split' all collapse to plain below.
+  const forced = mobile ? 'info-below' : itemData.detailLayout;
 
   if (forced === 'info-left' || forced === 'info-right') {
     // Portrait sizing — image on one side, info on the other
@@ -1050,10 +1072,12 @@ function computeDetailLayout(itemEl, containerRect, itemData = {}) {
     if (forced === 'info-left') { x = cw - w; infoSide = 'left'; }
     else                        { x = 0;      infoSide = 'right'; }
   } else if (forced === 'info-below' || forced === 'below-split') {
-    // Landscape sizing — image on top, info below (or split below)
+    // Landscape sizing — image on top, info below (or split below).
+    // Mobile caps image height lower so the info panel has comfortable room.
+    const imageCap = mobile ? 0.5 : 0.6;
     w = cw;
     h = w / ar;
-    if (h > ch * 0.6) { h = ch * 0.6; w = h * ar; }
+    if (h > ch * imageCap) { h = ch * imageCap; w = h * ar; }
     x = (cw - w) / 2;
     infoSide = forced === 'below-split' ? 'below-split' : 'below';
   } else if (ar > 1) {
@@ -1450,6 +1474,73 @@ function openDetail(itemEl, itemData) {
 }
 
 /**
+ * Horizontal swipe handler for detail-mode navigation.
+ *
+ * Listens on the mosaic element (which contains the detail-active item + info
+ * panel). A touch that travels > SWIPE_THRESHOLD_PX horizontally and stays
+ * mostly horizontal (|dx| > 2|dy|) triggers navigateDetail.
+ *
+ * Ignores swipes that originate inside horizontal-scrolling children like
+ * .detail-gallery and .detail-info-text — those have their own scroll intent.
+ * Ignores the .detail-nav bar itself so taps on the back button aren't eaten.
+ *
+ * Handler refs are stored on activeDetail so closeDetail can remove them.
+ */
+// Stored at module scope — survives across navigateDetail() which swaps
+// activeDetail but keeps the same listeners attached to mosaicEl.
+let _detailSwipeHandlers = null;
+
+function attachDetailSwipeNav() {
+  if (!activeDetail || _detailSwipeHandlers) return;
+  const SWIPE_THRESHOLD_PX = 60;
+  const MAX_OFF_AXIS_RATIO = 0.5; // |dy/dx| must be ≤ this to count as horizontal
+
+  let startX = 0, startY = 0, active = false;
+
+  const isScrollableAncestor = (el) =>
+    !!el?.closest?.('.detail-gallery, .detail-info-text, .general-skill-thumbs, .detail-nav');
+
+  const onStart = (e) => {
+    if (!activeDetail || detailFullscreen) { active = false; return; }
+    const t = e.touches[0];
+    if (!t) return;
+    if (isScrollableAncestor(e.target)) { active = false; return; }
+    startX = t.clientX;
+    startY = t.clientY;
+    active = true;
+  };
+
+  const onEnd = (e) => {
+    if (!active) return;
+    active = false;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    if (Math.abs(dx) < SWIPE_THRESHOLD_PX) return;
+    if (Math.abs(dy) > Math.abs(dx) * MAX_OFF_AXIS_RATIO) return;
+    navigateDetail(dx < 0 ? 1 : -1);
+  };
+
+  const onCancel = () => { active = false; };
+
+  mosaicEl.addEventListener('touchstart', onStart, { passive: true });
+  mosaicEl.addEventListener('touchend', onEnd, { passive: true });
+  mosaicEl.addEventListener('touchcancel', onCancel, { passive: true });
+
+  _detailSwipeHandlers = { onStart, onEnd, onCancel };
+}
+
+function detachDetailSwipeNav() {
+  if (!_detailSwipeHandlers) return;
+  const { onStart, onEnd, onCancel } = _detailSwipeHandlers;
+  mosaicEl.removeEventListener('touchstart', onStart);
+  mosaicEl.removeEventListener('touchend', onEnd);
+  mosaicEl.removeEventListener('touchcancel', onCancel);
+  _detailSwipeHandlers = null;
+}
+
+/**
  * Creates the detail navigation bar (back + prev/next arrows) at the top
  * of the mosaic container. Appended as a sibling of mosaic items.
  *
@@ -1499,6 +1590,11 @@ function buildDetailNav(itemData, layout) {
   nav.appendChild(backBtn);
   nav.appendChild(arrows);
   crtScreen.appendChild(nav);
+
+  // Attach touch/swipe navigation — mobile users won't reach the tiny
+  // prev/next buttons naturally, so horizontal swipes on the image itself
+  // become the primary navigation gesture in detail mode.
+  attachDetailSwipeNav();
 
   // Set disabled state based on current position
   updateDetailNavButtons();
@@ -1680,6 +1776,9 @@ function closeDetail(instant = false) {
   } else {
     detachMediaClickHandler();
   }
+
+  // Remove swipe handlers while activeDetail is still set (closure reads it).
+  detachDetailSwipeNav();
 
   // Destroy splat viewer before reversing the FLIP animation.
   // Must happen first so the WebGL canvas is removed before the
