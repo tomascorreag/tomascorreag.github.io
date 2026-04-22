@@ -124,10 +124,18 @@ html.mobile-mode {
   background: var(--bg);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /*
+   * space-between pins the terminal to the top and the rabbit to the bottom,
+   * with the flexible gap between. Replaces the old justify-content:center +
+   * negative-margin-on-terminal trick, which on short viewports could shove
+   * line 1 above the padding and clip "Hi, I'm Tomás." off the top of screen.
+   */
+  justify-content: space-between;
   align-items: center;
-  padding: calc(var(--gutter) + var(--safe-t)) var(--gutter)
-           calc(var(--gutter) + var(--safe-b));
+  padding: calc(14vh + var(--safe-t)) var(--gutter)
+           calc(6vh + var(--safe-b));
+  /* Protect the bottom from being smaller than the rabbit's natural block */
+  overflow: hidden;
   transition: opacity 280ms ease;
 }
 
@@ -140,13 +148,12 @@ html.mobile-mode {
   flex: 0 0 auto;
   width: 100%;
   max-width: 420px;
-  font-size: clamp(1.1rem, 5.3vw, 1.5rem);
+  font-size: clamp(1.05rem, 5vw, 1.4rem);
   font-weight: 200;
   line-height: 1.45;
   letter-spacing: 0.01em;
   text-shadow: 0 0 10px var(--glow);
-  /* Pushed up from center so the rabbit sits comfortably below */
-  margin-top: calc(-1 * var(--tap));
+  /* Terminal sits at flex-start; space-between on the parent handles layout */
 }
 
 .m-intro-terminal .line {
@@ -230,7 +237,6 @@ html.mobile-mode {
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  margin-top: auto;              /* push to bottom half of intro */
   opacity: 0;
   transform: translateY(10px);
   animation: m-rabbit-enter 420ms ease 2200ms forwards;

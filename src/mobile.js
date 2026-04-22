@@ -170,7 +170,7 @@ function buildShell() {
   const header = h('header', { class: 'm-header' }, [
     h('div', { class: 'm-header-name' }, [
       h('span', { class: 'prompt', text: '>' }),
-      h('span', { text: GENERAL_CONTENT.name.toLowerCase() }),
+      h('span', { text: GENERAL_CONTENT.name }),
     ]),
     h('span', { class: 'm-header-role', text: GENERAL_CONTENT.title }),
   ]);
