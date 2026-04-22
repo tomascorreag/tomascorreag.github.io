@@ -72,6 +72,8 @@ export const TIMING = Object.freeze({
 export const MOSAIC_CONFIG = Object.freeze({
   fadeDuration: 300,    // ms — fade in/out when switching categories
   renderDelay: 50,      // ms — brief pause before fade-in to let browser paint
+  revealStagger: 260,   // ms — total sweep duration for per-item diagonal reveal
+  revealTransition: 320, // ms — per-item fade/translate duration (matches CSS)
 });
 
 /**

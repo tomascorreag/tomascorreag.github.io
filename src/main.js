@@ -505,6 +505,50 @@ let navFocusIndex = -1;
 let mosaicFocusIndex = -1;
 let currentCategoryItems = [];     // content data array for current mosaic
 
+/**
+ * Staggers a per-item fade-in across mosaic items along the top-left →
+ * bottom-right diagonal. Items start at opacity:0 with a tiny offset,
+ * then each gets a transition-delay proportional to its grid position so
+ * the reveal "sweeps" across the grid rather than popping all at once.
+ *
+ * Cleans up inline styles after the animation so leftover transition-delay
+ * doesn't affect later hover or fade-out transitions.
+ */
+function applyDiagonalReveal(containerEl) {
+  const itemEls = [...containerEl.querySelectorAll('.mosaic-item.reveal')];
+  if (itemEls.length === 0) return;
+
+  const rects = itemEls.map(el => el.getBoundingClientRect());
+  const minX = Math.min(...rects.map(r => r.left));
+  const minY = Math.min(...rects.map(r => r.top));
+  const maxDiag = Math.max(...rects.map(r => (r.left - minX) + (r.top - minY))) || 1;
+
+  itemEls.forEach((el, i) => {
+    const r = rects[i];
+    const diag = (r.left - minX) + (r.top - minY);
+    const delay = Math.round((diag / maxDiag) * MOSAIC_CONFIG.revealStagger);
+    el.style.transitionDelay = `${delay}ms`;
+  });
+
+  // Double-rAF: first frame commits the "from" state, second frame flips to "to"
+  // so the browser interpolates between them. Without this, setting both in the
+  // same frame = no transition, element jumps straight to final state.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      itemEls.forEach(el => el.classList.add('revealed'));
+    });
+  });
+
+  // Cleanup after the last item finishes (stagger + transition + buffer).
+  const cleanupDelay = MOSAIC_CONFIG.revealStagger + MOSAIC_CONFIG.revealTransition + 60;
+  setTimeout(() => {
+    itemEls.forEach(el => {
+      el.classList.remove('reveal', 'revealed');
+      el.style.transitionDelay = '';
+    });
+  }, cleanupDelay);
+}
+
 async function renderMosaic(category) {
   const items = CATEGORIES[category];
   if (!items) return;
@@ -539,9 +583,10 @@ async function renderMosaic(category) {
   if (isGeneral) {
     renderGeneralContent();
   } else {
+    const willReveal = deviceTier !== 'low';
     for (const item of items) {
       const div = document.createElement('div');
-      div.className = 'mosaic-item';
+      div.className = 'mosaic-item' + (willReveal ? ' reveal' : '');
       div.dataset.cols = item.cols;
       div.dataset.rows = item.rows;
 
@@ -556,9 +601,11 @@ async function renderMosaic(category) {
         media.loop = true;
         media.muted = true;        // required for autoplay in most browsers
         media.playsInline = true;   // prevents fullscreen on iOS
+        media.preload = 'metadata'; // don't pre-fetch full file; autoplay starts stream on its own
       } else {
         media.alt = item.alt;
         media.loading = 'lazy';
+        media.decoding = 'async';
       }
 
       div.appendChild(media);
@@ -593,6 +640,14 @@ async function renderMosaic(category) {
   // Fade in after a brief frame delay (lets browser paint the new items)
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
+
+  // Per-item diagonal reveal — thumbs cascade in top-left → bottom-right.
+  // Items were born with .reveal (opacity 0 + offset); this computes their
+  // positional delays and triggers the transition to .revealed. Skipped for
+  // General (has its own stagger-reveal) and low tier (perf).
+  if (!isGeneral && deviceTier !== 'low') {
+    applyDiagonalReveal(mosaicEl);
+  }
 
   // Trigger staggered reveal for General section on mid/high tier.
   // Each element cascades in 210ms after the previous, starting as the
@@ -634,6 +689,8 @@ async function renderGames() {
         img.src = url;
         img.alt = game.title;
         img.className = 'game-banner';
+        img.decoding = 'async';
+        img.loading = 'lazy';
         card.appendChild(img);
       }
     }
@@ -756,9 +813,11 @@ function renderGeneralContent() {
           media.loop = true;
           media.muted = true;
           media.playsInline = true;
+          media.preload = 'metadata';
         } else {
           media.alt = item.alt ?? '';
           media.loading = 'lazy';
+          media.decoding = 'async';
         }
 
         thumb.appendChild(media);
@@ -1143,6 +1202,7 @@ function enterGalleryImageFullscreen(imgEl) {
 
   const overlayImg = document.createElement('img');
   overlayImg.src = imgEl.src;
+  overlayImg.decoding = 'async';
   overlay.appendChild(overlayImg);
   mosaicEl.appendChild(overlay);
 
@@ -1507,6 +1567,7 @@ function buildDetailInfo(itemData, layout) {
       const img = document.createElement('img');
       img.src = resolveThumbnail(itemData.gallery[0]);
       img.alt = '';
+      img.decoding = 'async';
       sideImg.appendChild(img);
       sideImg.addEventListener('click', () => enterGalleryImageFullscreen(img));
       info.appendChild(sideImg);
@@ -1535,6 +1596,8 @@ function buildDetailInfo(itemData, layout) {
         const img = document.createElement('img');
         img.src = resolvedSrc;
         img.alt = '';
+        img.decoding = 'async';
+        img.loading = 'lazy';
         thumb.appendChild(img);
         thumb.addEventListener('click', () => swapDetailImage(resolvedSrc, thumb));
         galleryEl.appendChild(thumb);

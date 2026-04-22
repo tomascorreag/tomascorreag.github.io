@@ -767,6 +767,19 @@ html, body {
   transition: opacity 300ms ease;
 }
 
+/* Per-item reveal used on mosaic render — diagonal stagger from top-left.
+ * JS adds .reveal on each item (opacity 0 + tiny offset), then adds .revealed
+ * on the next frame with a computed transition-delay per item. */
+.mosaic-item.reveal {
+  opacity: 0;
+  transform: translate3d(-3px, -3px, 0);
+  transition: opacity 320ms ease, transform 320ms ease;
+}
+.mosaic-item.reveal.revealed {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
 .mosaic-item img,
 .mosaic-item video {
   width: 100%;

@@ -17,5 +17,22 @@ export default defineConfig({
   // Build output settings
   build: {
     outDir: 'dist',
+    target: 'es2020',
+    minify: 'esbuild',
+    cssCodeSplit: true,
+    sourcemap: false,
+    reportCompressedSize: false,
+    rollupOptions: {
+      output: {
+        // Split Three.js + Spark into a named chunk. They're only imported from
+        // the dynamically-loaded SplatViewer module, so this stays off the
+        // initial bundle — naming just makes the chunk greppable in dist/.
+        manualChunks(id) {
+          if (id.includes('node_modules/three') || id.includes('node_modules/@sparkjsdev')) {
+            return 'splat-viewer-deps';
+          }
+        },
+      },
+    },
   },
 })
