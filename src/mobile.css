@@ -1,0 +1,977 @@
+/*
+ * Mobile experience — independent from the desktop stylesheet.
+ *
+ * Loaded only when src/mobile.js is dynamically imported (i.e. on phones).
+ * Fonts are already declared + self-hosted in style.css so we can rely on
+ * Martian Mono / Space Mono being available without redefining @font-face.
+ *
+ * Scope: everything lives under html.mobile-mode so the desktop cascade is
+ * untouched even if this file is ever loaded on desktop by mistake.
+ */
+
+html.mobile-mode,
+html.mobile-mode body {
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0a0a0a;
+  color: #6cff6c;
+  font-family: 'Martian Mono', ui-monospace, monospace;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  text-rendering: optimizeLegibility;
+  /*
+   * Per-font hinting for crisp small type. On iOS Safari the default
+   * antialiasing is fine; on Android Chrome -webkit- prefix is ignored
+   * but it's a no-op rather than harmful.
+   */
+  -webkit-font-smoothing: antialiased;
+}
+
+html.mobile-mode {
+  /* Palette mirrors the desktop terminal era (phosphor green on near-black) */
+  --mg: #6cff6c;                         /* green accent */
+  --mg-dim: rgba(108, 255, 108, 0.65);
+  --mg-fade: rgba(108, 255, 108, 0.35);
+  --mg-line: rgba(108, 255, 108, 0.18);  /* subtle dividers */
+  --bg: #0a0a0a;
+  --bg-raised: #0f130f;
+  --bg-sunk: #060806;
+  --glow: rgba(108, 255, 108, 0.55);
+
+  --gutter: 16px;
+  --tap: 44px;
+  --header-h: calc(60px + env(safe-area-inset-top, 0px));
+  --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px));
+  --radius: 2px;                          /* deliberately sharp — CRT, not iOS */
+
+  /* Page-level safe-area padding for notched devices */
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+
+/* ============================================================================
+   App shell
+   ============================================================================ */
+
+#mobile-app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  /* Stacking context so the scanline overlay + intro + sheet layer inside */
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/*
+ * Scanline overlay — single repeating-gradient, ~60 FPS cheap. Sits on top
+ * of everything except the detail sheet & toasts.  pointer-events: none
+ * so taps pass through.
+ */
+#mobile-app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 3px,
+    rgba(0, 0, 0, 0.08) 3px,
+    rgba(0, 0, 0, 0.08) 4.5px
+  );
+  /* Vignette — slightly darker at edges to frame the content */
+  box-shadow: inset 0 0 80px 20px rgba(0, 0, 0, 0.35);
+}
+
+
+/* ============================================================================
+   Intro — fast typewriter → rabbit → tap to enter
+   ============================================================================ */
+
+.m-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: calc(var(--gutter) + var(--safe-t)) var(--gutter)
+           calc(var(--gutter) + var(--safe-b));
+  transition: opacity 280ms ease;
+}
+
+.m-intro.fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.m-intro-terminal {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 420px;
+  font-size: clamp(1.1rem, 5.3vw, 1.5rem);
+  font-weight: 200;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 10px var(--glow);
+  /* Pushed up from center so the rabbit sits comfortably below */
+  margin-top: calc(-1 * var(--tap));
+}
+
+.m-intro-terminal .line {
+  margin: 0 0 0.35em;
+  min-height: 1.45em;           /* reserves space so layout doesn't jump while typing */
+  white-space: pre-wrap;
+}
+
+.m-intro-terminal .prompt {
+  opacity: 0.6;
+  margin-right: 0.45em;
+}
+
+.m-intro-terminal .cursor {
+  display: inline-block;
+  width: 0.6em;
+  margin-left: 1px;
+  animation: m-blink 900ms step-end infinite;
+}
+
+.m-intro-rabbit {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  margin-top: auto;              /* push to bottom half of intro */
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+.m-intro-rabbit.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/*
+ * Rabbit sprite — uses idle frame (-512, 0) at 3x scale. Idle bob keeps it
+ * alive without burning CPU. If the sprite ever fails to load, the empty
+ * pixel-art area still reserves 96x192 so layout doesn't collapse.
+ */
+.m-rabbit-sprite {
+  display: block;
+  width: 32px;
+  height: 64px;
+  background-image: url('./assets/spritesheets/RabbitAnimation_V1.png');
+  background-repeat: no-repeat;
+  background-position: -512px 0;
+  image-rendering: pixelated;
+  transform: scale(3);
+  transform-origin: bottom center;
+  filter:
+    drop-shadow(0 0 6px var(--glow))
+    drop-shadow(0 0 14px rgba(108, 255, 108, 0.35));
+  animation: m-rabbit-idle 1600ms ease-in-out infinite;
+}
+
+.m-tap-hint {
+  position: relative;
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--mg-dim);
+  text-shadow: 0 0 8px var(--glow);
+  animation: m-pulse 1400ms ease-in-out infinite;
+  padding: 10px 18px;
+  border: 1px solid var(--mg-line);
+  /* subtle ring around the tap target so the affordance reads instantly */
+}
+
+.m-tap-hint::before,
+.m-tap-hint::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  background: var(--mg-dim);
+}
+
+.m-tap-hint::before { right: calc(100% + 8px); }
+.m-tap-hint::after  { left:  calc(100% + 8px); }
+
+@keyframes m-rabbit-idle {
+  0%, 100% { transform: scale(3) translateY(0); }
+  50%      { transform: scale(3) translateY(-3px); }
+}
+
+@keyframes m-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
+@keyframes m-blink {
+  0%, 50%   { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+
+/* ============================================================================
+   Header — thin strip at the top of the shell
+   ============================================================================ */
+
+.m-header {
+  flex: 0 0 auto;
+  padding: calc(var(--safe-t) + 10px) calc(var(--gutter) + var(--safe-r))
+           10px calc(var(--gutter) + var(--safe-l));
+  border-bottom: 1px solid var(--mg-line);
+  background: var(--bg);
+  position: relative;
+  z-index: 5;
+}
+
+.m-header-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.2;
+  text-shadow: 0 0 8px var(--glow);
+}
+
+.m-header-name .prompt {
+  opacity: 0.55;
+}
+
+.m-header-role {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mg-fade);
+}
+
+
+/* ============================================================================
+   Tab bar — fixed strip at the bottom
+   ============================================================================ */
+
+.m-tabbar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 10px calc(var(--gutter) + var(--safe-r))
+           calc(10px + var(--safe-b)) calc(var(--gutter) + var(--safe-l));
+  border-top: 1px solid var(--mg-line);
+  background: var(--bg);
+  position: relative;
+  z-index: 5;
+}
+
+.m-tab {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: var(--tap);
+  padding: 10px 4px;
+  background: transparent;
+  border: 1px solid var(--mg-line);
+  color: var(--mg-dim);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+  /* Truncate to keep bar in a single row even on narrow devices */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-tab:active {
+  background: rgba(108, 255, 108, 0.1);
+}
+
+.m-tab.is-active {
+  background: var(--mg);
+  color: var(--bg);
+  border-color: var(--mg);
+  font-weight: 700;
+  box-shadow:
+    0 0 14px rgba(108, 255, 108, 0.45),
+    inset 0 0 0 1px rgba(10, 10, 10, 0.25);
+}
+
+
+/* ============================================================================
+   Content area — scrolls between header and tab bar
+   ============================================================================ */
+
+.m-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding: 18px calc(var(--gutter) + var(--safe-r))
+           28px calc(var(--gutter) + var(--safe-l));
+  /*
+   * Fade the top + bottom edges of the scroll area so content hints it
+   * continues past the header / tab bar rather than butting up against
+   * them. Pure CSS, no JS scroll listeners needed.
+   */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
+}
+
+.m-content::-webkit-scrollbar { width: 6px; }
+.m-content::-webkit-scrollbar-thumb {
+  background: var(--mg-line);
+  border-radius: 3px;
+}
+
+/* Staggered fade-in for top-level children after a tab swap */
+.m-content > .m-fade {
+  opacity: 0;
+  transform: translateY(6px);
+  animation: m-fade-in 360ms var(--ease) forwards;
+}
+@keyframes m-fade-in {
+  to { opacity: 1; transform: none; }
+}
+
+
+/* ============================================================================
+   About tab (CV)
+   ============================================================================ */
+
+.m-about {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.m-about h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 200;
+  line-height: 1.1;
+  text-shadow: 0 0 10px var(--glow);
+}
+
+.m-about .role {
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--mg-dim);
+  margin: 6px 0 0;
+}
+
+.m-about .subtitle {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--mg-fade);
+  margin: 4px 0 0;
+}
+
+.m-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: rgba(230, 255, 230, 0.85);
+}
+
+.m-divider {
+  height: 1px;
+  background: var(--mg-line);
+  margin: 4px 0;
+}
+
+.m-section-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--mg-fade);
+  margin: 0 0 10px;
+}
+
+.m-skills {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.m-skill-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.m-skill-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.m-skill-head::before {
+  content: '>';
+  color: var(--mg-fade);
+}
+
+.m-skill-detail {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: rgba(230, 255, 230, 0.7);
+  padding-left: 18px;            /* aligns with the > marker above */
+}
+
+/* Horizontal thumb strip for skill examples */
+.m-skill-thumbs {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 4px 0 4px 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.m-skill-thumbs::-webkit-scrollbar { display: none; }
+.m-skill-thumbs { scrollbar-width: none; }
+
+.m-skill-thumb {
+  flex: 0 0 auto;
+  width: 104px;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--mg-line);
+  background: var(--bg-sunk);
+  cursor: pointer;
+  overflow: hidden;
+  scroll-snap-align: start;
+  /* Compose opacity instead of animating transform — cheaper on commit */
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.m-skill-thumb:active {
+  transform: scale(0.97);
+  border-color: var(--mg);
+}
+.m-skill-thumb img,
+.m-skill-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.m-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.m-tool {
+  font-size: 0.7rem;
+  padding: 7px 10px;
+  border: 1px solid var(--mg-line);
+  color: var(--mg-dim);
+  letter-spacing: 0.05em;
+}
+
+.m-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.m-contact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--mg-line);
+  color: var(--mg);
+  text-decoration: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.m-contact:active {
+  background: rgba(108, 255, 108, 0.08);
+  border-color: var(--mg-dim);
+}
+.m-contact svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.m-contact .label {
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--mg-fade);
+  margin-left: auto;
+}
+.m-contact .value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.m-contact.copied .value::after {
+  content: ' · copied';
+  color: var(--mg-dim);
+  letter-spacing: 0.08em;
+  font-size: 0.72em;
+}
+
+
+/* ============================================================================
+   Feed tabs (Tech / Art)
+   ============================================================================ */
+
+.m-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.m-card {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--mg-line);
+  background: var(--bg-raised);
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  /*
+   * content-visibility: auto lets the browser skip rendering for cards off-
+   * screen — big win when the feed is long.  contain-intrinsic-size gives
+   * the browser a reasonable placeholder so scroll height is stable.
+   */
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+.m-card:active {
+  transform: scale(0.99);
+  border-color: var(--mg-dim);
+}
+
+.m-card-media {
+  position: relative;
+  width: 100%;
+  background: var(--bg-sunk);
+  overflow: hidden;
+  display: block;
+}
+
+.m-card-media img,
+.m-card-media video {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 65vh;
+  object-fit: cover;
+}
+
+.m-card-media .badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: rgba(10, 10, 10, 0.8);
+  color: var(--mg);
+  border: 1px solid var(--mg-line);
+}
+
+.m-card-body {
+  padding: 14px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.m-card-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--mg);
+  line-height: 1.3;
+}
+
+.m-card-desc {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: rgba(230, 255, 230, 0.7);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.m-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--mg-fade);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  border: 1px dashed var(--mg-line);
+}
+
+
+/* ============================================================================
+   Games tab
+   ============================================================================ */
+
+.m-game-card {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--mg-line);
+  background: var(--bg-raised);
+  overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 360px;
+}
+
+.m-game-banner {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  object-fit: cover;
+  background: var(--bg-sunk);
+}
+
+.m-game-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-game-body h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--mg);
+  text-shadow: 0 0 6px var(--glow);
+}
+
+.m-game-body p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: rgba(230, 255, 230, 0.72);
+}
+
+.m-game-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.m-game-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  min-height: var(--tap);
+  border: 1px solid var(--mg-line);
+  color: var(--mg);
+  text-decoration: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.m-game-link:active { background: rgba(108, 255, 108, 0.08); }
+.m-game-link svg { width: 16px; height: 16px; fill: currentColor; }
+
+
+/* ============================================================================
+   Detail sheet — slides up over everything
+   ============================================================================ */
+
+.m-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  /* Enter transform — JS removes .m-sheet-entering on next frame */
+  transform: translateY(0);
+  transition: transform 300ms var(--ease), opacity 280ms ease;
+}
+.m-sheet-entering {
+  transform: translateY(100%);
+  opacity: 0;
+}
+.m-sheet-exiting {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Scanlines applied via pseudo-element — same density as shell */
+.m-sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 3px,
+    rgba(0, 0, 0, 0.08) 3px,
+    rgba(0, 0, 0, 0.08) 4.5px
+  );
+}
+
+.m-sheet-nav {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: var(--tap) 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: calc(var(--safe-t) + 8px) calc(var(--gutter) + var(--safe-r))
+           8px calc(var(--gutter) + var(--safe-l));
+  border-bottom: 1px solid var(--mg-line);
+  background: var(--bg);
+  position: relative;
+  z-index: 5;
+}
+
+.m-sheet-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 1px solid var(--mg-line);
+  color: var(--mg);
+  font-family: inherit;
+  font-size: 0.95rem;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+.m-sheet-btn:active { background: rgba(108, 255, 108, 0.1); }
+.m-sheet-btn[disabled] {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.m-sheet-counter {
+  text-align: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--mg-fade);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-sheet-arrows {
+  display: flex;
+  gap: 6px;
+}
+
+.m-sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0 calc(var(--gutter) + var(--safe-r))
+           calc(var(--gutter) + var(--safe-b)) calc(var(--gutter) + var(--safe-l));
+}
+
+.m-sheet-media {
+  position: relative;
+  margin: var(--gutter) calc(-1 * (var(--gutter) + var(--safe-r)))
+          var(--gutter) calc(-1 * (var(--gutter) + var(--safe-l)));
+  background: var(--bg-sunk);
+  min-height: 45vh;
+  max-height: 65vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.m-sheet-media img,
+.m-sheet-media video {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.m-sheet-media.loading::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border: 2px solid rgba(108, 255, 108, 0.18);
+  border-top-color: var(--mg);
+  border-radius: 50%;
+  animation: m-spin 0.8s linear infinite;
+  z-index: 2;
+}
+
+@keyframes m-spin { to { transform: rotate(360deg); } }
+
+.m-sheet-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-sheet-info h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--mg);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+.m-sheet-info p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: rgba(230, 255, 230, 0.8);
+}
+
+.m-sheet-gallery {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0;
+}
+.m-sheet-gallery::-webkit-scrollbar { display: none; }
+.m-sheet-gallery { scrollbar-width: none; }
+
+.m-gallery-thumb {
+  flex: 0 0 auto;
+  width: 92px;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--mg-line);
+  overflow: hidden;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color 160ms ease, opacity 160ms ease;
+  opacity: 0.7;
+}
+.m-gallery-thumb.is-active {
+  border-color: var(--mg);
+  opacity: 1;
+}
+.m-gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Swipe affordance strip — shows briefly when sheet opens */
+.m-swipe-hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 12px);
+  transform: translateX(-50%);
+  z-index: 60;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--mg-fade);
+  pointer-events: none;
+  opacity: 0;
+  animation: m-hint-flash 2400ms ease forwards;
+}
+
+@keyframes m-hint-flash {
+  0%   { opacity: 0; }
+  20%  { opacity: 0.85; }
+  70%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+
+/* ============================================================================
+   Splat viewer — reuse desktop container class but tune for mobile
+   ============================================================================ */
+
+.m-sheet-media .splat-viewer-container {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 2;
+  background: var(--bg-sunk);
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.m-sheet-media .splat-viewer-container.loaded { opacity: 1; }
+.m-sheet-media .splat-viewer-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+
+/* ============================================================================
+   Reduced-motion fallbacks
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .m-rabbit-sprite { animation: none; }
+  .m-tap-hint { animation: none; opacity: 0.9; }
+  .m-intro-terminal .cursor { animation: none; opacity: 1; }
+  .m-swipe-hint { animation: none; opacity: 0; }
+  .m-content > .m-fade { animation: none; opacity: 1; transform: none; }
+  .m-sheet { transition: opacity 200ms ease; }
+  .m-sheet-entering, .m-sheet-exiting { transform: none; }
+}
