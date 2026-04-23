@@ -10,13 +10,19 @@
  */
 
 /*
- * Device decision. Viewport width is the most reliable phone signal:
- * touch-capable laptops are common, so "has touch" alone would misroute.
- * 820px covers every mainstream phone (inc. large Android landscape) but
- * stays well below iPad portrait (768 for mini, 1024 for standard), so
- * tablets keep the desktop experience where the cursor-driven CRT works.
+ * Device decision. Primary signal is pointer type: a phone/tablet reports
+ * `(hover: none) and (pointer: coarse)`, a laptop (even a touch one) does
+ * not. This catches large phones in landscape (iPhone Pro Max = 932px,
+ * unfolded Fold = 884px) that a width-only gate would misroute to desktop.
+ *
+ * Width ≤ 820px is kept as a fallback for browsers/environments where the
+ * hover/pointer media queries are unreliable (some older WebViews, automated
+ * tools). iPads (portrait 768 mini / 1024 standard) report `hover: hover`
+ * via Apple Pencil + trackpad paths and usually stay on desktop; iPad in
+ * full tablet-only mode reports coarse and correctly gets mobile.
  */
-const isMobile = window.innerWidth <= 820;
+const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+const isMobile = coarsePointer || window.innerWidth <= 820;
 
 if (isMobile) {
   document.documentElement.classList.add('mobile-mode');

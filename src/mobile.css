@@ -194,11 +194,15 @@ html.mobile-mode {
   will-change: clip-path;
 }
 
+/* steps() = character count of the corresponding intro text in mobile.js.
+   If you edit "Hi, I'm Tomás." or "Technical Artist." there, update the
+   step counts here too — otherwise the typewriter desyncs on the final
+   character. */
 .m-intro-terminal .line-1 .body {
-  animation: m-reveal 620ms steps(14, end) 220ms forwards;
+  animation: m-reveal 620ms steps(14, end) 220ms forwards;  /* "Hi, I'm Tomás." = 14 */
 }
 .m-intro-terminal .line-2 .body {
-  animation: m-reveal 760ms steps(17, end) 1180ms forwards;
+  animation: m-reveal 760ms steps(17, end) 1180ms forwards; /* "Technical Artist." = 17 */
 }
 
 @keyframes m-reveal {
@@ -657,6 +661,9 @@ html.mobile-mode {
    * content-visibility: auto lets the browser skip rendering for cards off-
    * screen — big win when the feed is long.  contain-intrinsic-size gives
    * the browser a reasonable placeholder so scroll height is stable.
+   * Trade-off: Firefox (as of 2026) does not render these for find-in-page,
+   * so Ctrl/Cmd+F misses off-screen cards. Acceptable here — feed is
+   * short and item titles are never long-form text.
    */
   content-visibility: auto;
   contain-intrinsic-size: 320px;

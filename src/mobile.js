@@ -1,7 +1,7 @@
 /**
- * Mobile entry — a completely separate app from src/main.js.
+ * Mobile entry — a completely separate app from src/desktop.js.
  *
- * Boots when window.innerWidth is mobile-sized (see src/main.js dispatch).
+ * Boots when the device looks mobile (see src/main.js dispatch).
  * Never loads the desktop terminal / rabbit / mosaic / detail flow.
  *
  * Architecture:
@@ -26,19 +26,7 @@ import {
   resolveThumbnail,
   resolveSplat,
 } from './config/content.js';
-
-// ---------------------------------------------------------------------------
-// Contact icon SVGs — duplicated from desktop main.js (same markup). Kept
-// local so mobile.js has no runtime dependency on main.js.
-// ---------------------------------------------------------------------------
-const ICONS = {
-  linkedin: `<svg viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`,
-  github: `<svg viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>`,
-  discord: `<svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>`,
-  email: `<svg viewBox="0 0 24 24"><path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z"/><path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z"/></svg>`,
-  steam: `<svg viewBox="0 0 24 24"><path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.029 4.524 4.524s-2.03 4.523-4.524 4.523h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.624 0 11.998-5.375 11.998-12S18.603 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.454 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.252 0-2.265-1.014-2.265-2.265z"/></svg>`,
-  website: `<svg viewBox="0 0 24 24"><path d="M21.721 12.752a9.711 9.711 0 00-.945-5.003 12.754 12.754 0 01-4.339 2.708 18.991 18.991 0 01-.214 4.772 17.165 17.165 0 005.498-2.477zM14.634 15.55a17.324 17.324 0 00.332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 00.332 4.647 17.385 17.385 0 005.268 0zM9.772 17.119a18.963 18.963 0 004.456 0A17.182 17.182 0 0112 21.724a17.18 17.18 0 01-2.228-4.605zM7.777 15.23a18.87 18.87 0 01-.214-4.772 12.753 12.753 0 01-4.34-2.708 9.711 9.711 0 00-.944 5.004 17.165 17.165 0 005.498 2.477zM21.356 14.752a9.765 9.765 0 01-7.478 6.817 18.64 18.64 0 001.988-4.718 18.627 18.627 0 005.49-2.098zM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 001.988 4.718 9.765 9.765 0 01-7.478-6.816zM13.878 2.43a9.755 9.755 0 016.116 3.986 11.267 11.267 0 01-3.746 2.504 18.63 18.63 0 00-2.37-6.49zM12 2.276a17.152 17.152 0 012.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0112 2.276zM10.122 2.43a18.629 18.629 0 00-2.37 6.49 11.266 11.266 0 01-3.746-2.504 9.754 9.754 0 016.116-3.985z"/></svg>`,
-};
+import { ICONS } from './config/icons.js';
 
 
 // ---------------------------------------------------------------------------
@@ -46,15 +34,22 @@ const ICONS = {
 // ---------------------------------------------------------------------------
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const isVideoSrc = (src) => typeof src === 'string' && /\.(mp4|webm)$/i.test(src);
+const isVideoSrc = (src) => typeof src === 'string' && /\.(mp4|webm|mov|m4v)$/i.test(src);
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Create element with optional className/attrs/children. Tiny hyperscript. */
+/**
+ * Create element with optional className/attrs/children. Tiny hyperscript.
+ *
+ * `unsafeHtml` is deliberately named to flag that it sets innerHTML — only
+ * feed it from trusted sources (the ICONS module constant, never user data
+ * or anything interpolated at runtime). See the security contract at the
+ * top of src/config/icons.js.
+ */
 function h(tag, opts = {}, children = []) {
   const el = document.createElement(tag);
   if (opts.class) el.className = opts.class;
   if (opts.text != null) el.textContent = opts.text;
-  if (opts.html != null) el.innerHTML = opts.html;
+  if (opts.unsafeHtml != null) el.innerHTML = opts.unsafeHtml;
   if (opts.attrs) for (const [k, v] of Object.entries(opts.attrs)) el.setAttribute(k, v);
   if (opts.style) Object.assign(el.style, opts.style);
   if (opts.on) for (const [k, v] of Object.entries(opts.on)) el.addEventListener(k, v);
@@ -79,6 +74,12 @@ function loadSplatModule() {
   return _splatModulePromise;
 }
 
+// Monotonic counter that invalidates every in-flight splat mount. Every
+// renderSheetItem call captures a local `my = ++splatSession`; after any
+// await, it compares `my === splatSession` to decide whether to continue.
+// This replaces the previous per-sheet field which was assigned but never read.
+let splatSession = 0;
+
 
 // ---------------------------------------------------------------------------
 // App state
@@ -96,7 +97,7 @@ let tabButtons = [];
 let activeTabId = 'General';
 
 // Detail sheet state
-let activeSheet = null;  // { el, category, index, items, viewer, swipe }
+let activeSheet = null;  // { el, categoryId, index, items, viewer, ... }
 
 
 // ---------------------------------------------------------------------------
@@ -104,9 +105,14 @@ let activeSheet = null;  // { el, category, index, items, viewer, swipe }
 // ---------------------------------------------------------------------------
 export async function boot() {
   document.documentElement.classList.add('mobile-mode');
-  // Remove <main id="terminal"> etc. — desktop CSS hides them, but we also
-  // want to stop any autoplay videos that may have been mounted by a
-  // mis-loaded desktop script. In practice main.js isn't imported on mobile.
+
+  // Remove desktop DOM stubs — index.html ships empty placeholders for the
+  // terminal / mosaic / scanline overlay so the desktop entry can boot
+  // without layout shift. On mobile they're dead weight that also pollute
+  // the a11y tree (an empty <main id="terminal"> would otherwise be a
+  // second main landmark alongside the mobile content <main>).
+  document.querySelectorAll('#crt-screen, #mosaic, .crt-overlay')
+    .forEach((el) => el.remove());
 
   // Build the root container
   appEl = h('div', { attrs: { id: 'mobile-app' } });
@@ -149,11 +155,25 @@ async function runIntro() {
   const intro = h('div', { class: 'm-intro' }, [terminal, rabbitWrap]);
   appEl.appendChild(intro);
 
-  // Wait for a tap to dismiss. Short grace period prevents a stray
-  // queued page-load pointerdown from immediately closing the intro.
+  // Wait for a tap OR key press, with a short grace period so that a
+  // queued page-load pointerdown can't immediately dismiss the intro.
+  // Also auto-dismiss after 12s of no interaction so an idle tab doesn't
+  // leave the user stuck on the splash if they return to it.
   await new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(idleTimer);
+      intro.removeEventListener('pointerdown', finish);
+      document.removeEventListener('keydown', finish);
+      resolve();
+    };
+    const idleTimer = setTimeout(finish, 12_000);
     setTimeout(() => {
-      intro.addEventListener('pointerdown', resolve, { once: true });
+      if (done) return;
+      intro.addEventListener('pointerdown', finish, { once: true });
+      document.addEventListener('keydown', finish, { once: true });
     }, 220);
   });
 
@@ -175,7 +195,9 @@ function buildShell() {
     h('span', { class: 'm-header-role', text: GENERAL_CONTENT.title }),
   ]);
 
-  contentEl = h('main', { class: 'm-content', attrs: { role: 'main' } });
+  // Use <main> (implicit role="main") — one main landmark per page. The
+  // sheet uses <section>, not another <main>, to avoid a duplicate.
+  contentEl = h('main', { class: 'm-content' });
 
   const tabbar = h('nav', { class: 'm-tabbar', attrs: { 'aria-label': 'Sections' } });
   tabButtons = TABS.map((tab) => {
@@ -290,14 +312,30 @@ function buildContactsList(contacts) {
         class: 'm-contact',
         attrs: { role: 'button', tabindex: '0', 'aria-label': `Copy ${c.label}` },
       }, [
-        h('span', { html: ICONS[c.platform] || '' }),
+        h('span', { unsafeHtml: ICONS[c.platform] || '' }),
         h('span', { class: 'value', text: c.copyText }),
         h('span', { class: 'label', text: 'tap to copy' }),
       ]);
       const onCopy = async () => {
-        try { await navigator.clipboard.writeText(c.copyText); } catch { /* ignore */ }
-        row.classList.add('copied');
+        // Only show the "copied" confirmation if the copy actually succeeded.
+        // navigator.clipboard is undefined in non-secure contexts and some
+        // in-app WebViews — silently pretending to copy would be a lie.
+        let ok = false;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(c.copyText);
+            ok = true;
+          }
+        } catch {
+          ok = false;
+        }
         const label = row.querySelector('.label');
+        if (!ok) {
+          if (label) label.textContent = 'copy failed';
+          setTimeout(() => { if (label) label.textContent = 'tap to copy'; }, 1400);
+          return;
+        }
+        row.classList.add('copied');
         if (label) label.textContent = 'copied';
         setTimeout(() => {
           row.classList.remove('copied');
@@ -315,7 +353,7 @@ function buildContactsList(contacts) {
         class: 'm-contact',
         attrs: { href: c.url, target: '_blank', rel: 'noopener noreferrer', 'aria-label': c.label },
       }, [
-        h('span', { html: ICONS[c.platform] || '' }),
+        h('span', { unsafeHtml: ICONS[c.platform] || '' }),
         h('span', { class: 'value', text: c.label }),
         h('span', { class: 'label', text: 'open' }),
       ]);
@@ -372,13 +410,16 @@ function buildMedia(item, { inCard = false } = {}) {
   if (!thumbUrl) return h('div', { style: { aspectRatio: '4 / 3', background: '#060806' } });
 
   if (isVideoSrc(item.src)) {
+    // HTML boolean attributes are truthy by presence. Use empty-string
+    // values so a future refactor can't accidentally write `autoplay="false"`
+    // and still get autoplay.
     const v = h('video', {
       attrs: {
         src: thumbUrl,
-        autoplay: 'true',
-        loop: 'true',
-        muted: 'true',
-        playsinline: 'true',
+        autoplay: '',
+        loop: '',
+        muted: '',
+        playsinline: '',
         preload: inCard ? 'metadata' : 'auto',
       },
     });
@@ -431,7 +472,7 @@ function renderGamesFeed() {
         class: 'm-game-link',
         attrs: { href: l.url, target: '_blank', rel: 'noopener noreferrer' },
       }, [
-        h('span', { html: ICONS[l.icon] || ICONS.website }),
+        h('span', { unsafeHtml: ICONS[l.icon] || ICONS.website }),
         h('span', { text: l.label }),
       ])
     );
@@ -464,6 +505,21 @@ function scheduleFadeStagger(root) {
 
 
 // ---------------------------------------------------------------------------
+// Focus trap — simple Tab cycle between the first & last focusable elements
+// of the sheet. Not a full a11y-tree lockdown, but enough that keyboard
+// users can't Tab out to the underlying feed cards while the sheet is open.
+// ---------------------------------------------------------------------------
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea';
+
+function getFocusable(root) {
+  return [...root.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
+    (el) => !el.hasAttribute('disabled') && el.offsetParent !== null
+  );
+}
+
+
+// ---------------------------------------------------------------------------
 // Detail sheet
 // ---------------------------------------------------------------------------
 function openSheet(categoryId, index) {
@@ -474,7 +530,10 @@ function openSheet(categoryId, index) {
 
   const media = h('div', { class: 'm-sheet-media' });
   const info = h('div', { class: 'm-sheet-info' });
-  const scroll = h('main', { class: 'm-sheet-scroll' }, [media, info]);
+  // Inner scroll container is a <section>, not <main> — avoids a duplicate
+  // main landmark (the shell's content <main> is still in the a11y tree
+  // even when marked inert, in some screen readers).
+  const scroll = h('section', { class: 'm-sheet-scroll' }, [media, info]);
 
   const counter = h('div', { class: 'm-sheet-counter' });
   const prevBtn = h('button', { class: 'm-sheet-btn', text: '‹', attrs: { type: 'button', 'aria-label': 'Previous' } });
@@ -491,12 +550,19 @@ function openSheet(categoryId, index) {
   const sheet = h('div', { class: 'm-sheet m-sheet-entering', attrs: { role: 'dialog', 'aria-modal': 'true' } },
                   [nav, scroll, swipeHint]);
 
+  // Hide the underlying shell from AT + tab order while the sheet is open.
+  // Without this, `aria-modal="true"` is a lie: keyboard users tab out to
+  // the feed cards behind the sheet.
+  if (appEl) appEl.setAttribute('inert', '');
+
   document.body.appendChild(sheet);
+
+  const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
   activeSheet = {
     el: sheet, categoryId, items, index,
     media, info, counter, prevBtn, nextBtn, closeBtn,
-    viewer: null, scroll,
+    viewer: null, scroll, prevFocus,
   };
 
   closeBtn.addEventListener('click', closeSheet);
@@ -509,11 +575,22 @@ function openSheet(categoryId, index) {
     onHorizontal: (dx) => navigateSheet(dx < 0 ? 1 : -1),
   });
 
-  // Global escape + back-button-ish (history entry)
+  // Global escape + arrow keys + Tab trap
   const onKey = (e) => {
-    if (e.key === 'Escape') closeSheet();
-    else if (e.key === 'ArrowLeft') navigateSheet(-1);
-    else if (e.key === 'ArrowRight') navigateSheet(1);
+    if (e.key === 'Escape') { closeSheet(); return; }
+    if (e.key === 'ArrowLeft')  { navigateSheet(-1); return; }
+    if (e.key === 'ArrowRight') { navigateSheet(1);  return; }
+    if (e.key === 'Tab') {
+      const focusable = getFocusable(sheet);
+      if (focusable.length === 0) { e.preventDefault(); return; }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      }
+    }
   };
   document.addEventListener('keydown', onKey);
   activeSheet._onKey = onKey;
@@ -521,9 +598,13 @@ function openSheet(categoryId, index) {
   // Populate first item
   renderSheetItem(index);
 
-  // Enter animation
+  // Enter animation; move focus to the close button once the sheet is
+  // mounted so keyboard users land inside the dialog immediately.
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => sheet.classList.remove('m-sheet-entering'));
+    requestAnimationFrame(() => {
+      sheet.classList.remove('m-sheet-entering');
+      closeBtn.focus();
+    });
   });
 
   // Hint removes itself after its keyframe finishes (CSS animation)
@@ -556,10 +637,11 @@ async function renderSheetItem(index) {
     const placeholder = buildMedia(item);
     media.appendChild(placeholder);
     media.classList.add('loading');
-    const sessionId = ++activeSheet._splatSession || (activeSheet._splatSession = 1);
+    const mySession = ++splatSession;
     try {
       const { SplatViewer } = await loadSplatModule();
-      if (!activeSheet || activeSheet.index !== index) return; // user navigated away
+      // After any await, bail if the user navigated away or closed the sheet.
+      if (!activeSheet || mySession !== splatSession) return;
       const container = h('div', { class: 'splat-viewer-container' });
       media.appendChild(container);
       const url = resolveSplat(item.splat.file);
@@ -568,17 +650,29 @@ async function renderSheetItem(index) {
       viewer.mount(container, url, {
         cameraPosition: item.splat.camera,
         onLoad: () => {
-          if (activeSheet?.index === index) {
+          if (activeSheet && mySession === splatSession) {
             container.classList.add('loaded');
             media.classList.remove('loading');
           }
         },
-        onError: () => media.classList.remove('loading'),
+        onError: () => {
+          if (activeSheet && mySession === splatSession) {
+            media.classList.remove('loading');
+          }
+        },
       });
+      // If we raced with a teardown between viewer creation and here,
+      // destroy immediately — the session counter already moved on.
+      if (!activeSheet || mySession !== splatSession) {
+        try { viewer.destroy(); } catch { /* ignore */ }
+        return;
+      }
       activeSheet.viewer = viewer;
     } catch (err) {
       console.warn('Splat failed to load:', err);
-      media.classList.remove('loading');
+      if (activeSheet && mySession === splatSession) {
+        media.classList.remove('loading');
+      }
     }
   } else {
     media.appendChild(buildMedia(item));
@@ -607,6 +701,16 @@ async function renderSheetItem(index) {
       t.addEventListener('click', () => {
         if (src === activeMediaSrc) return;
         activeMediaSrc = src;
+        // If a splat viewer is currently mounted (main item is a splat),
+        // tear it down before replacing the media node — otherwise its
+        // requestAnimationFrame keeps ticking on a detached canvas.
+        if (activeSheet?.viewer) {
+          destroySplatViewer(activeSheet.viewer);
+          activeSheet.viewer = null;
+        }
+        // Invalidate any in-flight splat load targeting the main slot.
+        splatSession++;
+        media.classList.remove('loading');
         // Swap main media — fade-in new image
         const newMedia = url ? h('img', { attrs: { src: url, alt: '', decoding: 'async' } }) : null;
         if (newMedia) {
@@ -632,17 +736,36 @@ function navigateSheet(dir) {
 
 function closeSheet() {
   if (!activeSheet) return;
-  const { el, viewer, _onKey } = activeSheet;
+  const { el, viewer, _onKey, prevFocus } = activeSheet;
   if (_onKey) document.removeEventListener('keydown', _onKey);
 
-  destroySplatViewer(viewer);
   el.classList.add('m-sheet-exiting');
   activeSheet = null;
 
-  const cleanup = () => el.remove();
-  el.addEventListener('transitionend', cleanup, { once: true });
-  // Fallback in case transitionend never fires (e.g. reduced motion)
-  setTimeout(cleanup, 400);
+  // Defer splat destroy + DOM removal until the exit transition completes
+  // so the canvas doesn't pop out mid-slide. Guard against transitionend
+  // firing per property + setTimeout fallback racing each other.
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(fallback);
+    el.removeEventListener('transitionend', cleanup);
+    destroySplatViewer(viewer);
+    el.remove();
+  };
+  el.addEventListener('transitionend', cleanup);
+  // Fallback in case transitionend never fires (e.g. reduced motion where
+  // transform transition is suppressed but opacity still runs, or no
+  // transition properties at all).
+  const fallback = setTimeout(cleanup, 400);
+
+  // Re-expose the shell to AT + tab order, restore focus to whatever
+  // triggered the open.
+  if (appEl) appEl.removeAttribute('inert');
+  if (prevFocus && typeof prevFocus.focus === 'function') {
+    try { prevFocus.focus(); } catch { /* ignore */ }
+  }
 }
 
 function destroySplatViewer(viewer) {

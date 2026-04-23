@@ -7,6 +7,7 @@ dist/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
@@ -21,6 +22,14 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Secrets / credentials — preventative, nothing of the sort is used today
+*.pem
+*.key
+*.pfx
+*.p12
+credentials*
+secrets*
 
 # Logs
 npm-debug.log*

@@ -5,7 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Tomás Correa | Technical Artist</title>
 
-    <!-- Security Headers -->
+    <!--
+      ── Content Security Policy ──────────────────────────────────────────
+      Hardening notes (read before relaxing):
+
+      script-src 'self' 'sha256-…'
+        No 'unsafe-inline', no 'unsafe-eval', no CDN wildcards. The one hash
+        covers the JSON-LD <script type="application/ld+json"> block below;
+        any whitespace change inside that block will break the hash — regenerate
+        with:  openssl dgst -sha256 -binary <script.txt> | openssl base64 -A
+        This is the primary XSS defence and MUST NOT be loosened.
+
+      style-src 'self' 'unsafe-inline'
+        Required because desktop.js / mobile.js set many dynamic style.*
+        properties at runtime (animation delays, transform values for FLIP
+        transitions, splat-viewer sizing). 'unsafe-inline' cannot execute
+        JavaScript; the risk it enables is CSS-based data exfiltration IF an
+        XSS is ever introduced elsewhere. Defence-in-depth only — not a
+        direct hole today. To remove 'unsafe-inline' in the future, refactor
+        every `el.style.X = Y` to CSS-variable-driven classes.
+
+      default-src 'self', object-src 'none', base-uri 'self'
+        Deny-by-default for any fetch not explicitly listed. object-src 'none'
+        kills <embed>/<object>/<applet> injection vectors.
+
+      font-src 'self' data:            — self-hosted fonts; `data:` allowed for
+                                         any inlined <4KB font Vite emits.
+      img-src  'self' data: blob:      — thumbnails + blob URLs for splat previews.
+      connect-src 'self' blob:         — XHR/fetch only same-origin; blob: for
+                                         splat streaming.
+      worker-src blob:                 — Spark spawns workers from blob URLs.
+
+      frame-ancestors: not set here. Meta-tag CSP ignores frame-ancestors
+      per spec — GitHub Pages doesn't let us set response headers, so
+      clickjacking protection relies on default-src 'self' fallback.
+    -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-1YzPfMh2U2ZTbK+ypkeYKw2OQwoXpLK02vjf2SXKpHA='; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' blob:; worker-src blob:; object-src 'none'; base-uri 'self'" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 

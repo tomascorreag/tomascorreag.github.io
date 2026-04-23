@@ -114,7 +114,11 @@ export const GENERAL_CONTENT = {
     { platform: 'linkedin', url: 'https://www.linkedin.com/in/tomás-correa-551b0a243', label: 'LinkedIn' },
     { platform: 'github',   url: 'https://github.com/tomascorreag', label: 'GitHub' },
     { platform: 'discord',  copyText: 'eltomoco', label: 'Discord' },
-    { platform: 'email',    copyText: 'tomcorrea3+3@gmail.com', label: 'Email' },
+    // Split at build time so a naive HTML/source scraper sees two unrelated
+    // strings instead of a literal `user@domain`. Stops casual crawlers only;
+    // a real harvester can still join the halves. Plus-addressing (+3)
+    // doubles as a disposable tag we can retire if spam gets bad.
+    { platform: 'email',    copyText: ['tomcorrea3+3', 'gmail.com'].join('@'), label: 'Email' },
   ],
   cta: 'Scroll the other sections to see the work.',
 };
