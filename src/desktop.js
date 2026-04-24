@@ -14,8 +14,9 @@ import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier } from './config/device.js';
-import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat } from './config/content.js';
+import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
+import { createMediaElement } from './utils/media.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -446,12 +447,19 @@ function preloadThumbnails() {
     allItems.forEach((item, i) => {
       // Stagger each fetch by 200ms to avoid a bandwidth stampede
       setTimeout(() => {
-        const url = resolveThumbnail(item.src);
+        // Pick the preferred variant URL so preload matches what the browser
+        // will actually render. variantsFor lists modern formats first
+        // (avif, webm) with the original as fallback — the browser should
+        // pick source[0] if supported, and that's ~universal on modern devices.
+        const variants = variantsFor(item.src);
+        if (!variants) return;
+        const url = variants.kind === 'image'
+          ? (variants.sources[0]?.url || variants.fallback.url)
+          : variants.sources[0]?.url;
         if (!url) return;
 
-        if (item.src.endsWith('.mp4') || item.src.endsWith('.webm')) {
+        if (variants.kind === 'video') {
           // For video: a low-priority fetch pulls it into browser's HTTP cache.
-          // 'no-cors' + low priority = invisible background fetch.
           fetch(url, { priority: 'low' }).catch(() => {});
         } else {
           // For images: creating an Image() triggers a standard fetch.
@@ -591,23 +599,8 @@ async function renderMosaic(category) {
       div.dataset.cols = item.cols;
       div.dataset.rows = item.rows;
 
-      const isVideo = item.src.endsWith('.mp4') || item.src.endsWith('.webm');
-      const media = document.createElement(isVideo ? 'video' : 'img');
-      const thumbUrl = resolveThumbnail(item.src);
-      if (!thumbUrl) continue; // skip items with unresolved thumbnails
-      media.src = thumbUrl;
-
-      if (isVideo) {
-        media.autoplay = true;
-        media.loop = true;
-        media.muted = true;        // required for autoplay in most browsers
-        media.playsInline = true;   // prevents fullscreen on iOS
-        media.preload = 'metadata'; // don't pre-fetch full file; autoplay starts stream on its own
-      } else {
-        media.alt = item.alt;
-        media.loading = 'lazy';
-        media.decoding = 'async';
-      }
+      const media = createMediaElement(item.src, { alt: item.alt });
+      if (!media) continue; // skip items with unresolved thumbnails
 
       div.appendChild(media);
       mosaicEl.appendChild(div);
@@ -684,16 +677,8 @@ async function renderGames() {
     card.className = 'game-card';
 
     if (game.src) {
-      const url = resolveThumbnail(game.src);
-      if (url) {
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = game.title;
-        img.className = 'game-banner';
-        img.decoding = 'async';
-        img.loading = 'lazy';
-        card.appendChild(img);
-      }
+      const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner' });
+      if (banner) card.appendChild(banner);
     }
 
     const info = document.createElement('div');
@@ -804,25 +789,11 @@ function renderGeneralContent() {
         const item = CATEGORIES[ref.category]?.[ref.itemIndex];
         if (!item) continue;
 
+        const media = createMediaElement(item.src, { alt: item.alt ?? '' });
+        if (!media) continue;
+
         const thumb = document.createElement('div');
         thumb.className = 'general-skill-thumb';
-
-        const isVideo = item.src.endsWith('.mp4') || item.src.endsWith('.webm');
-        const media = document.createElement(isVideo ? 'video' : 'img');
-        media.src = resolveThumbnail(item.src);
-
-        if (isVideo) {
-          media.autoplay = true;
-          media.loop = true;
-          media.muted = true;
-          media.playsInline = true;
-          media.preload = 'metadata';
-        } else {
-          media.alt = item.alt ?? '';
-          media.loading = 'lazy';
-          media.decoding = 'async';
-        }
-
         thumb.appendChild(media);
         thumbsRow.appendChild(thumb);
 
@@ -1278,29 +1249,42 @@ function exitDetailFullscreen() {
 }
 
 /**
- * Swaps the main detail image with a crossfade.
+ * Swaps the main detail media with a crossfade.
  * Destroys any active splat viewer before swapping.
  *
- * @param {string} newSrc - Resolved URL to swap to
+ * Takes a relative path (not a URL) so it can rebuild the full <picture>
+ * / <video> fallback chain — setting .src on an <img> inside a <picture>
+ * is ignored whenever a <source> above it can decode.
+ *
+ * @param {string} newRelPath - Relative thumbnail path (matches item.src format)
  * @param {HTMLElement} clickedThumb - The gallery thumb that was clicked
  */
-function swapDetailImage(newSrc, clickedThumb) {
+function swapDetailImage(newRelPath, clickedThumb) {
   if (!activeDetail) return;
   if (activeDetail.viewer) {
     destroySplatViewer(activeDetail.viewer);
     activeDetail.viewer = null;
   }
 
-  const media = activeDetail.el.querySelector('img, video');
-  if (!media) return;
+  // `oldMedia` is the <picture> or <video> (the direct child of .mosaic-item).
+  // querySelector('img, video') would find the inner <img> and we'd need to
+  // walk up; selecting picture|video directly is cleaner.
+  const oldMedia = activeDetail.el.querySelector(':scope > picture, :scope > video');
+  if (!oldMedia) return;
 
-  media.style.transition = 'opacity 150ms ease';
-  media.style.opacity = '0';
-  media.addEventListener('transitionend', () => {
-    media.src = newSrc;
-    media.style.opacity = '';
-    // Clean up the transition override after the fade-in settles
-    setTimeout(() => { media.style.transition = ''; }, 160);
+  const newMedia = createMediaElement(newRelPath, { alt: '', lazy: false });
+  if (!newMedia) return;
+
+  oldMedia.style.transition = 'opacity 150ms ease';
+  oldMedia.style.opacity = '0';
+  oldMedia.addEventListener('transitionend', () => {
+    // Replace element wholesale so <source> variants update, not just .src.
+    oldMedia.replaceWith(newMedia);
+    // Starting state for fade-in on the new element
+    newMedia.style.opacity = '0';
+    newMedia.style.transition = 'opacity 150ms ease';
+    requestAnimationFrame(() => { newMedia.style.opacity = ''; });
+    setTimeout(() => { newMedia.style.transition = ''; }, 160);
   }, { once: true });
 
   document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
@@ -1542,15 +1526,18 @@ function buildDetailInfo(itemData, layout) {
     info.appendChild(textCol);
 
     if (itemData.gallery && itemData.gallery.length > 0) {
-      const sideImg = document.createElement('div');
-      sideImg.className = 'detail-info-side-image';
-      const img = document.createElement('img');
-      img.src = resolveThumbnail(itemData.gallery[0]);
-      img.alt = '';
-      img.decoding = 'async';
-      sideImg.appendChild(img);
-      sideImg.addEventListener('click', () => enterGalleryImageFullscreen(img));
-      info.appendChild(sideImg);
+      const media = createMediaElement(itemData.gallery[0], { alt: '', lazy: false });
+      if (media) {
+        const sideImg = document.createElement('div');
+        sideImg.className = 'detail-info-side-image';
+        sideImg.appendChild(media);
+        // Pass the inner <img> (or the element itself if it's a <video>) so
+        // enterGalleryImageFullscreen can read getBoundingClientRect on the
+        // actual rendered pixels, not the transparent <picture> wrapper.
+        const clickTarget = media.querySelector?.('img') || media;
+        sideImg.addEventListener('click', () => enterGalleryImageFullscreen(clickTarget));
+        info.appendChild(sideImg);
+      }
     }
   } else {
     if (itemData.title) {
@@ -1570,16 +1557,15 @@ function buildDetailInfo(itemData, layout) {
       galleryEl.className = 'detail-gallery';
 
       itemData.gallery.forEach((extraSrc) => {
-        const resolvedSrc = resolveThumbnail(extraSrc);
+        const media = createMediaElement(extraSrc, { alt: '' });
+        if (!media) return;
         const thumb = document.createElement('div');
         thumb.className = 'gallery-thumb';
-        const img = document.createElement('img');
-        img.src = resolvedSrc;
-        img.alt = '';
-        img.decoding = 'async';
-        img.loading = 'lazy';
-        thumb.appendChild(img);
-        thumb.addEventListener('click', () => swapDetailImage(resolvedSrc, thumb));
+        thumb.appendChild(media);
+        // Pass the relative path so swapDetailImage can rebuild the main
+        // media's full variant chain (can't just swap .src — <picture>
+        // <source> children override it, and <video> uses <source> too).
+        thumb.addEventListener('click', () => swapDetailImage(extraSrc, thumb));
         galleryEl.appendChild(thumb);
       });
 

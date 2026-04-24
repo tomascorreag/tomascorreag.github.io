@@ -34,7 +34,7 @@
  * it pre-discovers all matching assets at compile time.
  */
 const thumbnailModules = import.meta.glob(
-  '../assets/thumbnails/**/*.{jpg,jpeg,png,webp,mp4,webm}',
+  '../assets/thumbnails/**/*.{jpg,jpeg,png,webp,avif,mp4,webm}',
   { eager: true, import: 'default' }
 );
 
@@ -80,6 +80,72 @@ export function resolveThumbnail(relativePath) {
     return '';
   }
   return resolved;
+}
+
+// Extensions, grouped by media kind. `image` fallback uses the originally
+// referenced extension (png/jpg/jpeg) — preserves author intent from content.js.
+const IMAGE_EXTS   = new Set(['png', 'jpg', 'jpeg']);
+const VIDEO_EXTS   = new Set(['mp4', 'webm', 'mov', 'm4v']);
+const MIME_BY_EXT  = {
+  avif: 'image/avif',
+  webp: 'image/webp',
+  webm: 'video/webm',
+  mp4:  'video/mp4',
+};
+
+function tryResolve(basePath, ext) {
+  const key = `../assets/thumbnails/${basePath}.${ext}`;
+  return thumbnailModules[key] || null;
+}
+
+/**
+ * Returns all available variants for a thumbnail path, in preference order.
+ *
+ * For images, `sources` holds the modern formats the browser should try first
+ * (avif, webp). `fallback` is the originally referenced file (png/jpg/jpeg) —
+ * every browser can decode it, so it's the `<img>` inside `<picture>`.
+ *
+ * For videos, `sources` holds webm (preferred) then mp4 (universal fallback).
+ *
+ * Returns null if the path is unknown, so callers can mirror existing
+ * `if (url)` guards with `if (element)`.
+ */
+export function variantsFor(relativePath) {
+  const dot = relativePath.lastIndexOf('.');
+  if (dot < 0) return null;
+  const basePath = relativePath.slice(0, dot);
+  const ext = relativePath.slice(dot + 1).toLowerCase();
+
+  if (IMAGE_EXTS.has(ext)) {
+    const fallbackUrl = tryResolve(basePath, ext);
+    if (!fallbackUrl) {
+      console.warn(`Thumbnail not found: ${relativePath}`);
+      return null;
+    }
+    const sources = [];
+    for (const modern of ['avif', 'webp']) {
+      const url = tryResolve(basePath, modern);
+      if (url) sources.push({ type: MIME_BY_EXT[modern], url });
+    }
+    return { kind: 'image', sources, fallback: { url: fallbackUrl, ext } };
+  }
+
+  if (VIDEO_EXTS.has(ext)) {
+    const sources = [];
+    // Preferred first: webm (smaller), then mp4 (universal).
+    for (const vext of ['webm', 'mp4']) {
+      const url = tryResolve(basePath, vext);
+      if (url) sources.push({ type: MIME_BY_EXT[vext], url });
+    }
+    if (sources.length === 0) {
+      console.warn(`Thumbnail not found: ${relativePath}`);
+      return null;
+    }
+    return { kind: 'video', sources };
+  }
+
+  console.warn(`Unsupported thumbnail extension: ${relativePath}`);
+  return null;
 }
 
 /**

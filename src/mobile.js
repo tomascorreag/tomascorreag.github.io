@@ -23,10 +23,10 @@ import {
   CATEGORIES,
   GAMES,
   GENERAL_CONTENT,
-  resolveThumbnail,
   resolveSplat,
 } from './config/content.js';
 import { ICONS } from './config/icons.js';
+import { createMediaElement } from './utils/media.js';
 
 
 // ---------------------------------------------------------------------------
@@ -142,18 +142,69 @@ function buildIntroLine(text, lineClass) {
   ]);
 }
 
+/**
+ * Toggles the `.jumping` class on the rabbit sprite on a randomised schedule
+ * so the splash rabbit occasionally hops instead of only idling. Duration
+ * (900ms) must match the `.m-rabbit-sprite.jumping` animation in mobile.css
+ * — when the class comes off the sprite returns to `m-rabbit-idle`.
+ *
+ * Silently no-ops under prefers-reduced-motion. Returns a cancel function.
+ */
+function startRabbitRandomJumps(sprite) {
+  if (prefersReducedMotion || !sprite) return () => {};
+
+  const JUMP_DURATION = 900;   // ms, matches CSS
+  let cancelled = false;
+  let scheduleTimer = null;
+  let endTimer = null;
+
+  const scheduleNext = (delay) => {
+    if (cancelled) return;
+    scheduleTimer = setTimeout(() => {
+      if (cancelled || !sprite.isConnected) return;
+      // Force reflow so re-adding the class restarts the animation cleanly
+      // if a previous run somehow left it on.
+      sprite.classList.remove('jumping');
+      void sprite.offsetWidth;
+      sprite.classList.add('jumping');
+      endTimer = setTimeout(() => {
+        if (cancelled) return;
+        sprite.classList.remove('jumping');
+        // Next jump in 2–5s
+        scheduleNext(2000 + Math.random() * 3000);
+      }, JUMP_DURATION);
+    }, delay);
+  };
+
+  // First jump ~3.0–4.5s after mount: the parent `.m-intro-rabbit` finishes
+  // its fade-in at 2620ms, then we give the viewer a breath before the hop.
+  scheduleNext(3000 + Math.random() * 1500);
+
+  return () => {
+    cancelled = true;
+    clearTimeout(scheduleTimer);
+    clearTimeout(endTimer);
+  };
+}
+
 async function runIntro() {
   const line1 = buildIntroLine("Hi, I'm Tomás.",    'line-1');
   const line2 = buildIntroLine('Technical Artist.', 'line-2');
   const terminal = h('div', { class: 'm-intro-terminal' }, [line1, line2]);
 
+  const rabbitSprite = h('span', { class: 'm-rabbit-sprite', attrs: { 'aria-hidden': 'true' } });
   const rabbitWrap = h('div', { class: 'm-intro-rabbit' }, [
-    h('span', { class: 'm-rabbit-sprite', attrs: { 'aria-hidden': 'true' } }),
+    rabbitSprite,
     h('p', { class: 'm-tap-hint', text: 'tap to enter' }),
   ]);
 
   const intro = h('div', { class: 'm-intro' }, [terminal, rabbitWrap]);
   appEl.appendChild(intro);
+
+  // Random idle jumps — kicks in after the rabbit's reveal animation (parent
+  // fades in at 2200ms + 420ms). Returns a cancel fn that the dismiss path
+  // calls so timers never outlive the splash DOM.
+  const cancelRabbitJumps = startRabbitRandomJumps(rabbitSprite);
 
   // Wait for a tap OR key press, with a short grace period so that a
   // queued page-load pointerdown can't immediately dismiss the intro.
@@ -165,6 +216,7 @@ async function runIntro() {
       if (done) return;
       done = true;
       clearTimeout(idleTimer);
+      cancelRabbitJumps();
       intro.removeEventListener('pointerdown', finish);
       document.removeEventListener('keydown', finish);
       resolve();
@@ -404,38 +456,15 @@ function buildFeedCard(item) {
   return card;
 }
 
-/** Builds an <img> or <video> element appropriate for the item. */
+/** Builds a <picture> or <video> element appropriate for the item. */
 function buildMedia(item, { inCard = false } = {}) {
-  const thumbUrl = resolveThumbnail(item.src);
-  if (!thumbUrl) return h('div', { style: { aspectRatio: '4 / 3', background: '#060806' } });
-
-  if (isVideoSrc(item.src)) {
-    // HTML boolean attributes are truthy by presence. Use empty-string
-    // values so a future refactor can't accidentally write `autoplay="false"`
-    // and still get autoplay.
-    const v = h('video', {
-      attrs: {
-        src: thumbUrl,
-        autoplay: '',
-        loop: '',
-        muted: '',
-        playsinline: '',
-        preload: inCard ? 'metadata' : 'auto',
-      },
-    });
-    v.muted = true;           // iOS needs the property, not just the attr
-    v.playsInline = true;
-    return v;
-  }
-
-  return h('img', {
-    attrs: {
-      src: thumbUrl,
-      alt: item.alt || item.title || '',
-      loading: 'lazy',
-      decoding: 'async',
-    },
+  const el = createMediaElement(item.src, {
+    alt: item.alt || item.title || '',
+    video: { preload: inCard ? 'metadata' : 'auto' },
   });
+  // Placeholder matches pre-existing behavior for unresolved thumbnails.
+  if (!el) return h('div', { style: { aspectRatio: '4 / 3', background: '#060806' } });
+  return el;
 }
 
 function buildMediaThumb(item, className) {
@@ -456,15 +485,7 @@ function renderGamesFeed() {
   const feed = h('section', { class: 'm-feed' });
   for (const game of GAMES) {
     const banner = game.src
-      ? h('img', {
-          class: 'm-game-banner',
-          attrs: {
-            src: resolveThumbnail(game.src) || '',
-            alt: game.title,
-            loading: 'lazy',
-            decoding: 'async',
-          },
-        })
+      ? createMediaElement(game.src, { alt: game.title, className: 'm-game-banner' })
       : null;
 
     const links = (game.links || []).map((l) =>
@@ -691,13 +712,11 @@ async function renderSheetItem(index) {
     let activeMediaSrc = item.src;
 
     const thumbs = all.map((src, i) => {
-      const url = resolveThumbnail(src);
+      const thumbMedia = createMediaElement(src, { alt: '' });
       const t = h('button', {
         class: 'm-gallery-thumb' + (i === 0 ? ' is-active' : ''),
         attrs: { type: 'button', 'aria-label': `Image ${i + 1}` },
-      }, [
-        url ? h('img', { attrs: { src: url, alt: '', loading: 'lazy', decoding: 'async' } }) : null,
-      ]);
+      }, [thumbMedia]);
       t.addEventListener('click', () => {
         if (src === activeMediaSrc) return;
         activeMediaSrc = src;
@@ -711,8 +730,9 @@ async function renderSheetItem(index) {
         // Invalidate any in-flight splat load targeting the main slot.
         splatSession++;
         media.classList.remove('loading');
-        // Swap main media — fade-in new image
-        const newMedia = url ? h('img', { attrs: { src: url, alt: '', decoding: 'async' } }) : null;
+        // Swap main media — rebuild full variant chain, not just .src
+        // (a <picture>'s <source> children would override any .src change).
+        const newMedia = createMediaElement(src, { alt: '', lazy: false });
         if (newMedia) {
           media.replaceChildren(newMedia);
         }
