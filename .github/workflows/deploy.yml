@@ -36,6 +36,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # The committed .npmrc pins `script-shell` to a Windows git-bash path for
+    # local dev (see .npmrc header). Override it here so CI uses the Linux
+    # shell — npm honours NPM_CONFIG_* env vars over .npmrc.
+    env:
+      NPM_CONFIG_SCRIPT_SHELL: /bin/bash
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
