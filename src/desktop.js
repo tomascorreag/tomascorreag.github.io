@@ -17,6 +17,7 @@ import { deviceTier } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
 import { createMediaElement } from './utils/media.js';
+import { parseMarkdown } from './utils/markdown.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -504,6 +505,12 @@ let staggerTimeouts = [];
 let activeDetail = null;
 let detailFullscreen = false;
 
+// ---- Article page state ----
+// Tracks which article page is displayed (null = no article open).
+// returnTo stores the category/label to re-render on close.
+let activeArticle = null;  // { data, returnTo, observer }
+
+
 // ---- Keyboard navigation state ----
 // Two focus "zones" — nav menu and mosaic grid — with arrow keys moving
 // within and between them. Like a console game's UI selector system:
@@ -605,11 +612,12 @@ async function renderMosaic(category) {
       div.appendChild(media);
       mosaicEl.appendChild(div);
 
-      // Click → open detail view for this item
+      // Click → open detail or article view
       div.addEventListener('click', () => {
-        if (activeDetail) return; // already in detail mode
-        clearFocus(); // mouse click resets keyboard focus
-        openDetail(div, item);
+        if (activeDetail) return;
+        clearFocus();
+        if (item.page) openArticlePage(item, category);
+        else openDetail(div, item);
       });
 
       // Hover prefetch for splat items — start downloading the .spz file
@@ -688,9 +696,10 @@ async function renderGames() {
     h2.textContent = game.title;
     info.appendChild(h2);
 
-    if (game.description) {
+    const cardText = game.summary || game.description;
+    if (cardText) {
       const p = document.createElement('p');
-      p.textContent = game.description;
+      p.textContent = cardText;
       info.appendChild(p);
     }
 
@@ -714,12 +723,215 @@ async function renderGames() {
     }
 
     card.appendChild(info);
+
+    if (game.page) {
+      card.classList.add('has-page');
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.game-link')) return;
+        openArticlePage(game, 'Games');
+      });
+    }
+
     mosaicEl.appendChild(card);
   }
 
   mosaicHasContent = true;
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
+}
+
+// ========================================================================
+//  Article Page — scrollable rich-content view (blog-post style)
+// ========================================================================
+
+/**
+ * Opens an article page for an item with a `page` field.
+ * Fades out the current mosaic/games content and fades in a scrollable
+ * article document. Same crossfade pattern as category switching.
+ *
+ * @param {Object} itemData - Content item with a `page` array
+ * @param {string} returnTo - Category label to re-render on close ('Games', '3D Tech', etc.)
+ */
+async function openArticlePage(itemData, returnTo) {
+  if (activeArticle) return;
+  if (activeDetail) closeDetail(true);
+
+  activeArticle = { data: itemData, returnTo, observer: null };
+  currentCategoryItems = [];
+
+  if (mosaicHasContent) {
+    mosaicEl.classList.remove('visible');
+    await new Promise(r => {
+      const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
+      mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
+    });
+  }
+
+  mosaicEl.innerHTML = '';
+  mosaicEl.classList.remove('general-mode', 'games-mode');
+  mosaicEl.classList.add('article-mode');
+  mosaicEl.scrollTop = 0;
+
+  buildArticleNav();
+
+  const article = buildArticleContent(itemData);
+  mosaicEl.appendChild(article);
+
+  // Scroll-triggered reveal for content blocks
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { root: mosaicEl, threshold: 0.1 });
+
+  article.querySelectorAll('.article-reveal').forEach(el => observer.observe(el));
+  activeArticle.observer = observer;
+
+  mosaicHasContent = true;
+  await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
+  mosaicEl.classList.add('visible');
+}
+
+/**
+ * Builds the article page DOM tree. Pure construction — no side effects.
+ * Returns a wrapper element containing header (banner + title) and body (content blocks).
+ */
+function buildArticleContent(itemData) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'article-page';
+
+  // ---- Header: banner image + title + description ----
+  const header = document.createElement('div');
+  header.className = 'article-header';
+
+  if (itemData.src) {
+    const bannerMedia = createMediaElement(itemData.src, {
+      alt: itemData.title || '',
+      className: 'article-banner',
+      lazy: false,
+    });
+    if (bannerMedia) {
+      const bannerWrap = document.createElement('div');
+      bannerWrap.className = 'article-banner-wrap';
+      bannerWrap.appendChild(bannerMedia);
+      header.appendChild(bannerWrap);
+    }
+  }
+
+  if (itemData.title || itemData.links?.length) {
+    const titleRow = document.createElement('div');
+    titleRow.className = 'article-title-row';
+
+    if (itemData.title) {
+      const title = document.createElement('h1');
+      title.className = 'article-title';
+      title.textContent = itemData.title;
+      titleRow.appendChild(title);
+    }
+
+    if (itemData.links?.length) {
+      const linksEl = document.createElement('div');
+      linksEl.className = 'article-header-links';
+      for (const link of itemData.links) {
+        const a = document.createElement('a');
+        a.href = link.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'article-link';
+        const icon = CONTACT_ICONS[link.icon] ?? CONTACT_ICONS.website;
+        a.innerHTML = `${icon}<span>${link.label}</span>`;
+        linksEl.appendChild(a);
+      }
+      titleRow.appendChild(linksEl);
+    }
+
+    header.appendChild(titleRow);
+  }
+
+  if (itemData.description) {
+    const desc = document.createElement('p');
+    desc.className = 'article-description';
+    desc.textContent = itemData.description;
+    header.appendChild(desc);
+  }
+
+  wrapper.appendChild(header);
+
+  // ---- Body: content blocks (parsed from markdown) ----
+  if (itemData.page) {
+    const body = document.createElement('div');
+    body.className = 'article-body';
+    const fragment = parseMarkdown(itemData.page, { createMediaElement, iconMap: CONTACT_ICONS });
+    body.appendChild(fragment);
+    wrapper.appendChild(body);
+  }
+
+  return wrapper;
+}
+
+
+/**
+ * Builds the article nav bar — back button only, no prev/next arrows.
+ * Appended to crtScreen (same as detail nav). The mosaic grid in article-mode
+ * disables pointer-events so clicks pass through to this nav underneath.
+ */
+function buildArticleNav() {
+  const existing = crtScreen.querySelector('.detail-nav');
+  if (existing) existing.remove();
+
+  const nav = document.createElement('div');
+  nav.className = 'detail-nav crt-effects';
+
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '< back';
+  backBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeArticlePage();
+  });
+
+  nav.appendChild(backBtn);
+  crtScreen.appendChild(nav);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      nav.classList.add('visible');
+    });
+  });
+}
+
+/**
+ * Closes the article page, returning to the view the user came from.
+ * Mirrors the open transition in reverse.
+ */
+async function closeArticlePage() {
+  if (!activeArticle) return;
+
+  const { returnTo, observer } = activeArticle;
+  if (observer) observer.disconnect();
+
+  // Remove nav bar
+  crtScreen.querySelector('.detail-nav')?.remove();
+
+  // Fade out article
+  mosaicEl.classList.remove('visible');
+  await new Promise(r => {
+    const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
+    mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
+  });
+
+  mosaicEl.innerHTML = '';
+  mosaicEl.classList.remove('article-mode');
+  activeArticle = null;
+
+  // Re-render the previous view
+  if (returnTo === 'Games') {
+    await renderGames();
+  } else {
+    await renderMosaic(returnTo);
+  }
 }
 
 /**
@@ -1797,6 +2009,14 @@ function selectNavItem(navItem) {
   const current = navMenu.querySelector('.nav-item.selected');
   if (navItem === current) return Promise.resolve();
 
+  // Clean up article page if open
+  if (activeArticle) {
+    if (activeArticle.observer) activeArticle.observer.disconnect();
+    crtScreen.querySelector('.detail-nav')?.remove();
+    mosaicEl.classList.remove('article-mode');
+    activeArticle = null;
+  }
+
   current?.classList.remove('selected');
   navItem.classList.add('selected');
   mosaicFocusIndex = -1; // mosaic content is changing, reset its focus
@@ -2021,6 +2241,12 @@ document.addEventListener('keydown', (e) => {
   if (!navReady) return;
 
   const key = e.key;
+
+  // --- Article page mode ---
+  if (activeArticle) {
+    if (key === 'Escape') closeArticlePage();
+    return;
+  }
 
   // --- Detail view mode ---
   if (activeDetail) {

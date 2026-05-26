@@ -24,6 +24,7 @@
   src: url('./assets/fonts/MartianMono-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
 @font-face {
   font-family: 'Martian Mono';
   font-style: normal;
@@ -42,6 +43,7 @@
   src: url('./assets/fonts/SpaceMono-Regular-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
 @font-face {
   font-family: 'Space Mono';
   font-style: normal;
@@ -60,6 +62,7 @@
   src: url('./assets/fonts/SpaceMono-Bold-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
 @font-face {
   font-family: 'Space Mono';
   font-style: normal;
@@ -78,6 +81,7 @@
   src: url('./assets/fonts/SpaceMono-Italic-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
 @font-face {
   font-family: 'Space Mono';
   font-style: italic;
@@ -96,6 +100,7 @@
   src: url('./assets/fonts/SpaceMono-BoldItalic-latin-ext.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
+
 @font-face {
   font-family: 'Space Mono';
   font-style: italic;
@@ -136,7 +141,8 @@
 }
 
 /* Era: Terminal (default) - green phosphor monitor aesthetic */
-[data-era="terminal"], :root {
+[data-era="terminal"],
+:root {
   --text-primary: var(--terminal-green);
   --bg-primary: var(--terminal-bg);
   --glow-color: rgba(51, 255, 51, 0.5);
@@ -170,7 +176,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -213,7 +220,8 @@ html, body {
   top: 50%;
 
   display: flex;
-  flex-direction: column-reverse;  /* Reverses visual order: last child on top */
+  flex-direction: column-reverse;
+  /* Reverses visual order: last child on top */
   align-items: flex-start;
 }
 
@@ -223,7 +231,8 @@ html, body {
 
 .terminal-history {
   display: flex;
-  flex-direction: column;  /* Oldest at top, newest at bottom (closest to active) */
+  flex-direction: column;
+  /* Oldest at top, newest at bottom (closest to active) */
   align-items: flex-start;
 }
 
@@ -248,8 +257,16 @@ html, body {
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 /* ============================================
@@ -307,7 +324,8 @@ html, body {
 .rabbit::after {
   content: '';
   position: absolute;
-  inset: 0;  /* Fill parent */
+  inset: 0;
+  /* Fill parent */
 
   background-color: var(--text-primary);
   -webkit-mask-image: url('./assets/spritesheets/RabbitAnimation_V1.png');
@@ -340,14 +358,16 @@ html, body {
 
 /* Flipped sprite (facing right) */
 .rabbit.flipped {
-  transform: scale(-4, 4);  /* Negative X scale flips horizontally */
+  transform: scale(-4, 4);
+  /* Negative X scale flips horizontally */
 }
 
 /* Spawn animation - sprite + drop to bottom */
 .rabbit.spawning {
   animation:
     rabbit-spawn-sprite 0.55s steps(7) forwards,
-    rabbit-spawn-drop 0.45s cubic-bezier(0.5, 0, 1, 1) forwards;  /* Accelerating (like gravity) */
+    rabbit-spawn-drop 0.45s cubic-bezier(0.5, 0, 1, 1) forwards;
+  /* Accelerating (like gravity) */
 }
 
 .rabbit.spawning::after {
@@ -355,8 +375,13 @@ html, body {
 }
 
 @keyframes rabbit-spawn-sprite {
-  from { background-position: -288px 0; }
-  to   { background-position: -512px 0; }
+  from {
+    background-position: -288px 0;
+  }
+
+  to {
+    background-position: -512px 0;
+  }
 }
 
 @keyframes rabbit-spawn-overlay {
@@ -364,6 +389,7 @@ html, body {
     -webkit-mask-position: -288px 0;
     mask-position: -288px 0;
   }
+
   to {
     -webkit-mask-position: -512px 0;
     mask-position: -512px 0;
@@ -371,6 +397,7 @@ html, body {
 }
 
 @keyframes rabbit-spawn-drop {
+
   /*
    * Start position is set by JS via inline style
    * End at bottom of viewport (100vh - visual height)
@@ -400,8 +427,13 @@ html, body {
 }
 
 @keyframes rabbit-jump-sprite {
-  from { background-position: -32px 0; }
-  to   { background-position: -512px 0; }
+  from {
+    background-position: -32px 0;
+  }
+
+  to {
+    background-position: -512px 0;
+  }
 }
 
 @keyframes rabbit-jump-overlay {
@@ -409,18 +441,26 @@ html, body {
     -webkit-mask-position: -32px 0;
     mask-position: -32px 0;
   }
+
   to {
     -webkit-mask-position: -512px 0;
-    mask-position: -512px 0;  /* Frame 17 */
+    mask-position: -512px 0;
+    /* Frame 17 */
   }
 }
 
 @keyframes rabbit-color-fade {
-  from { opacity: 1; }
-  to   { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes rabbit-jump-move {
+
   /*
    * Movement timing aligned to sprite frames:
    * - 16 frames total (2-17), 15 steps
@@ -428,10 +468,21 @@ html, body {
    * - Frame 15 = 13/15 = 86.67%
    * - Direction controlled by --jump-direction: 1 = left, -1 = right
    */
-  0%      { margin-left: 0; }
-  28.5%  { margin-left: 0; }
-  91.67%  { margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction)); }
-  100%    { margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction)); }
+  0% {
+    margin-left: 0;
+  }
+
+  28.5% {
+    margin-left: 0;
+  }
+
+  91.67% {
+    margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction));
+  }
+
+  100% {
+    margin-left: calc(-1 * var(--rabbit-jump-distance, 250px) * var(--jump-direction));
+  }
 }
 
 /* ============================================
@@ -489,13 +540,11 @@ html, body {
 
   /* Scanlines - alternating transparent/dark bands */
   /* Pattern: [spacing gap] [size dark line] repeating */
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent var(--scanline-spacing, 4px),
-    rgba(0, 0, 0, var(--scanline-opacity, 0.08)) var(--scanline-spacing, 4px),
-    rgba(0, 0, 0, var(--scanline-opacity, 0.08)) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px))
-  );
+  background: repeating-linear-gradient(0deg,
+      transparent,
+      transparent var(--scanline-spacing, 4px),
+      rgba(0, 0, 0, var(--scanline-opacity, 0.06)) var(--scanline-spacing, 4px),
+      rgba(0, 0, 0, var(--scanline-opacity, 0.06)) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px)));
 }
 
 /*
@@ -506,11 +555,9 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    transparent var(--vignette-size, 40%),
-    rgba(0, 0, 0, var(--vignette-intensity, 0.3)) 100%
-  );
+  background: radial-gradient(ellipse at center,
+      transparent var(--vignette-size, 40%),
+      rgba(0, 0, 0, var(--vignette-intensity, 0.3)) 100%);
 }
 
 
@@ -555,13 +602,7 @@ html, body {
   --rgb-dir: 1;
 
   filter:
-    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1)))
-    brightness(calc(1 + 0.25 * var(--crt-glow-brightness, 1)))
-    drop-shadow(calc(-1px * var(--rgb-dir)) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.25)))
-    drop-shadow(calc(1px * var(--rgb-dir)) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.25)))
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+    blur(calc(var(--crt-blur, 0.4px) / var(--rabbit-scale, 1))) brightness(calc(1 + 0.25 * var(--crt-glow-brightness, 1))) drop-shadow(calc(-1px * var(--rgb-dir)) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.25))) drop-shadow(calc(1px * var(--rgb-dir)) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.25))) drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent)) drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent)) drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1) / var(--rabbit-scale, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
 }
 
 /* Flipped: reverse RGB direction so red stays on screen-left */
@@ -636,13 +677,7 @@ html, body {
  * fullscreen), so this filter only processes the small occupied region. */
 .particle-canvas.crt-effects {
   filter:
-    blur(var(--crt-blur, 0.4px))
-    brightness(calc(1.5 + 1 * var(--crt-glow-intensity, 1)))
-    drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.25)))
-    drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.25)))
-    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent))
-    drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
+    blur(var(--crt-blur, 0.4px)) brightness(calc(1.5 + 1 * var(--crt-glow-intensity, 1))) drop-shadow(-1px 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.25))) drop-shadow(1px 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.25))) drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent)) drop-shadow(0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(80% * var(--crt-glow-intensity, 1)), transparent)) drop-shadow(0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--rabbit-glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent));
 }
 
 /* ============================================
@@ -753,7 +788,8 @@ html, body {
 
   opacity: 0;
   transition: opacity 300ms ease;
-  z-index: 1000;              /* above .crt-overlay (1000) so scanlines don't cover images */
+  z-index: 1000;
+  /* above .crt-overlay (1000) so scanlines don't cover images */
 }
 
 .mosaic-grid.visible {
@@ -775,6 +811,7 @@ html, body {
   transform: translate3d(-3px, -3px, 0);
   transition: opacity 320ms ease, transform 320ms ease;
 }
+
 .mosaic-item.reveal.revealed {
   opacity: 1;
   transform: translate3d(0, 0, 0);
@@ -791,7 +828,7 @@ html, body {
 /* Images: scale + brighten on hover */
 .mosaic-item img {
   transition: transform var(--timing-normal) var(--ease-smooth),
-              filter var(--timing-normal) var(--ease-smooth);
+    filter var(--timing-normal) var(--ease-smooth);
   will-change: transform;
 }
 
@@ -812,12 +849,29 @@ html, body {
 /* Span rules via data attributes — controls the irregular sizing.
  * A 2-col item spans 2 grid columns, a 2-row item spans 2 rows.
  * Combined (data-cols=2 + data-rows=2) gives a large square. */
-.mosaic-item[data-cols="2"] { grid-column: span 2; }
-.mosaic-item[data-cols="3"] { grid-column: span 3; }
-.mosaic-item[data-cols="4"] { grid-column: span 4; }
-.mosaic-item[data-rows="2"] { grid-row: span 2; }
-.mosaic-item[data-rows="3"] { grid-row: span 3; }
-.mosaic-item[data-rows="4"] { grid-row: span 4; }
+.mosaic-item[data-cols="2"] {
+  grid-column: span 2;
+}
+
+.mosaic-item[data-cols="3"] {
+  grid-column: span 3;
+}
+
+.mosaic-item[data-cols="4"] {
+  grid-column: span 4;
+}
+
+.mosaic-item[data-rows="2"] {
+  grid-row: span 2;
+}
+
+.mosaic-item[data-rows="3"] {
+  grid-row: span 3;
+}
+
+.mosaic-item[data-rows="4"] {
+  grid-row: span 4;
+}
 
 /* ============================================
    General Section (text-based CV)
@@ -836,7 +890,8 @@ html, body {
   justify-content: flex-start;
   overflow-y: auto;
   padding: calc(2rem + 20px) 2rem 2rem 2rem;
-  z-index: 99;  /* Drop below .crt-overlay (100) so global scanlines cover the CV */
+  z-index: 99;
+  /* Drop below .crt-overlay (100) so global scanlines cover the CV */
 }
 
 /* ---- Games page ---- */
@@ -858,7 +913,8 @@ html, body {
   width: 100%;
   aspect-ratio: 2 / 1;
   object-fit: cover;
-  background: #111; /* placeholder colour if image missing */
+  background: #111;
+  /* placeholder colour if image missing */
 }
 
 .game-info {
@@ -867,8 +923,8 @@ html, body {
   filter: blur(calc(var(--crt-blur, 0.4px) * 0.5)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    calc(var(--rgb-offset, 1px) * 1)  0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    0 0 calc(5px  * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
     0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
     0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
@@ -914,6 +970,301 @@ html, body {
 .game-link:hover {
   opacity: 1;
   filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
+.game-card.has-page {
+  cursor: pointer;
+  transition: filter var(--timing-normal) ease, transform var(--timing-normal) ease;
+}
+
+.game-card.has-page:hover {
+  filter: brightness(1.2);
+  transform: scale(1.01);
+}
+
+/* ============================================
+   Article Page — scrollable rich-content view
+   ============================================ */
+
+.mosaic-grid.article-mode {
+  display: block;
+  overflow-y: auto;
+  padding: calc(3.5rem + 20px) 2rem 2rem 2rem;
+  z-index: 1000;
+  /* above .crt-overlay so images render clean, like mosaic thumbnails */
+  pointer-events: none;
+  /* let clicks pass through to .detail-nav underneath */
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
+}
+
+.mosaic-grid.article-mode::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mosaic-grid.article-mode::-webkit-scrollbar-thumb {
+  background: var(--mg-line);
+  border-radius: 3px;
+  box-shadow: 0 0 4px var(--glow-color);
+}
+
+.article-page {
+  pointer-events: auto;
+  /* re-enable within article-mode's pointer-events: none grid */
+  width: 100%;
+  font-family: 'Martian Mono', monospace;
+  color: color-mix(in srgb, var(--text-primary) 80%, white);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background-color: var(--bg-primary);
+  padding-bottom: 3rem;
+}
+
+/* CRT glow on text — applied to the whole page, counteracted on images */
+.article-page {
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.35)) brightness(calc(1 + 0.65 * var(--crt-glow-brightness, 1)));
+  text-shadow:
+    calc(var(--rgb-offset, 1px) * -0.65) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.3)),
+    calc(var(--rgb-offset, 1px) * 0.65) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.3)),
+    0 0 calc(4.5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(66% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(13px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(50% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(24px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(33% * var(--crt-glow-intensity, 1)), transparent);
+}
+
+/* ---- Banner ---- */
+.article-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.article-banner-wrap {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  filter: brightness(calc(1 / (1 + 0.85 * var(--crt-glow-brightness, 1))));
+}
+
+.article-banner-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      transparent 40%,
+      transparent 60%,
+      rgba(255, 255, 255, 0.08) 100%);
+  animation: banner-sweep 600ms ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes banner-sweep {
+  0% {
+    transform: translateY(-100%);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.article-banner-wrap picture {
+  display: block;
+  width: 100%;
+}
+
+.article-banner,
+.article-banner-wrap img {
+  display: block;
+  width: 100%;
+  max-height: 40vh;
+  object-fit: cover;
+  background: #111;
+}
+
+/* ---- Typography ---- */
+.article-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.article-header-links {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.article-header-links .article-link {
+  font-size: clamp(0.7rem, 1.4vw, 0.9rem);
+  padding: 0.5em 1em;
+}
+
+.article-header-links .article-link svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.article-title {
+  font-size: clamp(1.25rem, 4vw, 2rem);
+  font-weight: 200;
+  margin: 0;
+  line-height: 1.1;
+  text-shadow:
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
+    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 1)),
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+}
+
+.article-description {
+  font-size: clamp(0.55rem, 1.1vw, 0.8rem);
+  font-weight: 150;
+  line-height: 1.7;
+  margin: 0;
+  opacity: 0.9;
+  text-align: justify;
+}
+
+.article-heading {
+  font-size: clamp(0.9rem, 2vw, 1.2rem);
+  font-weight: 450;
+  margin: 1rem 0 0;
+}
+
+.article-heading::before {
+  content: '> ';
+  opacity: 0.4;
+}
+
+.article-text {
+  font-size: clamp(0.55rem, 1.1vw, 0.8rem);
+  font-weight: 150;
+  line-height: 1.7;
+  margin: 0;
+  opacity: 0.9;
+  text-align: justify;
+}
+
+.article-list {
+  font-size: clamp(0.55rem, 1.1vw, 0.8rem);
+  font-weight: 150;
+  line-height: 1.7;
+  margin: 0.25rem 0;
+  padding-left: 1.5em;
+  opacity: 0.9;
+}
+
+.article-list li {
+  margin-bottom: 0.3em;
+}
+
+/* ---- Figures (images / videos in content blocks) ---- */
+.article-figure {
+  margin: 0.5rem 0;
+  /* Counteract the parent .article-page filter so images render clean.
+     Inverse brightness cancels the boost; blur can't be undone but at 0.4x
+     (0.16px) it's imperceptible on images. */
+  filter: brightness(calc(1 / (1 + 0.85 * var(--crt-glow-brightness, 1))));
+  text-shadow: none;
+}
+
+.article-figure picture {
+  display: block;
+  width: 100%;
+}
+
+.article-figure img,
+.article-figure video {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 15%, transparent);
+}
+
+.article-figure figcaption {
+  font-size: clamp(0.55rem, 1vw, 0.75rem);
+  font-weight: 200;
+  opacity: 0.5;
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+/* ---- Divider ---- */
+.article-divider {
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--text-primary) 20%, transparent);
+  width: 100%;
+  margin: 0.5rem 0;
+}
+
+/* ---- Links ---- */
+.article-links {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.article-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: clamp(0.6rem, 1.2vw, 0.8rem);
+  font-weight: 300;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+  padding: 0.4em 0.8em;
+  transition: filter var(--timing-normal) ease, border-color var(--timing-normal) ease;
+}
+
+.article-link svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.article-link:hover {
+  filter: brightness(1.5) drop-shadow(0 0 6px var(--glow-color));
+  border-color: var(--text-primary);
+}
+
+/* ---- Scroll-triggered reveal ---- */
+/* Same pattern as .stagger-reveal: the hidden state is on :not(.revealed)
+ * so when .revealed is added, opacity reverts to each element's own natural
+ * value (e.g., .article-text at 0.9) rather than forcing everything to 1. */
+.article-reveal {
+  transition: opacity 600ms ease, transform 600ms ease;
+}
+
+.article-reveal:not(.revealed) {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.article-reveal.revealed {
+  transform: translateY(0);
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .article-reveal {
+    transform: none;
+    transition: opacity 400ms ease;
+  }
+
+  .article-banner-wrap::after {
+    animation: none;
+  }
 }
 
 /* Staggered reveal for General section elements (mid/high tier).
@@ -1064,7 +1415,7 @@ html, body {
   object-fit: cover;
   display: block;
   transition: transform var(--timing-normal) var(--ease-smooth),
-              filter var(--timing-normal) var(--ease-smooth);
+    filter var(--timing-normal) var(--ease-smooth);
 }
 
 .general-skill-thumb:hover img,
@@ -1103,7 +1454,7 @@ html, body {
   color: var(--text-primary);
   opacity: 0.65;
   transition: opacity var(--timing-normal) ease,
-              filter var(--timing-normal) ease;
+    filter var(--timing-normal) ease;
   display: flex;
   align-items: center;
 }
@@ -1129,7 +1480,7 @@ html, body {
   color: var(--text-primary);
   opacity: 0.65;
   transition: opacity var(--timing-normal) ease,
-              filter var(--timing-normal) ease;
+    filter var(--timing-normal) ease;
   display: flex;
   align-items: center;
 }
@@ -1167,7 +1518,9 @@ html, body {
 }
 
 @keyframes blink-cursor {
-  50% { opacity: 0; }
+  50% {
+    opacity: 0;
+  }
 }
 
 /* ============================================
@@ -1212,7 +1565,8 @@ html, body {
   overflow: visible;
   background: transparent;
   cursor: default;
-  pointer-events: auto;  /* re-enable on the active item despite grid's pointer-events: none */
+  pointer-events: auto;
+  /* re-enable on the active item despite grid's pointer-events: none */
   opacity: 1;
   transition: opacity 250ms ease;
 }
@@ -1245,7 +1599,8 @@ html, body {
  * Portrait: beside the image (position: absolute, side panel). */
 .detail-info {
   position: absolute;
-  pointer-events: auto; /* re-enable: .mosaic-grid.detail-mode sets pointer-events: none */
+  pointer-events: auto;
+  /* re-enable: .mosaic-grid.detail-mode sets pointer-events: none */
   color: #e0e0e0;
   font-family: 'Martian Mono', monospace;
   opacity: 0;
@@ -1297,7 +1652,8 @@ html, body {
   top: calc(5% + 12px);
   width: 55%;
   height: 2.5rem;
-  z-index: 1;  /* below .crt-overlay (100) so scanlines cover it, like the terminal */
+  z-index: 1;
+  /* below .crt-overlay (100) so scanlines cover it, like the terminal */
 
   display: flex;
   justify-content: space-between;
@@ -1362,7 +1718,8 @@ html, body {
 .splat-viewer-container {
   position: absolute;
   inset: 0;
-  z-index: 2;  /* Above the thumbnail img/video inside the detail-active item */
+  z-index: 2;
+  /* Above the thumbnail img/video inside the detail-active item */
   filter: none !important;
   opacity: 0;
   transition: opacity 400ms ease;
@@ -1406,7 +1763,9 @@ html, body {
 }
 
 @keyframes splat-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ============================================
@@ -1531,7 +1890,10 @@ html, body {
 }
 
 .gallery-thumb.active,
-.gallery-thumb:hover { opacity: 1; border-color: var(--text-primary); }
+.gallery-thumb:hover {
+  opacity: 1;
+  border-color: var(--text-primary);
+}
 
 .gallery-thumb img {
   width: 100%;
@@ -1562,6 +1924,7 @@ html, body {
    Triggers on all portrait phones, portrait tablets, and 4:3 monitors.
    Does NOT trigger on standard laptops/desktops (MacBook 14" = 1.54:1).      */
 @media (max-aspect-ratio: 4/3) {
+
   /* Terminal: shift anchor from vertical-center to upper area */
   .terminal-wrapper {
     top: 20%;
@@ -1579,7 +1942,9 @@ html, body {
     padding: 1rem 2rem;
   }
 
-  .nav-prompt { display: none; }
+  .nav-prompt {
+    display: none;
+  }
 
   /* Mosaic: full width, takes the bottom ~58% of the screen */
   .mosaic-grid {
@@ -1606,5 +1971,6 @@ html, body {
    never renders underneath.                                                  */
 html.mobile-mode #crt-screen,
 html.mobile-mode .crt-overlay,
-html.mobile-mode #mosaic { display: none !important; }
-
+html.mobile-mode #mosaic {
+  display: none !important;
+}
