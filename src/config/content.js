@@ -234,18 +234,18 @@ Game modes: 1v1 multiplayer, ranked ladder, LLM-driven tutorial opponent, and an
 
 ## My Role
 
-Technical Artist and lead developer.
+Technical Artist and co-lead developer.
 
 - **Real-time visual pipeline** — custom shaders via Shader Graph + HLSL/GLSL in URP
 - **All VFX** — particle systems, VFX Graph, and bespoke implementations
-- **Custom Unity editor tools** for the design team to author content without code
-- **Co-developed** core gameplay systems and UI/UX across the stack
-- 3D assets (meshes, textures) by a dedicated in-house artist; all post-import material and visual authoring was mine
+- **Custom Unity editor tools** for myself and the dev team to use
+- Co-developed the **hex-grid combat engine**, protocol-deck system, and status-effect framework
+- Co-developed **UI/UX** across the stack
 
 ---
 
 ![ARBO Molecular Punch VFX](Games/ARBO/punch.jpg)
-*Molecular Punch on the Abyssal Pit map. Custom VFX and shader work.*
+*Molecular Punch on the Abyssal Pit map. Custom VFX, shader, and post-processing work.*
 
 ---
 
@@ -254,7 +254,6 @@ Technical Artist and lead developer.
 - Custom real-time **shader pipeline** in URP (Shader Graph + HLSL/GLSL)
 - **VFX** via particle systems, VFX Graph, and custom implementations
 - **Editor tooling** enabling designers to author and tune game content without code
-- Co-developed the **hex-grid combat engine**, protocol-deck system, and status-effect framework
 
 ![ARBO Incendiary Flames VFX](Games/ARBO/flamethrower.jpg)
 *Incendiary Flames. Particle systems and post-processing on display.*
@@ -267,7 +266,7 @@ Technical Artist and lead developer.
     src: 'games/paramoThumb.png',
     title: 'Páramo',
     summary: 'Environmental strategy on a Colombian páramo, built in Godot 4. Work in progress.',
-    description: 'An environmental strategy game set on a Colombian páramo — a high-altitude Andean ecosystem that supplies water to millions downstream. The player is a field coordinator protecting the mountain from extractive, biological, and climate threats while managing community relationships and scarce resources. Built in Godot 4 with isometric pixel art. Designed as procedural rhetoric: the game\'s systems argue about conservation, not its text. Work in progress.',
+    description: 'An environmental strategy game set on a Colombian **páramo** (a high-altitude Andean ecosystem that supplies water to millions downstream). The player is a field coordinator protecting the mountain from extractive, biological, and climate threats while managing community relationships and scarce resources. Built in Godot 4 with isometric pixel art. Designed as procedural rhetoric: the game\'s systems argue about conservation, not its text. Work in progress.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],

@@ -11,7 +11,7 @@ import { getDeviceTier, isMobileDevice } from './device.js';
 
 export const CRT_CONFIG = Object.freeze({
   // Scanlines
-  scanlineOpacity: 0.4,      // Base visibility (0-1)
+  scanlineOpacity: 0.25,      // Base visibility (0-1)
   scanlineSpacing: 2,         // px gap between dark lines
   scanlineSize: 2,            // px thickness of dark lines
 
@@ -138,7 +138,7 @@ export function startGlowNoise() {
 
   const config = getActiveConfig();
   const { glowNoiseMin: min, glowNoiseFrequency: freq,
-          glowNoiseDropChance: chance, glowNoiseRecovery: recovery } = config;
+    glowNoiseDropChance: chance, glowNoiseRecovery: recovery } = config;
   const baseline = config.glowIntensity;
   if (!freq) return;
 

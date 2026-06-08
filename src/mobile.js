@@ -27,6 +27,7 @@ import {
 } from './config/content.js';
 import { ICONS } from './config/icons.js';
 import { createMediaElement } from './utils/media.js';
+import { applyInline } from './utils/markdown.js';
 
 
 // ---------------------------------------------------------------------------
@@ -448,7 +449,7 @@ function buildFeedCard(item) {
 
   const body = h('div', { class: 'm-card-body' }, [
     item.title ? h('h3', { class: 'm-card-title', text: item.title }) : null,
-    item.description ? h('p', { class: 'm-card-desc', text: item.description }) : null,
+    item.description ? h('p', { class: 'm-card-desc', unsafeHtml: applyInline(item.description) }) : null,
   ]);
 
   // Use a <button> so keyboard activation + role semantics come free
@@ -502,7 +503,7 @@ function renderGamesFeed() {
       banner,
       h('div', { class: 'm-game-body' }, [
         h('h2', { text: game.title }),
-        game.description ? h('p', { text: game.description }) : null,
+        game.description ? h('p', { unsafeHtml: applyInline(game.description) }) : null,
         links.length ? h('div', { class: 'm-game-links' }, links) : null,
       ]),
     ]);
@@ -702,7 +703,7 @@ async function renderSheetItem(index) {
   // Info panel
   info.replaceChildren();
   if (item.title) info.appendChild(h('h2', { text: item.title }));
-  if (item.description) info.appendChild(h('p', { text: item.description }));
+  if (item.description) info.appendChild(h('p', { unsafeHtml: applyInline(item.description) }));
 
   // Gallery strip
   if (Array.isArray(item.gallery) && item.gallery.length > 0) {

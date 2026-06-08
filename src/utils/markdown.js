@@ -11,7 +11,7 @@ function isVideoPath(src) {
   return VIDEO_EXTS.has(ext);
 }
 
-function applyInline(text) {
+export function applyInline(text) {
   const tmp = document.createElement('span');
   tmp.textContent = text;
   let html = tmp.innerHTML;

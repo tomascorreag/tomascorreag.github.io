@@ -17,7 +17,7 @@ import { deviceTier } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
 import { createMediaElement } from './utils/media.js';
-import { parseMarkdown } from './utils/markdown.js';
+import { parseMarkdown, applyInline } from './utils/markdown.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -699,7 +699,7 @@ async function renderGames() {
     const cardText = game.summary || game.description;
     if (cardText) {
       const p = document.createElement('p');
-      p.textContent = cardText;
+      p.innerHTML = applyInline(cardText);
       info.appendChild(p);
     }
 
@@ -854,7 +854,7 @@ function buildArticleContent(itemData) {
   if (itemData.description) {
     const desc = document.createElement('p');
     desc.className = 'article-description';
-    desc.textContent = itemData.description;
+    desc.innerHTML = applyInline(itemData.description);
     header.appendChild(desc);
   }
 
@@ -1732,7 +1732,7 @@ function buildDetailInfo(itemData, layout) {
     }
     if (itemData.description) {
       const p = document.createElement('p');
-      p.textContent = itemData.description;
+      p.innerHTML = applyInline(itemData.description);
       textCol.appendChild(p);
     }
     info.appendChild(textCol);
@@ -1759,7 +1759,7 @@ function buildDetailInfo(itemData, layout) {
     }
     if (itemData.description) {
       const p = document.createElement('p');
-      p.textContent = itemData.description;
+      p.innerHTML = applyInline(itemData.description);
       info.appendChild(p);
     }
 
