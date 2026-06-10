@@ -16,7 +16,7 @@ import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement } from './utils/media.js';
+import { createMediaElement, createSpritesheetElement } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 
 /**
@@ -612,12 +612,14 @@ async function renderMosaic(category) {
       div.appendChild(media);
       mosaicEl.appendChild(div);
 
-      // Click → open detail or article view
+      // Click → open the FLIP detail view. Mosaic items render their `page`
+      // markdown inside the detail panel (buildDetailInfo), so they must NOT
+      // route to openArticlePage — that's the Games full-page article view
+      // (banner + crossfade), which skips the thumbnail FLIP entirely.
       div.addEventListener('click', () => {
         if (activeDetail) return;
         clearFocus();
-        if (item.page) openArticlePage(item, category);
-        else openDetail(div, item);
+        openDetail(div, item);
       });
 
       // Hover prefetch for splat items — start downloading the .spz file
@@ -684,7 +686,10 @@ async function renderGames() {
     const card = document.createElement('div');
     card.className = 'game-card';
 
-    if (game.src) {
+    if (game.type === 'spritesheet') {
+      const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
+      if (banner) card.appendChild(banner);
+    } else if (game.src) {
       const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner' });
       if (banner) card.appendChild(banner);
     }
@@ -807,15 +812,21 @@ function buildArticleContent(itemData) {
   const header = document.createElement('div');
   header.className = 'article-header';
 
-  if (itemData.src) {
-    const bannerMedia = createMediaElement(itemData.src, {
-      alt: itemData.title || '',
-      className: 'article-banner',
-      lazy: false,
-    });
+  if (itemData.type === 'spritesheet' || itemData.src) {
+    const bannerMedia = itemData.type === 'spritesheet'
+      ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true })
+      : createMediaElement(itemData.src, {
+        alt: itemData.title || '',
+        className: 'article-banner',
+        lazy: false,
+      });
     if (bannerMedia) {
       const bannerWrap = document.createElement('div');
       bannerWrap.className = 'article-banner-wrap';
+      // The wrap dims its contents (brightness filter to offset CRT glow on
+      // photos). The sprite title is already authored at the right brightness,
+      // so clear it for sprite banners to avoid a muted look.
+      if (itemData.type === 'spritesheet') bannerWrap.style.filter = 'none';
       bannerWrap.appendChild(bannerMedia);
       header.appendChild(bannerWrap);
     }
@@ -883,7 +894,10 @@ function buildArticleNav() {
   if (existing) existing.remove();
 
   const nav = document.createElement('div');
-  nav.className = 'detail-nav crt-effects';
+  // masthead: the article-mode content scrolls in its own container, so lift the
+  // nav above the grid (like landscape 3D-art detail) to mask content scrolling
+  // up beneath the back button.
+  nav.className = 'detail-nav crt-effects masthead';
 
   const backBtn = document.createElement('button');
   backBtn.textContent = '< back';
@@ -1300,6 +1314,10 @@ function enterDetailFullscreen() {
     : 0;
   const fsRect = computeFullscreenRect(ar, containerRect, topMargin);
 
+  // Reset any scroll so the image expands from its unscrolled position (the
+  // info is about to fade out, so the page collapses to a single screen anyway).
+  mosaicEl.scrollTop = 0;
+
   itemEl.classList.add('detail-transitioning');
   void itemEl.offsetWidth; // force reflow so browser commits "from" state before animating
   itemEl.style.left = `${fsRect.x}px`;
@@ -1338,8 +1356,16 @@ function enterGalleryImageFullscreen(imgEl) {
   const containerRect = mosaicEl.getBoundingClientRect();
   const imgRect = imgEl.getBoundingClientRect();
 
-  const fromX = imgRect.left - containerRect.left;
-  const fromY = imgRect.top - containerRect.top;
+  // mosaicEl (.detail-scroll) is the scroll container in BOTH portrait and
+  // landscape. getBoundingClientRect is viewport-relative, but the overlay +
+  // backdrop are absolutely positioned inside the SCROLLED content — so convert
+  // to content space by adding the scroll offset. (The gallery side-image never
+  // exposed this: it always sits at scroll 0.)
+  const scrollLeft = mosaicEl.scrollLeft;
+  const scrollTop = mosaicEl.scrollTop;
+
+  const fromX = imgRect.left - containerRect.left + scrollLeft;
+  const fromY = imgRect.top - containerRect.top + scrollTop;
   const fromW = imgRect.width;
   const fromH = imgRect.height;
 
@@ -1349,10 +1375,21 @@ function enterGalleryImageFullscreen(imgEl) {
     ? Math.max(0, nav.getBoundingClientRect().bottom - containerRect.top) + 8
     : 0;
   const toRect = computeFullscreenRect(ar, containerRect, topMargin);
+  // computeFullscreenRect returns viewport-relative (visual) coords; shift into
+  // content space too so the zoomed image lands centered in the CURRENT view.
+  const toX = toRect.x + scrollLeft;
+  const toY = toRect.y + scrollTop;
 
-  // Backdrop covers the full mosaic so clicking outside the image also exits
+  // Lock scrolling while zoomed so the content (and the content-space overlay)
+  // can't drift out from under the backdrop. Restored on exit.
+  mosaicEl.style.overflow = 'hidden';
+
+  // Backdrop covers the full scrollable content (not just the viewport) so it
+  // masks everything regardless of the current scroll position.
   const backdrop = document.createElement('div');
   backdrop.className = 'gallery-fs-backdrop';
+  backdrop.style.bottom = 'auto';
+  backdrop.style.height = `${mosaicEl.scrollHeight}px`;
   backdrop.addEventListener('click', exitDetailFullscreen);
   mosaicEl.appendChild(backdrop);
 
@@ -1364,15 +1401,17 @@ function enterGalleryImageFullscreen(imgEl) {
   overlay.style.height = `${fromH}px`;
 
   const overlayImg = document.createElement('img');
-  overlayImg.src = imgEl.src;
+  // currentSrc = the variant the browser actually picked (avif/webp) for a
+  // <picture>; falls back to .src for a bare <img>. Avoids refetching the png.
+  overlayImg.src = imgEl.currentSrc || imgEl.src;
   overlayImg.decoding = 'async';
   overlay.appendChild(overlayImg);
   mosaicEl.appendChild(overlay);
 
   // FLIP: commit "from" state then animate to "to"
   void overlay.offsetWidth;
-  overlay.style.left = `${toRect.x}px`;
-  overlay.style.top = `${toRect.y}px`;
+  overlay.style.left = `${toX}px`;
+  overlay.style.top = `${toY}px`;
   overlay.style.width = `${toRect.w}px`;
   overlay.style.height = `${toRect.h}px`;
 
@@ -1407,6 +1446,9 @@ function exitDetailFullscreen() {
 
     // Remove backdrop immediately — no animation needed
     backdrop?.remove();
+
+    // Restore scrolling locked in enterGalleryImageFullscreen.
+    mosaicEl.style.overflow = '';
 
     // Block re-click during exit animation
     overlay.style.pointerEvents = 'none';
@@ -1714,6 +1756,42 @@ function updateDetailNavButtons() {
  * @param {Object} itemData - Content data (title, description, etc.)
  * @param {Object} layout - From computeDetailLayout ({targetRect, infoSide})
  */
+/**
+ * Renders an item's text body into a detail-info container.
+ * Prefers `page` (full Markdown via parseMarkdown); falls back to the short
+ * `description` as a single inline-formatted paragraph for un-migrated items.
+ *
+ * @param {HTMLElement} container - Where the body is appended (info or text column)
+ * @param {Object} itemData - Content data (page, description, ...)
+ */
+function appendDetailBody(container, itemData) {
+  if (itemData.page) {
+    const body = document.createElement('div');
+    body.className = 'detail-info-body';
+    const fragment = parseMarkdown(itemData.page, { createMediaElement, iconMap: CONTACT_ICONS });
+    body.appendChild(fragment);
+    // The detail panel has no scroll-reveal observer (unlike the article page)
+    // and fades in as a whole, so reveal markdown blocks immediately —
+    // otherwise .article-reveal keeps them at opacity: 0.
+    body.querySelectorAll('.article-reveal').forEach(el => el.classList.add('revealed'));
+    // Make embedded images zoomable, mirroring the main thumbnail + gallery
+    // side-image fullscreen behaviour. Bind on the whole <figure> (not the bare
+    // <img>) so floated images with wrapping text + caption are a reliable hit
+    // target. Video figures have no <img> and are skipped.
+    body.querySelectorAll('.article-figure').forEach((fig) => {
+      const img = fig.querySelector('img');
+      if (!img) return;
+      fig.classList.add('zoomable');
+      fig.addEventListener('click', () => enterGalleryImageFullscreen(img));
+    });
+    container.appendChild(body);
+  } else if (itemData.description) {
+    const p = document.createElement('p');
+    p.innerHTML = applyInline(itemData.description);
+    container.appendChild(p);
+  }
+}
+
 function buildDetailInfo(itemData, layout) {
   const { targetRect, infoSide } = layout;
 
@@ -1730,11 +1808,7 @@ function buildDetailInfo(itemData, layout) {
       h2.textContent = itemData.title;
       textCol.appendChild(h2);
     }
-    if (itemData.description) {
-      const p = document.createElement('p');
-      p.innerHTML = applyInline(itemData.description);
-      textCol.appendChild(p);
-    }
+    appendDetailBody(textCol, itemData);
     info.appendChild(textCol);
 
     if (itemData.gallery && itemData.gallery.length > 0) {
@@ -1757,11 +1831,7 @@ function buildDetailInfo(itemData, layout) {
       h2.textContent = itemData.title;
       info.appendChild(h2);
     }
-    if (itemData.description) {
-      const p = document.createElement('p');
-      p.innerHTML = applyInline(itemData.description);
-      info.appendChild(p);
-    }
+    appendDetailBody(info, itemData);
 
     // Gallery strip — shows additional images for items that have them.
     if (itemData.gallery && itemData.gallery.length > 0) {
@@ -1790,24 +1860,53 @@ function buildDetailInfo(itemData, layout) {
   const containerRect = mosaicEl.getBoundingClientRect();
 
   if (infoSide === 'below' || infoSide === 'below-split') {
-    const infoHeight = containerRect.height - (targetRect.y + targetRect.h);
+    // Landscape: pin the doc directly under the image at its natural height and
+    // let .mosaic-grid.detail-scroll scroll the image + doc as one unit.
     info.style.top = `${targetRect.y + targetRect.h}px`;
-    info.style.height = `${infoHeight}px`;
-  } else if (infoSide === 'right') {
-    // Image is on left, info on right
-    info.style.top = `${targetRect.y}px`;
-    info.style.left = `${targetRect.x + targetRect.w}px`;
-    info.style.width = `${containerRect.width - targetRect.x - targetRect.w}px`;
-    info.style.height = `${targetRect.h}px`;
+    mosaicEl.classList.add('detail-scroll');
   } else {
-    // infoSide === 'left' — image is on right, info on left
+    // Portrait: image on one side, doc spanning the FULL width beneath it.
+    // A transparent floated spacer (first child) shadows the image's footprint
+    // so the text wraps beside the image, then widens to full width once it
+    // clears the image's bottom — true float-wrap. The image itself stays an
+    // absolutely-positioned sibling; both scroll together via .detail-scroll.
+    const PAD_X = 16;   // doc horizontal padding (px) — keep in sync with inline padding below
+    const PAD_Y = 24;   // doc top padding (px)
+    const GAP = 24;     // horizontal gap between image and wrapped text (px)
+
     info.style.top = `${targetRect.y}px`;
     info.style.left = '0px';
-    info.style.width = `${targetRect.x}px`;
-    info.style.height = `${targetRect.h}px`;
+    info.style.width = `${containerRect.width}px`;
+    info.style.padding = `${PAD_Y}px ${PAD_X}px`;
+
+    const spacer = document.createElement('div');
+    spacer.className = 'detail-info-float';
+    // From the doc's content-top (targetRect.y + PAD_Y) down to the image's
+    // bottom (targetRect.y + targetRect.h): the wrapped text clears at image bottom.
+    spacer.style.height = `${targetRect.h - PAD_Y}px`;
+    // Width spans image width + gap; negative margin pulls the float's outer
+    // edge out of the doc padding to sit flush with the image's outer edge.
+    spacer.style.width = `${targetRect.w + GAP}px`;
+    if (infoSide === 'right') {
+      spacer.style.float = 'left';   // image on the left (x = 0)
+      spacer.style.marginLeft = `${-PAD_X}px`;
+    } else {
+      spacer.style.float = 'right';  // image on the right (x = cw - w)
+      spacer.style.marginRight = `${-PAD_X}px`;
+    }
+    info.insertBefore(spacer, info.firstChild);
+
+    mosaicEl.classList.add('detail-scroll');
   }
 
   mosaicEl.appendChild(info);
+  // Start at the top whenever a doc is (re)built (open / navigate).
+  mosaicEl.scrollTop = 0;
+
+  // In landscape scroll mode the doc scrolls up under the nav bar — turn the nav
+  // into an opaque masthead (above the grid) so it masks the passing content.
+  const navBar = crtScreen.querySelector('.detail-nav');
+  if (navBar) navBar.classList.toggle('masthead', mosaicEl.classList.contains('detail-scroll'));
 
   // Fade in after a frame
   requestAnimationFrame(() => {
@@ -1871,7 +1970,10 @@ function closeDetail(instant = false) {
   if (info) info.remove();
   const nav = crtScreen.querySelector('.detail-nav');
   if (nav) nav.remove();
-  mosaicEl.classList.remove('detail-mode');
+  // Drop scroll mode + reset position so the reverse FLIP snapshots the image at
+  // its unscrolled spot, not wherever the user had scrolled to.
+  mosaicEl.classList.remove('detail-mode', 'detail-scroll');
+  mosaicEl.scrollTop = 0;
 
   // Cancel any in-progress animation
   itemEl.getAnimations().forEach(a => a.cancel());
@@ -2007,7 +2109,13 @@ async function switchToAndOpenDetail(category, itemIndex) {
 function selectNavItem(navItem) {
   const navMenu = document.getElementById('nav-menu');
   const current = navMenu.querySelector('.nav-item.selected');
-  if (navItem === current) return Promise.resolve();
+  if (navItem === current) {
+    // Re-clicking the current section while a piece is open acts as "back":
+    // return to the section's grid/list view, same as the back button.
+    if (activeDetail) closeDetail();
+    else if (activeArticle) return closeArticlePage();
+    return Promise.resolve();
+  }
 
   // Clean up article page if open
   if (activeArticle) {
@@ -2640,4 +2748,16 @@ async function main() {
   }
 }
 
-main();
+// URL-gated portfolio decks: `/?p=<slug>` skips the terminal/rabbit intro and
+// boots straight into the slide deck (code-split — the deck chunk only loads
+// for gated visits, never for the normal site). mountDeck handles an unknown
+// slug with its own "not found" panel, so presence of the param is enough.
+const gatedSlug = new URLSearchParams(window.location.search).get('p');
+if (gatedSlug !== null) {
+  document.getElementById('crt-screen')?.setAttribute('hidden', '');
+  import('./components/PortfolioDeck.js')
+    .then((m) => m.mountDeck(gatedSlug, { isMobile: false }))
+    .catch((err) => console.error('Deck boot failed:', err));
+} else {
+  main();
+}

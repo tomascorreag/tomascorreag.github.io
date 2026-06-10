@@ -209,7 +209,8 @@ export const GENERAL_CONTENT = {
  */
 export const GAMES = [
   {
-    src: 'games/arboThumb.png',       // place a 2:1 banner in src/assets/thumbnails/games/
+    id: 'arbo',
+    src: 'Games/ARBO/ARBO_thumb.jpg',
     title: 'ARBO: Arena Tactics',
     summary: 'Turn-based tactical combat with deckbuilding, built in Unity. In closed alpha on Steam.',
     description: 'Turn-based tactical combat with a deckbuilding layer, built in Unity. Two players each command a team of heroes on a hex grid, assembling protocol decks to outmaneuver and KO the opposition. I served as Technical Artist and lead developer — owning the real-time visual pipeline and editor tooling, and co-developing core gameplay systems and UI/UX. In closed alpha on Steam.',
@@ -263,7 +264,16 @@ Technical Artist and co-lead developer.
 `,
   },
   {
-    src: 'games/paramoThumb.png',
+    id: 'paramo',
+    type: 'spritesheet',
+    spritesheet: {
+      file: 'Games/Paramo/MainTitle_animated.png',
+      frames: 24, first: 16, count: 8, fps: 10,
+      // Pixel-perfect: native frame is 256×64; render at integer 1× = 256×64.
+      frameWidth: 256, frameHeight: 64, scale: 1,
+      frameAspect: '4 / 1',
+      background: '#94a8bf',
+    },
     title: 'Páramo',
     summary: 'Environmental strategy on a Colombian páramo, built in Godot 4. Work in progress.',
     description: 'An environmental strategy game set on a Colombian **páramo** (a high-altitude Andean ecosystem that supplies water to millions downstream). The player is a field coordinator protecting the mountain from extractive, biological, and climate threats while managing community relationships and scarce resources. Built in Godot 4 with isometric pixel art. Designed as procedural rhetoric: the game\'s systems argue about conservation, not its text. Work in progress.',
@@ -326,7 +336,16 @@ Godot 4, isometric pixel art. All systems data-driven — new content is configu
 `,
   },
   {
-    src: 'games/matrixThumb.png',     // place a 2:1 banner in src/assets/thumbnails/games/
+    id: 'matrix',
+    type: 'spritesheet',
+    spritesheet: {
+      file: 'Games/Matrix/Neo_run_spriteSheet.png',
+      frames: 8, first: 0, count: 8, fps: 10,
+      // Pixel-perfect: native frame is 64×64; render at integer 2× = 128×128.
+      frameWidth: 64, frameHeight: 64, scale: 2,
+      frameAspect: '1 / 1',
+      background: 'transparent',
+    },
     title: 'The Matrix',
     description: 'A 2D platformer vertical slice showcasing CRT shaderwork and pixel art movement. Built in Unity.',
     links: [
@@ -349,30 +368,247 @@ export const CATEGORIES = {
     // { src: '3d-assets/crystal.png', alt: 'Crystal material', cols: 2, rows: 2,
     //   title: 'Crystal', description: '...', type: 'splat',
     //   splat: { file: 'crystal.spz' } },
-    { src: '3d-assets/fabricThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Procedural Fabric Material', description: 'Procedural fabric material pack. Multiple weave patterns — basket, plaid, knit, chenille — driven by a single node group with exposed parameters.' },
-    { src: '3d-assets/iceThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Procedural Ice & Glass', description: 'Subsurface scattering study using ice and whiskey glass. Focus on light transmission, caustics, and volumetric absorption.' },
-    { src: '3d-assets/toonThumb.webm', alt: '3D asset', cols: 4, rows: 2, title: 'NPR Toon Shader', description: 'Non-photorealistic render shader replicating a hand-drawn ink look entirely within Blender. Rendered in Blender EEVEE' },
     {
-      src: '3d-assets/eyeThumb.png', alt: '3D asset', cols: 2, rows: 2, title: 'Procedural Eyes Asset, rigged', description: 'Anatomically detailed procedural eye. Iris pattern, sclera veins, and cornea wetness all generated without textures.',
-      // gallery: ['3d-assets/eyeThumb.png'],  // Add extra view images here when ready
+      id: 'fabric', src: '3d-assets/fabricThumb.png', alt: 'Procedural fabric weave material', cols: 4, rows: 2,
+      title: 'Procedural Fabric Material',
+      description: 'A fully parametric weave material for Blender. A single node group exposes the weave pattern, scale, colour, and wear — scaling from tight basket to loose knit while staying physically believable.',
+      gallery: [
+        '3d-assets/fabric_details/detail1-min.png',
+        '3d-assets/fabric_details/detail2-min.png',
+        '3d-assets/fabric_details/detail4-min.png',
+        '3d-assets/fabric_details/detail5-min.png',
+      ],
     },
-    { src: '3d-assets/fleshThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Procedural Raw Flesh Material', description: 'Procedural organic flesh material with colour variant controls. Used in the Ardo sculpt.' },
-    { src: '3d-assets/paintThumb.png', alt: '3D asset', cols: 4, rows: 2, title: 'Oil Paint Shader', description: 'Procedural oil paint shader applied to a canvas scene. Brush stroke texture and impasto thickness driven by input image data.' },
-    { src: '3d-assets/benchThumb.jpg', alt: '3D asset', cols: 2, rows: 1, title: 'Park Bench', description: 'Photorealistic park bench with wrought iron and wood slats, inspired by New Orleans benches. Study in material layering.' },
+    {
+      id: 'ice', src: '3d-assets/iceThumb.png', alt: 'Procedural ice in a glass', cols: 4, rows: 2,
+      title: 'Procedural Ice',
+      description: 'A procedural setup for building any kind of ice in Blender (Cycles), combining Geometry Nodes, the shader graph, and volumetric shading. Shown here in a glass with a drink — one of many possible variations.',
+      gallery: [
+        '3d-assets/ice_details/Glass_Var1.png',
+        '3d-assets/ice_details/Glass_Var2.png',
+        '3d-assets/ice_details/Glass_Var3.png',
+        '3d-assets/ice_details/AllVars.png',
+      ],
+    },
+    {
+      id: 'toon', src: '3d-assets/toonThumb.webm', alt: 'Stylized toon shader render', cols: 4, rows: 2,
+      title: 'Stylized Toon Shader',
+      description: 'A Blender EEVEE shader built to emulate an illustrated look — reaching for, though not quite landing on, Moebius-style renders. A non-photorealistic study in ramp shading and line work.',
+      gallery: [
+        '3d-assets/toon_details/toonHead.mp4',
+      ],
+    },
+    {
+      id: 'eyes', src: '3d-assets/eyeThumb.png', alt: 'Procedural rigged eye', cols: 2, rows: 2,
+      title: 'Procedural Eyes',
+      description: 'An anatomically detailed procedural eye — iris pattern, sclera veins, and cornea wetness all generated without textures. Fully parametric (vein density, iris and sclera colour, and more) and rigged for animation out of the gate, including pupil dilation.',
+      gallery: [
+        '3d-assets/eye_details/var2.png',
+        '3d-assets/eye_details/var3.png',
+        '3d-assets/eye_details/var4.png',
+        '3d-assets/eye_details/var5.png',
+        '3d-assets/eye_details/allVars.png',
+      ],
+    },
+    {
+      id: 'flesh', src: '3d-assets/fleshThumb.png', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
+      title: 'Procedural Raw Flesh Material',
+      description: 'A fully parametric organic flesh material for Blender (Cycles), with fine-grained controls over colour, wetness, and detail. Sold on Superhive (Blender Market) with 1,000+ sales.',
+      gallery: [
+        '3d-assets/flesh_details/var1_comp.png',
+        '3d-assets/flesh_details/var2_comp.png',
+        '3d-assets/flesh_details/var3_comp.png',
+        '3d-assets/flesh_details/var4_comp.png',
+        '3d-assets/flesh_details/var5_comp.png',
+      ],
+    },
+    {
+      id: 'paint', src: '3d-assets/paintThumb.png', alt: 'Procedural brushstroke painting material', cols: 4, rows: 2,
+      title: 'Brushstroke Painting Material',
+      description: 'A procedural oil-paint shader for Blender. It takes any image as input and renders it as if painted onto canvas with broad brushstrokes, impasto thickness driven by the source image.',
+      gallery: [
+        '3d-assets/paint_details/im2.png',
+        '3d-assets/paint_details/im5.png',
+      ],
+    },
   ],
   '3D Art': [
-    { src: '3d-art/thumb1.mp4', alt: 'Art piece', cols: 4, rows: 2, title: 'ALternate Realities Challenge', description: 'Inspired by the 2021 challenge from Pwnisher. Study in lighting, animation and simulation. Scene fully created and rendered in Blender Cycles, composited in DaVinci Resolve.' },
-    { src: '3d-art/thumb2.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Ardo.', description: 'A study in organic sculpting and material design. Uses procedural flesh and skin assets shown in 3D asset section.' },
-    { src: '3d-art/thumb3.jpeg', alt: 'Art piece', cols: 2, rows: 4, title: 'Menpō (面頬)', description: 'Study in hard-surface sculpting and composition.' },
-    { src: '3d-art/ciudadFaroThumb.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Ciudad Faro', description: 'Inspired by Burning Caravan\'s Album Cover by the same name. Surrealist scene featuring a lighthouse surrounded by levitating whales.' },
     {
-      src: '3d-art/marsThumb.png', alt: 'Art piece', cols: 4, rows: 2, title: 'Brain Farm', description: 'Surrealist Mars landscape. Stylized composite rendered in Blender Cycles. Part of an exploration on surrealist brain-themed scifi, including Brain-Cities.',
-      gallery: ['3d-art/brainCityThumb.png'],
-      detailLayout: 'below-split',
+      id: 'alt-realities', src: '3d-art/thumb1.mp4', alt: 'Forest clearing with a worker and floating debris', cols: 4, rows: 2,
+      title: 'Another Day at the Office',
+      description: 'An early piece, submitted to Pwnisher\'s 2021 "Alternate Realities" challenge, with the required circle carved from negative space in the upper right. Everything but the character animation — modeling, texturing, shading, particles, boids, and cloth — built in Blender.',
+      page: `
+An early piece, submitted to Pwnisher's **"Alternate Realities" challenge** (2021). Entries had to work a circle into the frame; here it reads as **negative space** in the upper-right corner rather than a literal object.
+
+---
+
+## What I Made
+
+Everything in the shot but the character's walk is mine:
+
+- **Modeling, texturing, and shading** of the full environment
+- **Particle emitters** scattering the forest and grass field
+- **Boid simulation** driving the swarm of flies
+- **Cloth simulation** for the clothing and the tarp
+
+Built and rendered in **Blender**.
+`,
     },
-    { src: '3d-art/ascensionThumb.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Ascension V', description: 'Inspired by Mobius\' piece "Ascension". Abstract study in volumetric lighting and particle simulation. Rendered in Blender Cycles.' },
-    { src: '3d-art/donutThumb.png', alt: 'Art piece', cols: 2, rows: 2, title: 'Donut', description: 'The one that started it all, my first 3D piece. Classic Blender Guru tutorial.' },
-    { src: '3d-art/bioshockThumb.webm', alt: 'Art piece', cols: 2, rows: 2, title: 'Bioshock Hallway', description: 'A hallway from the classic Bioshock game, study in modeling, materials, and composition.' },
-    { src: '3d-art/starWarsChaseThumb.webm', alt: 'Art piece', cols: 2, rows: 2, title: 'Rebel Chase', description: 'A bit of Star Wars inspired fan art, an X-wing chasing down a TIE-fighter. Made entirely in Blender, a study in lighting, animation and VFX.' },
+    {
+      id: 'ardo', src: '3d-art/thumb2.png', alt: 'Visceral organic character bust', cols: 2, rows: 2, title: 'Ardo.',
+      description: 'A personal piece made to channel a period of real anger — an end-to-end exercise in modeling, shading, and lighting in Blender, built on my custom parametric Eyes and Flesh assets.',
+      page: `
+*Ardo* (2024) came out of a period of real anger and became a way to channel it — built end-to-end in **Blender** as an exercise in modeling, shading, and lighting.
+
+---
+
+## Custom Assets
+
+![Procedural Flesh material](3d-assets/flesh_details/var1_comp.png){right}
+The surface shading is driven by two of my own parametric assets, both available in the **3D Tech** section.
+
+*Flesh — a fully parametric organic material.*
+
+The **Flesh** material handles the raw, living tissue — subsurface warmth, wetness, and pore-level detail, all procedural and tunable without textures.
+
+---
+
+![Procedural Eyes](3d-assets/eye_details/var2.png){left}
+*Eyes — anatomically detailed and rigged.*
+
+The **Eyes** are anatomically detailed and rigged — iris pattern, sclera veins, and cornea wetness generated without a single texture map.
+`,
+    },
+    {
+      id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armor', cols: 2, rows: 4, title: 'Menpō (面頬)',
+      description: 'A modeling and hard-surface study of a Japanese menpō (samurai facial armour), focused on facial anatomy and shading. Built end-to-end in Blender.',
+      page: `
+*Menpō* (2021) is a modeling exercise built around a Japanese **menpō** — the half-face armour worn beneath a samurai helmet. The appeal was the face itself: studying its anatomy and translating it into hard, forged metal.
+
+---
+
+## Focus
+
+- **Facial anatomy** — getting the underlying structure right so the mask reads as a face, not just a shape
+- **Hard-surface shading** — worn, hammered metal with believable wear and specular break-up
+- **Composition** — framing and lighting to give the piece presence
+
+Built end-to-end in **Blender**.
+`,
+    },
+    {
+      id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.png', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro',
+      description: 'An homage to the band Burning Caravan and their album *Ciudad Faro*, rebuilding the cover composition in 3D. A study in modeling whales and their skeletons, the lighthouse, and volumetric lighting. Built end-to-end in Blender.',
+      page: `
+*Ciudad Faro* (2022) is a tribute to **Burning Caravan**, a band whose work I love, rebuilding the composition of their album cover of the same name as a 3D scene.
+
+---
+
+## What I Built
+
+Translating a 2D painting into a dimensional scene, made end-to-end:
+
+- **Whales and their skeletons** — the central forms, modeled from scratch
+- **The lighthouse** anchoring the composition
+- **Volumetric lighting** to carry the mood and depth of the original painting
+
+Built end-to-end in **Blender**.
+`,
+    },
+    {
+      id: 'brain-farm', src: '3d-art/marsThumb.png', alt: 'Fantastical greenhouse on Mars powering a brain', cols: 4, rows: 2, title: 'Brain Farm',
+      description: 'A fantastical greenhouse on Mars, powering a giant brain. Part of an ongoing exploration of brain-themed surrealism, alongside the Brain-City study. A study in particle-scattered environments, built end-to-end in Blender.',
+      // Optional `page` Markdown drives the detail-view body (parsed by parseMarkdown).
+      // Same syntax as a GAMES item's `page`: ## headings, paragraphs, --- dividers,
+      // - lists, ![alt](path) images (path relative to src/assets/thumbnails/), and
+      // [Label|icon](url) link rows. When omitted, the short `description` is shown instead.
+      page: `
+A fantastical greenhouse on Mars, powering a giant brain — part of an ongoing exploration of brain-themed surrealism and the fantastical compositions to set them in.
+
+![Brain-City companion study](3d-art/brainCityThumb.png){right}
+*Brain-City — a companion study: a vast city floating in space, powered by a brain (or a brain powered by a city?).*
+
+The companion **Brain-City** piece extends the same motif into a sprawling city suspended in space.
+
+---
+
+## Technique
+
+- Stylized composite rendered end-to-end in **Blender**
+- **Particle systems** scattering the rocks across the Martian surface
+- Volumetric atmosphere graded in post
+`,
+    },
+    {
+      id: 'ascension', src: '3d-art/ascensionThumb.png', alt: 'Abstract volumetric light and particles', cols: 2, rows: 2, title: 'Ascension V',
+      description: 'Inspired by Moebius\' piece *Ascension*. An abstract study in volumetric lighting and particle simulation, built end-to-end in Blender.',
+      page: `
+*Ascension V* (2025) is drawn from **Moebius'** piece *Ascension*. Moebius is a long-standing influence on my work, and this is an abstract study in his direction.
+
+---
+
+## Focus
+
+- **Volumetric lighting** as the primary subject
+- **Particle simulation** shaping the forms in space
+
+Made entirely by me in **Blender**.
+`,
+    },
+    {
+      id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí',
+      description: 'A short film I directed and produced on psychoactive-substance use, gender, and sexuality. 2nd place (Animation) at the 8th Festival de Cortos Psicoactivos. Made almost entirely by me in Blender (Cycles).',
+      page: `
+*Frenesí* (2022) is a short film I directed and produced on psychoactive-substance use and its links to gender and sexuality — a thread central to harm-reduction discourse in Colombia.
+
+---
+
+## Recognition
+
+**2nd place, Animation category** — 8th *Festival de Cortos Psicoactivos* (Psychoactive Short Film Festival), out of hundreds of submissions. The festival is organized by **Échele Cabeza**, a Colombian harm-reduction NGO.
+
+---
+
+## Craft
+
+Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)** — modeling, animation, shading, lighting, and rendering.
+`,
+    },
+    {
+      id: 'bioshock', src: '3d-art/bioshockThumb.webm', alt: 'Recreated BioShock hallway', cols: 2, rows: 2, title: 'Bioshock Hallway',
+      description: 'A recreation of a hallway from the original *BioShock* — a study in modeling, materials, and composition. Built in Blender; every asset is mine except the vending-machine texture.',
+      page: `
+*Bioshock Hallway* (2023) recreates a corridor from the original **BioShock** — a franchise I love, and one whose art direction I wanted to explore firsthand.
+
+---
+
+## What I Built
+
+A study in modeling, materials, and composition:
+
+- Every asset modeled, textured, and shaded by me — **except the vending-machine texture**
+- Period materials: worn brass, cracked tile, water-stained surfaces
+- Lighting and framing tuned to the game's claustrophobic mood
+
+Built end-to-end in **Blender**.
+`,
+    },
+    {
+      id: 'rebel-chase', src: '3d-art/starWarsChaseThumb.webm', alt: 'X-Wing chasing a TIE Fighter', cols: 2, rows: 2, title: 'Rebel Dogfight',
+      description: 'A Star Wars scene: an X-Wing chasing down a TIE Fighter. An exploration of action-camera animation, environment design, and explosion VFX. Built in Blender; the X-Wing model was sourced online.',
+      page: `
+*Rebel Dogfight* is a Star Wars-inspired chase — an **X-Wing** running down a **TIE Fighter**.
+
+---
+
+## Focus
+
+- **Action-camera animation** — choreographing a fast, readable dogfight
+- **Environment design** for the surrounding space
+- **Explosion VFX**
+
+Made in **Blender**. The X-Wing model was sourced online; everything else is mine.
+`,
+    },
   ],
 };

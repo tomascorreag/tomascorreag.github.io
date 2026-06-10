@@ -574,11 +574,15 @@ body {
  * opaque vs. transparent geometry in a game renderer.
  */
 
-/* --- Text CRT: terminal + nav-menu + detail-nav + mosaic-frame --- */
+/* --- Text CRT: terminal + nav-menu + detail-nav + mosaic-frame + deck chrome --- */
 .terminal.crt-effects,
 .nav-menu.crt-effects,
 .detail-nav.crt-effects,
-.mosaic-frame.crt-effects {
+.mosaic-frame.crt-effects,
+.deck-title.crt-effects,
+.deck-counter.crt-effects,
+.deck-card-title.crt-effects,
+.deck-outro-title.crt-effects {
   filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
   text-shadow:
     /* RGB split — red left, blue right */
@@ -899,18 +903,33 @@ body {
   display: block;
   overflow-y: auto;
   padding: calc(2rem + 20px) 2rem 2rem 2rem;
-  z-index: 99;
+  z-index: 1000;
+  /* above .crt-overlay (100) so the cards/thumbnails render on top of the
+     scanlines, like the regular thumbnail mosaic */
 }
 
 .game-card {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(1rem, 2.5vw, 2rem);
   margin-bottom: 3rem;
   font-family: 'Martian Mono', monospace;
   color: #e0e0e0;
 }
 
+/* Banner is the first child of the card (a <picture>/<video>/<div> depending
+   on media type). Give it a small fixed width on the left; the info column
+   takes the rest. */
+.game-card > :first-child {
+  flex: 0 0 256px;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+}
+
 .game-banner {
   display: block;
   width: 100%;
+  height: 100%;
   aspect-ratio: 2 / 1;
   object-fit: cover;
   background: #111;
@@ -918,15 +937,14 @@ body {
 }
 
 .game-info {
-  padding: 1.25rem 0 0.5rem;
-  background-color: var(--bg-primary);
-  filter: blur(calc(var(--crt-blur, 0.4px) * 0.5)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  filter: brightness(calc(1 + 0.4 * var(--crt-glow-brightness, 1)));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
     calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 .game-info h2 {
@@ -1017,7 +1035,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  background-color: var(--bg-primary);
+  /* transparent so the CRT scanlines behind the doc show through (deck: baked
+     scanline floor; main page: the .crt-overlay layer beneath article-mode) */
+  background-color: transparent;
   padding-bottom: 3rem;
 }
 
@@ -1085,6 +1105,23 @@ body {
   background: #111;
 }
 
+/* Sprite-title detail banner (a <div>, unlike photo <img>/<video> banners):
+   let it size to the full frame instead of being clipped by max-height. */
+div.article-banner {
+  max-height: none;
+}
+
+/* Deck document banner = the piece's thumbnail. Show it WHOLE and FULL-WIDTH —
+   `cover` + the 40vh cap (above) crop to fill, lopping off top/bottom. Drop the
+   cap so the banner spans the column at its natural aspect ratio: full width, no
+   crop, no letterbox. (`contain` is moot once height is unconstrained, but kept
+   as a safety net.) */
+.deck-doc .article-banner,
+.deck-doc .article-banner-wrap img {
+  max-height: none;
+  object-fit: contain;
+}
+
 /* ---- Typography ---- */
 .article-title-row {
   display: flex;
@@ -1130,14 +1167,14 @@ body {
   font-weight: 200;
   line-height: 1.6;
   margin: 0;
-  color: #b0b0b0;
+  color: #d2e8d2;
 }
 
 .article-heading {
   font-size: clamp(0.9rem, 2.2vw, 1.2rem);
   font-weight: 600;
   margin: 1rem 0 0;
-  color: #ffffff;
+  color: #edfaed;
 }
 
 .article-heading::before {
@@ -1150,7 +1187,7 @@ body {
   font-weight: 200;
   line-height: 1.6;
   margin: 0;
-  color: #b0b0b0;
+  color: #d2e8d2;
 }
 
 .article-list {
@@ -1159,7 +1196,7 @@ body {
   line-height: 1.6;
   margin: 0.25rem 0;
   padding-left: 1.5em;
-  color: #b0b0b0;
+  color: #d2e8d2;
 }
 
 .article-list li {
@@ -1169,22 +1206,32 @@ body {
 /* ---- Figures (images / videos in content blocks) ---- */
 .article-figure {
   margin: 0.5rem 0;
-  /* Counteract the parent .article-page filter so images render clean. */
-  filter: brightness(calc(1 / (1 + 0.5 * var(--crt-glow-brightness, 1))));
+  /* Exactly invert the parent .article-page brightness boost (1 + 0.4·glow)
+   * so images render clean. Must match the 0.4 factor — a mismatch leaves
+   * figures net-dimmed (muted). */
+  filter: brightness(calc(1 / (1 + 0.4 * var(--crt-glow-brightness, 1))));
   text-shadow: none;
 }
 
 .article-figure picture {
   display: block;
-  width: 100%;
+  /* Shrink-wrap to the image (which is now height-driven) and centre it. */
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
 .article-figure img,
 .article-figure video {
   display: block;
-  width: 100%;
-  max-height: 60vh;
-  object-fit: contain;
+  /* Height ceiling, not a fixed height — the image keeps its true aspect ratio
+   * (no letterbox margins on wide images). Tall images are capped; wide images
+   * fill the column width and end up shorter, AR intact. */
+  height: auto;
+  max-height: var(--md-figure-h, clamp(220px, 38vh, 420px));
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
   border: 1px solid color-mix(in srgb, var(--text-primary) 15%, transparent);
 }
 
@@ -1194,6 +1241,35 @@ body {
   opacity: 0.5;
   margin-top: 0.5rem;
   text-align: center;
+}
+
+/* ---- Aligned (floated) figures ---- */
+/* Float group: a block formatting context (one flex item in the article
+ * column) so the floated figure is contained and sibling paragraphs wrap
+ * the empty side. */
+.article-float-group {
+  display: flow-root;
+}
+
+.article-figure--left,
+.article-figure--right {
+  /* Shrink-wrap to the height-driven image, but never let a float dominate
+   * more than ~45% of the column. */
+  width: auto;
+  max-width: min(45%, 320px);
+  margin-top: 0.25rem;
+}
+
+.article-figure--left {
+  float: left;
+  margin-right: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.article-figure--right {
+  float: right;
+  margin-left: 1.25rem;
+  margin-bottom: 0.5rem;
 }
 
 /* ---- Divider ---- */
@@ -1613,24 +1689,81 @@ body {
   opacity: 1;
 }
 
-/* Landscape: info below image — full width, top set by JS */
+/* Landscape: info below image — full width, top set by JS.
+ * No internal scroll: the whole detail view (image + doc) scrolls together via
+ * .mosaic-grid.detail-scroll, so the info sizes to its content and overflows
+ * the container, driving the shared scrollbar. */
 .detail-info.landscape {
   left: 0;
   width: 100%;
   padding: 1.5rem 0.5rem;
+  overflow: visible;
+  height: auto;
 }
 
-/* Portrait: info beside image — top/left/width set by JS */
+/* Landscape detail scrolls as one unit (large thumbnail + document), instead of
+ * a pinned image above an internally-scrolling doc. The hidden grid siblings are
+ * collapsed to 0-height rows (their .mosaic-item overflow:hidden clips content)
+ * so ONLY the absolutely-positioned image + info drive the scroll height. */
+.mosaic-grid.detail-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  grid-auto-rows: 0;
+  row-gap: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
+}
+
+.mosaic-grid.detail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mosaic-grid.detail-scroll::-webkit-scrollbar-thumb {
+  background: var(--mg-line);
+  border-radius: 3px;
+  box-shadow: 0 0 4px var(--glow-color);
+}
+
+/* Portrait: info beside image — top/left/width set by JS.
+ * Sizes to content with no internal scroll: like landscape, the whole detail
+ * view (image + doc) scrolls together via .mosaic-grid.detail-scroll, so the
+ * info overflows the container and drives the shared scrollbar. */
 .detail-info.portrait {
   top: 0;
   padding: 1.5rem 1rem;
+  height: auto;
+  overflow: visible;
+}
+
+/* Transparent float that reserves the image's footprint inside the portrait
+ * doc so text wraps beside it, then widens to full width below. Dimensions and
+ * float side are set inline by buildDetailInfo. pointer-events: none lets
+ * clicks fall through to the image sitting behind it (fullscreen toggle). */
+.detail-info-float {
+  pointer-events: none;
+}
+
+/* Portrait body must be normal block flow (not the flex column used elsewhere):
+ * a flex container is a block formatting context, which sits BESIDE the float
+ * instead of wrapping into it. Block flow lets the ancestor float intrude so
+ * paragraphs wrap the image, then widen below it. Margins replace the flex gap. */
+.detail-info.portrait .detail-info-body {
+  display: block;
+}
+
+.detail-info.portrait .detail-info-body > * {
+  margin: 0 0 0.75rem;
+}
+
+.detail-info.portrait .detail-info-body > :last-child {
+  margin-bottom: 0;
 }
 
 .detail-info h2 {
   margin: 0 0 0.75rem 0;
   font-size: clamp(1rem, 2.5vw, 1.4rem);
   font-weight: 600;
-  color: #ffffff;
+  color: #edfaed;
 }
 
 .detail-info p {
@@ -1638,7 +1771,41 @@ body {
   font-size: clamp(0.75rem, 1.8vw, 0.95rem);
   font-weight: 200;
   line-height: 1.6;
-  color: #b0b0b0;
+  color: #d2e8d2;
+}
+
+/* Markdown body (`page` field) reuses the .article-* classes, which were
+ * authored for the .article-page context. Scope a few overrides so they sit
+ * correctly inside the detail panel. */
+.detail-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* .article-figure's brightness filter counteracts the .article-page CRT
+ * filter, which is absent here — without this, embedded images render dark. */
+.detail-info .article-figure {
+  filter: none;
+  text-shadow: none;
+}
+
+/* Embedded images are click-to-zoom in the detail view (see desktop.js). */
+.detail-info .article-figure.zoomable,
+.detail-info .article-figure.zoomable img {
+  cursor: zoom-in;
+}
+
+/* Narrower detail panel gets a smaller consistent height (overrides the
+ * --md-figure-h default from the base .article-figure img/video rule). */
+.detail-info {
+  --md-figure-h: clamp(190px, 32vh, 360px);
+}
+
+/* No top margin on the first body block — the title <h2> sits directly above. */
+.detail-info-body > .article-heading:first-child,
+.detail-info-body > .article-text:first-child {
+  margin-top: 0;
 }
 
 /* Detail nav bar — lives in #crt-screen (below scanlines),
@@ -1657,7 +1824,8 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0 0.5rem;
-  background-color: var(--bg-primary);
+  /* No background by default — the bar floats over the CRT. The opaque bg is
+   * only needed during landscape scroll (see .detail-nav.masthead below). */
 
   font-family: 'Martian Mono', monospace;
   font-size: clamp(0.9rem, 1.8vw, 1.6rem);
@@ -1666,6 +1834,13 @@ body {
 
   opacity: 0;
   transition: opacity 250ms ease;
+}
+
+/* During landscape scroll the doc scrolls up under the nav; lift the nav above
+ * the grid (z1000) so its opaque bg masks the content passing beneath it.
+ * (Trade-off: scanlines no longer cover the bar while scrolling — only here.) */
+.detail-nav.masthead {
+  z-index: 1001;
 }
 
 .detail-nav.visible {
@@ -1972,3 +2147,684 @@ html.mobile-mode .crt-overlay,
 html.mobile-mode #mosaic {
   display: none !important;
 }
+
+/* ============================================
+   Portfolio Deck (URL-gated slide decks)
+   ============================================
+
+   Mounted by src/components/PortfolioDeck.js for `/?p=<slug>` visits. A
+   self-contained full-screen layer that sits ABOVE the scanline overlay
+   (like the mosaic), so thumbnails and document images render clean — the
+   CRT character comes from text glow + the deck's own vignette, not scanlines.
+
+   Each slide is a compact card; clicking expands the full document overlay,
+   which reuses the .article-page styles above (no duplication). */
+
+.deck {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;                 /* above .crt-overlay (100) and #mosaic (1000) */
+  display: flex;
+  flex-direction: column;
+  color: #e0e0e0;
+  font-family: 'Martian Mono', monospace;
+  overflow: hidden;
+
+  /* Peek-carousel geometry — one var shared by the track (centring calc) and
+     the slides (flex-basis). Smaller = slots packed tighter, so neighbours sit
+     closer to the active card and more of their edge peeks in. Override per
+     breakpoint, not per element. */
+  --slide-w: 50%;
+
+  /* Width cap for FIXED pixel-art cards (the spritesheet title banners, e.g.
+     Páramo) so they don't sprawl on big screens. Stretchable image/video cards
+     opt out of this cap in sizeMediaBox so square/tall art can fill the frame
+     height up to the slot width. */
+  --card-max: 760px;
+
+  /* Softer CRT blur than the main page's 0.4px — the deck's larger heading type
+     reads cleaner with less bloom. Scoped to .deck, so .crt-effects elsewhere
+     (terminal/nav) keep the default 0.4px. */
+  --crt-blur: 0.6px;
+
+  /* Bright body text — shared by the card descriptions and the header subtitle
+     so they read as one legible colour (lighter than the headings' full green). */
+  --deck-body-text: color-mix(in srgb, var(--text-primary) 40%, #ffffff);
+
+  /* Scanline ink, BAKED BEHIND content. Reuses the site's --scanline-* geometry
+     (same line spacing/size as .crt-overlay). The line is a faint phosphor-green
+     LIGHT — the deck surfaces are near-black, so a dark line (the main page's,
+     which only shows because it sits OVER lit content) would be invisible here.
+     Painted as each chrome surface's background, so the actual items — thumbnail,
+     title, description, document — render IN FRONT of the lines. */
+  --deck-scan: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent var(--scanline-spacing, 4px),
+      color-mix(in srgb, var(--glow-color) 20%, transparent) var(--scanline-spacing, 4px),
+      color-mix(in srgb, var(--glow-color) 20%, transparent) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px)));
+
+  /* Floor scanlines fill the gutters between/behind the slides. */
+  background-color: var(--bg-primary);
+  background-image: var(--deck-scan);
+}
+
+/* ── Header (centred title + subtitle) ── */
+.deck-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.2rem;
+  margin: clamp(0.75rem, 2vw, 1.25rem) clamp(1rem, 3vw, 2.5rem) 0;
+  padding: clamp(0.4rem, 1.2vw, 0.75rem) clamp(0.75rem, 2vw, 1.5rem);
+}
+
+/* Deck headings now take the shared .crt-effects VERBATIM — same blur + glow +
+   brightness bloom as the terminal/nav, so they read identically to the rest of
+   the site (no deck-local override). */
+
+/* Glow + RGB-split + blur/brightness come from .crt-effects (class added in JS);
+   only the type scale / colour / weight live here. Weight 300 matches the thin
+   main-site terminal type rather than the previous bold 600. */
+.deck-title {
+  margin: 0;
+  font-size: clamp(1.1rem, 2.6vw, 1.7rem);
+  font-weight: 300;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+/* Subheader — same bright body colour as the card descriptions. `pre-line`
+   honours the explicit line break in the text (two phrases, no em dash). */
+.deck-intro {
+  margin: 0.45rem auto 0;
+  max-width: 60ch;
+  font-size: clamp(0.72rem, 1.5vw, 0.92rem);
+  font-weight: 300;
+  white-space: pre-line;
+  color: var(--deck-body-text);
+  text-shadow:
+    0 0 6px color-mix(in srgb, var(--glow-color) 45%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow-color) 25%, transparent);
+}
+
+/* ── Viewport + track ── */
+.deck-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;                 /* let the track own the remaining height */
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+/* The track holds N full-viewport-width "slots" but each slide only fills
+   --slide-w of its slot, so neighbours peek in. `--i` (set by JS) is the active
+   index; the calc keeps slide `--i` centred:
+     offset = -i * slideW  +  (100% - slideW)/2
+   Percentages resolve against the track box (= viewport width), so the math is
+   self-consistent regardless of how many slides overflow. */
+.deck-track {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  will-change: transform;
+  /* Initial position (slide 0 centred); JS overrides transform on every goTo.
+     Transitioning `transform` directly — JS sets a concrete translateX each
+     change, so the declaration itself changes and the transition reliably
+     fires (a var-only change often won't drive a dependent transform). */
+  transform: translateX(calc((100% - var(--slide-w)) * 0.5));
+  transition: transform 560ms var(--ease-smooth);
+}
+
+.deck.no-anim .deck-track {
+  transition: none;
+}
+
+/* Each slide is narrower than the viewport; inactive ones shrink + dim to the
+   "just their edges, smaller and less opaque" peek state. */
+.deck-slide {
+  flex: 0 0 var(--slide-w);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 2.5vw, 2rem) clamp(0.4rem, 1vw, 0.9rem);
+  box-sizing: border-box;
+  transform: scale(0.82);
+  opacity: 0.34;
+  filter: saturate(0.65) brightness(0.85);
+  transition:
+    transform 560ms var(--ease-smooth),
+    opacity 560ms ease,
+    filter 560ms ease;
+}
+
+.deck-slide.is-active {
+  transform: scale(1);
+  opacity: 1;
+  filter: none;
+}
+
+.deck.no-anim .deck-slide {
+  transition: none;
+}
+
+/* ── Card: a CRT "screen" — matches the main page's green-phosphor windows
+   (solid var(--text-primary) border + green glow + scanlines), like .terminal
+   / .mosaic-frame. Big media stacked over a title/blurb plate. ── */
+.deck-card {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.6rem, 1.4vw, 1rem);
+  /* Hug the media width: JS (sizeMediaBox) sets an explicit width = the image's
+     rendered width, capped to the slot — so narrow pieces lose their black
+     side-margins while wide pieces fill as before. 100% is the pre-JS fallback. */
+  width: 100%;
+  max-width: min(var(--card-max), 100%);
+  height: 100%;
+  align-items: center;
+  padding: clamp(0.5rem, 1.2vw, 0.9rem);
+  border: 1px solid var(--text-primary);
+  /* scanlines behind the card content (thumbnail/title/desc render in front) */
+  background: var(--deck-scan), var(--bg-primary);
+  box-shadow:
+    inset 0 0 26px color-mix(in srgb, var(--glow-color) 12%, transparent),
+    0 0 12px color-mix(in srgb, var(--glow-color) 22%, transparent);
+  cursor: pointer;
+  transition:
+    border-color var(--timing-normal) ease,
+    box-shadow var(--timing-normal) ease,
+    filter var(--timing-normal) ease;
+}
+
+/* Hover/focus glow only matters on the centred (active) card — neighbours are
+   click-to-navigate, not openable. */
+.deck-slide.is-active .deck-card:hover,
+.deck-slide.is-active .deck-card:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 26px color-mix(in srgb, var(--glow-color) 18%, transparent),
+    0 0 26px color-mix(in srgb, var(--glow-color) 40%, transparent);
+  filter: brightness(1.05);
+}
+
+/* Big hero media — fills the bulk of the card. `contain` + a dark letterbox so
+   nothing is cropped (artwork "shown clearly"), reading like a monitor framing
+   the piece. */
+.deck-card-media {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* JS (sizeMediaBox) sets an explicit border-box width = the image's rendered
+     width, so the border frames the image exactly with no letterbox. width:auto +
+     aspect-ratio is just the pre-JS fallback; align-self:center avoids stretch. */
+  box-sizing: border-box;
+  align-self: center;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: var(--media-ar, 16 / 9);
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 35%, transparent);
+}
+
+/* createMediaElement puts the class on the inner <img>; the <picture> wrapper
+ * needs explicit sizing so the img's height:100% has a block to resolve against. */
+.deck-card-media picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.deck-card-media-el,
+.deck-card-media img,
+.deck-card-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.deck-card-media-fallback {
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(45deg, #161616, #161616 8px, #1c1c1c 8px, #1c1c1c 16px);
+}
+
+/* Title/blurb plate beneath the media. */
+.deck-card-body {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0.15rem 0.75rem;
+  padding: 0 0.2rem 0.2rem;
+}
+
+.deck-card-kind,
+.deck-card-num {
+  font-size: clamp(0.5rem, 1vw, 0.65rem);
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  color: var(--text-primary);
+  opacity: 0.7;
+}
+
+.deck-card-num {
+  justify-self: end;
+  color: #888;
+  opacity: 1;
+}
+
+/* Glow comes from the shared .crt-effects rule (class added in JS). */
+.deck-card-title {
+  grid-column: 1 / -1;
+  margin: 0.1rem 0 0;
+  font-size: clamp(1.1rem, 2.8vw, 1.7rem);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.deck-card-desc {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+  font-size: clamp(0.72rem, 1.5vw, 0.88rem);
+  font-weight: 300;
+  line-height: 1.55;
+  color: var(--deck-body-text);
+  /* keep the plate short — full text lives in the expanded document */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.deck-card-cta {
+  grid-column: 1 / -1;
+  margin-top: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: clamp(0.65rem, 1.4vw, 0.85rem);
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  opacity: 0;
+  transition: opacity var(--timing-normal) ease;
+}
+
+/* The "Open ▸" affordance only applies to the centred card. */
+.deck-slide.is-active .deck-card-cta {
+  opacity: 0.85;
+}
+
+.deck-cta-arrow {
+  display: inline-block;
+  margin-left: 0.15em;
+  transition: transform var(--timing-normal) var(--ease-smooth);
+}
+
+.deck-slide.is-active .deck-card:hover .deck-cta-arrow,
+.deck-slide.is-active .deck-card:focus-visible .deck-cta-arrow {
+  transform: translateX(4px);
+}
+
+/* ── Prev / next arrows — tall side rails that span most of the viewport ── */
+.deck-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(2.75rem, 5vw, 4rem);
+  height: 68%;
+  /* green-border/glow chrome box with scanlines behind the glyph */
+  background: var(--deck-scan), var(--bg-primary);
+  border: 1px solid var(--text-primary);
+  box-shadow:
+    inset 0 0 18px color-mix(in srgb, var(--glow-color) 10%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow-color) 18%, transparent);
+  color: var(--text-primary);
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  cursor: pointer;
+  transition: filter var(--timing-normal) ease, border-color var(--timing-normal) ease, opacity var(--timing-normal) ease;
+}
+
+/* Hug the slot edge (half the slot width) with a small gap. Stretchable pieces
+   now fill the slot (the --card-max cap is lifted for them in sizeMediaBox), so
+   the arrows track the slot rather than the old fixed 760px card width. */
+.deck-nav-prev {
+  right: calc(50% + var(--slide-w) / 2 + 0.6rem);
+  left: auto;
+}
+.deck-nav-next {
+  left: calc(50% + var(--slide-w) / 2 + 0.6rem);
+  right: auto;
+}
+
+.deck-nav:hover {
+  filter: brightness(1.5) drop-shadow(0 0 6px var(--glow-color));
+  border-color: var(--text-primary);
+}
+
+.deck-nav:disabled {
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+/* ── Dot indicators ── */
+.deck-dots {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 0 clamp(1rem, 3vw, 1.75rem);
+  z-index: 30;
+}
+
+.deck-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 65%, transparent);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--timing-normal) ease, box-shadow var(--timing-normal) ease, transform var(--timing-normal) ease;
+}
+
+.deck-dot:hover { transform: scale(1.25); }
+
+.deck-dot.active {
+  background: var(--text-primary);
+  box-shadow: 0 0 8px var(--glow-color);
+}
+
+/* ── Outro + not-found shared button ── */
+.deck-outro,
+.deck-notfound {
+  text-align: center;
+}
+
+.deck-outro-inner,
+.deck-notfound-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  max-width: 640px;
+}
+
+.deck-outro-kicker {
+  margin: 0;
+  font-size: clamp(0.55rem, 1.1vw, 0.7rem);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  opacity: 0.7;
+}
+
+/* Glow comes from the shared .crt-effects rule (class added in JS). */
+.deck-outro-title {
+  margin: 0;
+  font-size: clamp(1.4rem, 4vw, 2.4rem);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deck-outro-text {
+  margin: 0;
+  font-size: clamp(0.75rem, 1.6vw, 0.95rem);
+  font-weight: 200;
+  line-height: 1.6;
+  color: #b0b0b0;
+}
+
+.deck-outro-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.7em 1.4em;
+  font-family: inherit;
+  font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  text-decoration: none;
+  border: 1px solid var(--text-primary);
+  box-shadow:
+    inset 0 0 16px color-mix(in srgb, var(--glow-color) 8%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow-color) 16%, transparent);
+  transition: filter var(--timing-normal) ease, box-shadow var(--timing-normal) ease;
+}
+
+.deck-outro-btn:hover {
+  filter: brightness(1.5) drop-shadow(0 0 6px var(--glow-color));
+  box-shadow:
+    inset 0 0 16px color-mix(in srgb, var(--glow-color) 14%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow-color) 30%, transparent);
+}
+
+.deck-outro-btn:hover .deck-cta-arrow {
+  transform: translateX(4px);
+}
+
+/* ── Not-found panel (own full-screen layer) ── */
+.deck-notfound {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: var(--bg-primary);
+  color: #e0e0e0;
+  font-family: 'Martian Mono', monospace;
+}
+
+.deck-notfound-line {
+  margin: 0;
+  font-size: clamp(0.9rem, 2.2vw, 1.3rem);
+  color: var(--text-primary);
+  text-shadow: 0 0 10px var(--glow-color);
+}
+
+.deck-notfound-sub {
+  margin: 0;
+  font-size: clamp(0.72rem, 1.6vw, 0.9rem);
+  font-weight: 200;
+  color: #9a9a9a;
+}
+
+/* ── Expanded document panel ──
+   Reveals by unrolling DOWNWARD from the top (clip-path bottom inset 100% → 0),
+   so the card reads as "expanding open" rather than a separate page fading in.
+   The .crt-overlay (z100) sits above it, so it gets the same scanlines/vignette
+   as the rest of the deck. */
+.deck-doc-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;                   /* above slides, nav, dots */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* scanlines behind the document content (article text/images in front) */
+  background: var(--deck-scan), var(--bg-primary);
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
+
+  clip-path: inset(0 0 100% 0);
+  opacity: 0;
+  pointer-events: none;
+  transition: clip-path 460ms var(--ease-smooth), opacity 240ms ease;
+}
+
+.deck-doc-overlay.open {
+  clip-path: inset(0 0 0 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.deck.no-anim .deck-doc-overlay {
+  transition: none;
+}
+
+/* ── Wipe scanline ──
+   A bright horizontal line that rides the leading edge of the overlay's
+   clip-path wipe. The clip's visible bottom edge sits at deckHeight ×
+   (1 − bottomInset) → as a `top` value that's 0% (closed) → 100% (open),
+   so we transition `top` with the SAME 460ms/ease-smooth as the clip and the
+   two can't drift apart (both reference the deck box in %, not px/vh).
+   It's a sibling ABOVE the overlay — the clip would otherwise cut it. */
+.deck-doc-wipe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 90;                   /* above .deck-doc-overlay (80) */
+  pointer-events: none;
+  opacity: 0;
+  /* white-hot core, theme-tinted at the edges so it fades into the bezel */
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--glow-color) 60%, #ffffff) 14%,
+    #ffffff 50%,
+    color-mix(in srgb, var(--glow-color) 60%, #ffffff) 86%,
+    transparent
+  );
+  /* glow halo — if a theme sets --glow-color:none these rules drop out
+     harmlessly and the core line still shows */
+  box-shadow:
+    0 0 8px 1px var(--glow-color),
+    0 0 20px 3px var(--glow-color);
+  transition: top 460ms var(--ease-smooth);
+  will-change: top, opacity;
+}
+
+/* Edge position mirrors the overlay clip exactly: top (closed) ↔ bottom (open). */
+.deck-doc-wipe.at-bottom {
+  top: 100%;
+}
+
+/* Brightness window — lit only while a wipe is actively playing, so the line
+   never lingers at rest. Quick fade in/out at each end of the sweep. */
+.deck-doc-wipe.lit {
+  opacity: 1;
+  transition: top 460ms var(--ease-smooth), opacity 120ms ease;
+}
+
+.deck.no-anim .deck-doc-wipe {
+  display: none;
+}
+
+.deck-doc-back {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 1rem;
+  padding: 0.5em 1em;
+  font-family: inherit;
+  font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  background: var(--deck-scan), var(--bg-primary);
+  border: 1px solid var(--text-primary);
+  box-shadow:
+    inset 0 0 14px color-mix(in srgb, var(--glow-color) 8%, transparent),
+    0 0 8px color-mix(in srgb, var(--glow-color) 16%, transparent);
+  cursor: pointer;
+  transition: filter var(--timing-normal) ease, box-shadow var(--timing-normal) ease;
+}
+
+.deck-doc-back:hover {
+  filter: brightness(1.5) drop-shadow(0 0 6px var(--glow-color));
+  box-shadow:
+    inset 0 0 14px color-mix(in srgb, var(--glow-color) 14%, transparent),
+    0 0 16px color-mix(in srgb, var(--glow-color) 30%, transparent);
+}
+
+.deck-doc-scroll {
+  position: relative;
+  z-index: 1;                    /* above the overlay's fixed vignette ::before */
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 clamp(1.25rem, 4vw, 3rem) clamp(2rem, 5vw, 4rem);
+}
+
+/* Constrain the reused .article-page inside the deck doc. (Transparent bg is
+   inherited from the base .article-page rule, revealing the overlay scanlines.) */
+.deck-doc.article-page {
+  max-width: 100%;
+}
+
+/* ── Responsive: widen the active slide so it nearly fills narrow screens,
+   leaving just a sliver of the neighbours (still a peek, less of one). ── */
+@media (max-width: 820px), (hover: none) and (pointer: coarse) {
+  /* Narrow screens: aligned images degrade to clean full-width blocks rather
+   * than cramped 45% floats. */
+  .article-figure--left,
+  .article-figure--right {
+    float: none;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .deck {
+    --slide-w: 88%;
+  }
+
+  .deck-slide {
+    padding: 0.75rem 0.5rem;
+  }
+
+  /* Inactive neighbours dim harder so the sliver doesn't compete on small screens. */
+  .deck-slide:not(.is-active) {
+    opacity: 0.22;
+    transform: scale(0.9);
+  }
+
+  .deck-card-desc {
+    -webkit-line-clamp: 3;
+  }
+
+  /* Touch uses swipe + dots; keep arrows but tuck them small into the bottom
+     corners (the tall desktop rails would dominate a phone screen). */
+  .deck-nav {
+    top: auto;
+    bottom: clamp(3rem, 12vw, 4.5rem);
+    height: clamp(2.2rem, 8vw, 3rem);
+    width: clamp(2.2rem, 8vw, 3rem);
+    transform: none;
+  }
+}
+
+/* DEV: reduced-motion suppression temporarily disabled to test the carousel
+   animation. Restore the block below when done.
+@media (prefers-reduced-motion: reduce) {
+  .deck-track,
+  .deck-slide,
+  .deck-doc-overlay {
+    transition: none;
+  }
+
+  .deck::before {
+    animation: none;
+  }
+}
+*/

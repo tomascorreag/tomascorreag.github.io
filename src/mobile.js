@@ -26,7 +26,7 @@ import {
   resolveSplat,
 } from './config/content.js';
 import { ICONS } from './config/icons.js';
-import { createMediaElement } from './utils/media.js';
+import { createMediaElement, createSpritesheetElement } from './utils/media.js';
 import { applyInline } from './utils/markdown.js';
 
 
@@ -106,6 +106,18 @@ let activeSheet = null;  // { el, categoryId, index, items, viewer, ... }
 // ---------------------------------------------------------------------------
 export async function boot() {
   document.documentElement.classList.add('mobile-mode');
+
+  // URL-gated portfolio decks: `/?p=<slug>` boots straight into the slide deck
+  // (shared component with desktop, code-split), skipping the mobile intro/tabs.
+  // Done before the stub removal below so we can drop all of them — the deck
+  // owns its own full-screen container and CRT vignette.
+  const gatedSlug = new URLSearchParams(window.location.search).get('p');
+  if (gatedSlug !== null) {
+    document.querySelectorAll('#crt-screen, #mosaic, .crt-overlay').forEach((el) => el.remove());
+    const m = await import('./components/PortfolioDeck.js');
+    m.mountDeck(gatedSlug, { isMobile: true });
+    return;
+  }
 
   // Remove desktop DOM stubs — index.html ships empty placeholders for the
   // terminal / mosaic / scanline overlay so the desktop entry can boot
@@ -459,6 +471,11 @@ function buildFeedCard(item) {
 
 /** Builds a <picture> or <video> element appropriate for the item. */
 function buildMedia(item, { inCard = false } = {}) {
+  if (item.type === 'spritesheet') {
+    const sprite = createSpritesheetElement(item.spritesheet, { alt: item.alt || item.title || '', responsive: true });
+    if (sprite) return sprite;
+    return h('div', { style: { aspectRatio: '4 / 3', background: '#060806' } });
+  }
   const el = createMediaElement(item.src, {
     alt: item.alt || item.title || '',
     video: { preload: inCard ? 'metadata' : 'auto' },
@@ -485,9 +502,11 @@ function renderGamesFeed() {
 
   const feed = h('section', { class: 'm-feed' });
   for (const game of GAMES) {
-    const banner = game.src
-      ? createMediaElement(game.src, { alt: game.title, className: 'm-game-banner' })
-      : null;
+    const banner = game.type === 'spritesheet'
+      ? createSpritesheetElement(game.spritesheet, { alt: game.title, className: 'm-game-banner', responsive: true })
+      : game.src
+        ? createMediaElement(game.src, { alt: game.title, className: 'm-game-banner' })
+        : null;
 
     const links = (game.links || []).map((l) =>
       h('a', {

@@ -2,7 +2,7 @@ const VIDEO_EXTS = new Set(['mp4', 'webm', 'mov', 'm4v']);
 
 const HEADING_RE = /^##\s+(.+)$/;
 const DIVIDER_RE = /^-{3,}$/;
-const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)$/;
+const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)(?:\{(left|right|center)\})?$/;
 const LINK_LINE_RE = /^\[([^\]]+)\]\(([^)]+)\)$/;
 const CAPTION_RE = /^\*([^*]+)\*$/;
 
@@ -34,12 +34,23 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
   let paraLines = [];
   let i = 0;
 
+  // Where new blocks land. Normally `fragment` (a flex column). When a
+  // left/right image opens a float group, this points at that group's <div>
+  // (a block-flow BFC) so following content (paragraphs, headings, lists)
+  // wraps the float. A `---` divider, another image, or a link row clears the
+  // float via closeFloatGroup() and resets it back to `fragment`.
+  let container = fragment;
+
+  function closeFloatGroup() {
+    container = fragment;
+  }
+
   function flushParagraph() {
     if (!paraLines.length) return;
     const p = document.createElement('p');
     p.className = 'article-text article-reveal';
     p.innerHTML = applyInline(paraLines.join(' '));
-    fragment.appendChild(p);
+    container.appendChild(p);
     paraLines = [];
   }
 
@@ -58,16 +69,17 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
       const h3 = document.createElement('h3');
       h3.className = 'article-heading article-reveal';
       h3.innerHTML = applyInline(match[1]);
-      fragment.appendChild(h3);
+      container.appendChild(h3);
       i++;
       continue;
     }
 
     if (DIVIDER_RE.test(line)) {
       flushParagraph();
+      closeFloatGroup();
       const hr = document.createElement('hr');
       hr.className = 'article-divider';
-      fragment.appendChild(hr);
+      container.appendChild(hr);
       i++;
       continue;
     }
@@ -75,9 +87,15 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
     match = line.match(IMAGE_RE);
     if (match) {
       flushParagraph();
-      const [, alt, src] = match;
+      // A new image always ends any prior float group: a center image must not
+      // land inside one, and a left/right image starts a fresh group below.
+      closeFloatGroup();
+      const [, alt, src, align = 'center'] = match;
       const figure = document.createElement('figure');
       figure.className = 'article-figure article-reveal';
+      if (align === 'left' || align === 'right') {
+        figure.classList.add(`article-figure--${align}`);
+      }
 
       const className = isVideoPath(src) ? 'article-block-video' : 'article-block-image';
       const media = createMediaElement(src, { alt, className });
@@ -93,7 +111,17 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
         }
       }
 
-      fragment.appendChild(figure);
+      if (align === 'left' || align === 'right') {
+        // Wrap the float + following text in a BFC div so paragraphs wrap the
+        // image. Append the group now (order preserved), then redirect.
+        const group = document.createElement('div');
+        group.className = 'article-float-group';
+        group.appendChild(figure);
+        fragment.appendChild(group);
+        container = group;
+      } else {
+        container.appendChild(figure);
+      }
       i++;
       continue;
     }
@@ -101,6 +129,7 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
     match = line.match(LINK_LINE_RE);
     if (match) {
       flushParagraph();
+      closeFloatGroup();
       const div = document.createElement('div');
       div.className = 'article-links article-reveal';
 
@@ -124,7 +153,7 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
         i++;
       }
 
-      fragment.appendChild(div);
+      container.appendChild(div);
       continue;
     }
 
@@ -138,7 +167,7 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
         ul.appendChild(li);
         i++;
       }
-      fragment.appendChild(ul);
+      container.appendChild(ul);
       continue;
     }
 
@@ -147,5 +176,6 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
   }
 
   flushParagraph();
+  closeFloatGroup();
   return fragment;
 }
