@@ -28,6 +28,7 @@ import {
 import { ICONS } from './config/icons.js';
 import { createMediaElement, createSpritesheetElement } from './utils/media.js';
 import { applyInline } from './utils/markdown.js';
+import { attachVideoControls } from './components/VideoControls.js';
 
 
 // ---------------------------------------------------------------------------
@@ -102,10 +103,91 @@ let activeSheet = null;  // { el, categoryId, index, items, viewer, ... }
 
 
 // ---------------------------------------------------------------------------
+// Desktop-recommended notice
+//
+// One-shot modal shown on page load before anything else mounts. Tells the
+// visitor the full experience lives on desktop. Gated by sessionStorage so a
+// reload / main-site ↔ deck navigation within the same tab doesn't nag twice;
+// a fresh tab (new session) shows it again.
+//
+// Appended straight to <body> (not #mobile-app) so it sits above the app's
+// scanline overlay and works on the deck path too, where #mobile-app never
+// exists. Returns a promise that resolves on dismissal so boot() can hold
+// the intro / deck mount until the visitor has acknowledged it.
+// ---------------------------------------------------------------------------
+const NOTICE_KEY = 'm-desktop-notice-dismissed';
+
+function showDesktopNotice() {
+  // sessionStorage throws in some privacy modes / sandboxed WebViews — treat
+  // "can't read" as "not dismissed" and just show the notice every load there.
+  try {
+    if (sessionStorage.getItem(NOTICE_KEY)) return Promise.resolve();
+  } catch { /* storage unavailable */ }
+
+  return new Promise((resolve) => {
+    const btn = h('button', {
+      class: 'm-notice-btn',
+      text: '[ continue ]',
+      attrs: { type: 'button' },
+    });
+    const box = h('div', {
+      class: 'm-notice-box',
+      attrs: {
+        role: 'alertdialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'm-notice-title',
+        'aria-describedby': 'm-notice-msg',
+      },
+    }, [
+      h('p', { class: 'm-notice-title', text: '> notice', attrs: { id: 'm-notice-title' } }),
+      h('p', {
+        class: 'm-notice-msg',
+        attrs: { id: 'm-notice-msg' },
+        text: 'This site is best experienced on a computer browser. ' +
+              'You’re viewing a simplified mobile version.',
+      }),
+      btn,
+    ]);
+    const overlay = h('div', { class: 'm-notice-overlay' }, [box]);
+
+    let done = false;
+    const dismiss = () => {
+      if (done) return;
+      done = true;
+      try { sessionStorage.setItem(NOTICE_KEY, '1'); } catch { /* ignore */ }
+      document.removeEventListener('keydown', onKey);
+      overlay.classList.add('fading');
+      if (prefersReducedMotion) {
+        overlay.remove();
+        resolve();
+      } else {
+        setTimeout(() => { overlay.remove(); resolve(); }, 250);
+      }
+    };
+    // Enter on the focused button already fires `click`; this catches Escape
+    // and Enter when focus drifted (e.g. external keyboard on a tablet).
+    const onKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); dismiss(); }
+    };
+
+    btn.addEventListener('click', dismiss);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => btn.focus());
+  });
+}
+
+
+// ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
 export async function boot() {
   document.documentElement.classList.add('mobile-mode');
+
+  // Kick off the notice immediately (page load), but don't await yet — the
+  // deck path below starts its chunk download concurrently so dismissing the
+  // notice doesn't then stall on the network.
+  const noticeDone = showDesktopNotice();
 
   // URL-gated portfolio decks: `/?p=<slug>` boots straight into the slide deck
   // (shared component with desktop, code-split), skipping the mobile intro/tabs.
@@ -115,6 +197,7 @@ export async function boot() {
   if (gatedSlug !== null) {
     document.querySelectorAll('#crt-screen, #mosaic, .crt-overlay').forEach((el) => el.remove());
     const m = await import('./components/PortfolioDeck.js');
+    await noticeDone; // deck mounts (and starts animating) only once acknowledged
     m.mountDeck(gatedSlug, { isMobile: true });
     return;
   }
@@ -131,6 +214,10 @@ export async function boot() {
   appEl = h('div', { attrs: { id: 'mobile-app' } });
   document.body.appendChild(appEl);
 
+  // Hold the intro until the notice is dismissed — its typewriter is
+  // CSS-driven and starts on mount, so mounting it under the modal would
+  // burn the whole animation behind the backdrop.
+  await noticeDone;
   await runIntro();
   buildShell();
   switchTab('General', { immediate: true });
@@ -603,7 +690,7 @@ function openSheet(categoryId, index) {
   activeSheet = {
     el: sheet, categoryId, items, index,
     media, info, counter, prevBtn, nextBtn, closeBtn,
-    viewer: null, scroll, prevFocus,
+    viewer: null, videoControls: null, scroll, prevFocus,
   };
 
   closeBtn.addEventListener('click', closeSheet);
@@ -619,6 +706,8 @@ function openSheet(categoryId, index) {
   // Global escape + arrow keys + Tab trap
   const onKey = (e) => {
     if (e.key === 'Escape') { closeSheet(); return; }
+    // A focused seek bar owns the arrow keys (scrubbing) — don't swap items.
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && e.target.closest?.('.video-controls')) return;
     if (e.key === 'ArrowLeft')  { navigateSheet(-1); return; }
     if (e.key === 'ArrowRight') { navigateSheet(1);  return; }
     if (e.key === 'Tab') {
@@ -668,6 +757,8 @@ async function renderSheetItem(index) {
     destroySplatViewer(activeSheet.viewer);
     activeSheet.viewer = null;
   }
+  activeSheet.videoControls?.destroy();
+  activeSheet.videoControls = null;
 
   // Replace media
   media.replaceChildren();
@@ -717,6 +808,12 @@ async function renderSheetItem(index) {
     }
   } else {
     media.appendChild(buildMedia(item));
+    // Audio-bearing video: attach the tap-revealed control bar
+    // (.m-sheet-media is position:relative, so it can host the overlay).
+    if (item.hasAudio) {
+      const video = media.querySelector('video');
+      if (video) activeSheet.videoControls = attachVideoControls(video, media, { reveal: 'tap' });
+    }
   }
 
   // Info panel
@@ -747,6 +844,10 @@ async function renderSheetItem(index) {
           destroySplatViewer(activeSheet.viewer);
           activeSheet.viewer = null;
         }
+        if (activeSheet) {
+          activeSheet.videoControls?.destroy();
+          activeSheet.videoControls = null;
+        }
         // Invalidate any in-flight splat load targeting the main slot.
         splatSession++;
         media.classList.remove('loading');
@@ -755,6 +856,12 @@ async function renderSheetItem(index) {
         const newMedia = createMediaElement(src, { alt: '', lazy: false });
         if (newMedia) {
           media.replaceChildren(newMedia);
+          // Thumb 0 is the primary media — swapping back to an audio-bearing
+          // main video needs its controls again.
+          if (src === item.src && item.hasAudio && activeSheet) {
+            const video = media.querySelector('video');
+            if (video) activeSheet.videoControls = attachVideoControls(video, media, { reveal: 'tap' });
+          }
         }
         for (const other of thumbs) other.classList.remove('is-active');
         t.classList.add('is-active');
@@ -776,8 +883,11 @@ function navigateSheet(dir) {
 
 function closeSheet() {
   if (!activeSheet) return;
-  const { el, viewer, _onKey, prevFocus } = activeSheet;
+  const { el, viewer, videoControls, _onKey, prevFocus } = activeSheet;
   if (_onKey) document.removeEventListener('keydown', _onKey);
+  // Destroy immediately (not in the deferred cleanup) — re-mutes the video so
+  // no audio plays over the exit transition.
+  videoControls?.destroy();
 
   el.classList.add('m-sheet-exiting');
   activeSheet = null;

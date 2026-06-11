@@ -138,6 +138,7 @@
   --timing-slow: 600ms;
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.42, 0, 1, 1);
 }
 
 /* Era: Terminal (default) - green phosphor monitor aesthetic */
@@ -1942,6 +1943,154 @@ div.article-banner {
 }
 
 /* ============================================
+   Video Controls (audio-bearing pieces)
+   ============================================ */
+
+/*
+ * Custom control bar for videos flagged hasAudio (see VideoControls.js).
+ * Pinned to the bottom of a positioned host (.vc-host) — the detail-active
+ * item, the deck doc banner wrap, or the mobile sheet media box.
+ *
+ * Reveal: hover on mouse (media query below), .vc-visible toggled by tap on
+ * touch. The bar also stays up while paused (.vc-paused) and while any of its
+ * controls hold keyboard focus (:focus-within) — a frozen frame with no
+ * resume button is a dead end.
+ *
+ * Everything keys off --text-primary so the alternate CRT themes restyle
+ * the bar for free.
+ */
+.video-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  /* Above the media (and the deck banner's ::after sweep) */
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+  font-family: 'Martian Mono', monospace;
+  color: var(--text-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  cursor: default;
+  /* the media behind keeps zoom-in; the bar itself is plain UI */
+}
+
+.video-controls.vc-visible,
+.video-controls.vc-paused,
+.video-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: hover) {
+  .vc-host:hover .video-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.vc-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  padding: 0.25rem;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.vc-btn svg {
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.vc-btn:hover,
+.vc-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--text-primary) 50%, transparent);
+}
+
+.vc-time {
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/*
+ * Seek bar — a flat 2px line with a square thumb, matching the site's
+ * deliberately sharp corners. The played portion is painted by the
+ * --vc-progress custom property (set from JS on timeupdate) as a hard-stop
+ * gradient; Firefox gets it natively via ::-moz-range-progress.
+ */
+.vc-seek {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vc-seek::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right,
+      var(--text-primary) var(--vc-progress, 0%),
+      color-mix(in srgb, var(--text-primary) 25%, transparent) var(--vc-progress, 0%));
+}
+
+.vc-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  margin-top: -3px;
+  background: var(--text-primary);
+  border-radius: 0;
+  box-shadow: 0 0 6px var(--text-primary);
+}
+
+.vc-seek::-moz-range-track {
+  height: 2px;
+  background: color-mix(in srgb, var(--text-primary) 25%, transparent);
+}
+
+.vc-seek::-moz-range-progress {
+  height: 2px;
+  background: var(--text-primary);
+}
+
+.vc-seek::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--text-primary);
+  box-shadow: 0 0 6px var(--text-primary);
+}
+
+/*
+ * Fullscreen: lift the active item above .gallery-fs-backdrop (z-index 9) so
+ * the control bar stays clickable. .detail-transitioning is applied for the
+ * whole fullscreen session (added in enterDetailFullscreen, removed on exit),
+ * which makes it the exact scope we need. The media click handler toggles
+ * (exit when already fullscreen), so click-anywhere-to-exit still works even
+ * though the backdrop no longer receives those clicks.
+ */
+.mosaic-item.detail-active.detail-transitioning {
+  z-index: 10;
+}
+
+.mosaic-item.detail-active.detail-transitioning img,
+.mosaic-item.detail-active.detail-transitioning video {
+  cursor: zoom-out;
+}
+
+/* ============================================
    Keyboard Focus Indicators
    ============================================ */
 
@@ -2579,14 +2728,6 @@ html.mobile-mode #mosaic {
   color: var(--text-primary);
 }
 
-.deck-outro-text {
-  margin: 0;
-  font-size: clamp(0.75rem, 1.6vw, 0.95rem);
-  font-weight: 200;
-  line-height: 1.6;
-  color: #b0b0b0;
-}
-
 .deck-outro-btn {
   display: inline-flex;
   align-items: center;
@@ -2664,13 +2805,21 @@ html.mobile-mode #mosaic {
   clip-path: inset(0 0 100% 0);
   opacity: 0;
   pointer-events: none;
-  transition: clip-path 460ms var(--ease-smooth), opacity 240ms ease;
+  /* Asymmetric opacity: this base-rule transition governs CLOSE (when `.open`
+     is removed). The panel must stay FULLY OPAQUE the whole sweep so the
+     clip-path + wipe line scan it away — any opacity fade reads as the content
+     dissolving before the line reaches it. The clip (inset 100%) hides the panel
+     on its own, so we hold opacity at 1 and snap it to 0 only once the 460ms
+     clip has finished (invisible by then — already clipped). */
+  transition: clip-path 460ms var(--ease-in), opacity 0s linear 460ms;
 }
 
 .deck-doc-overlay.open {
   clip-path: inset(0 0 0 0);
   opacity: 1;
   pointer-events: auto;
+  /* OPEN direction: no delay — the liked fade-in plays alongside the unroll. */
+  transition: clip-path 460ms var(--ease-in), opacity 240ms ease;
 }
 
 .deck.no-anim .deck-doc-overlay {
@@ -2702,25 +2851,39 @@ html.mobile-mode #mosaic {
     color-mix(in srgb, var(--glow-color) 60%, #ffffff) 86%,
     transparent
   );
-  /* glow halo — if a theme sets --glow-color:none these rules drop out
-     harmlessly and the core line still shows */
+  /* glow halo — layered into a directional COMET TAIL that trails opposite the
+     line's travel. Each layer is offset vertically (not radial) with growing
+     blur, so the light streaks behind the leading edge. The base offsets are
+     positive-y (trail BELOW) for the close sweep, where the line travels up;
+     .at-bottom flips them for the open sweep (line travels down). A white inner
+     layer keeps the core bright regardless of theme; if --glow-color:none the
+     tinted layers drop out harmlessly. box-shadow isn't transitioned, so the
+     direction snaps with the class toggle before the sweep plays — no morph. */
   box-shadow:
-    0 0 8px 1px var(--glow-color),
-    0 0 20px 3px var(--glow-color);
-  transition: top 460ms var(--ease-smooth);
+    0 3px 6px 0 #ffffff,
+    0 10px 18px 1px var(--glow-color),
+    0 22px 36px 2px var(--glow-color),
+    0 40px 62px 4px var(--glow-color);
+  transition: top 460ms var(--ease-in);
   will-change: top, opacity;
 }
 
-/* Edge position mirrors the overlay clip exactly: top (closed) ↔ bottom (open). */
+/* Edge position mirrors the overlay clip exactly: top (closed) ↔ bottom (open).
+   Open sweep travels DOWN, so flip the tail to trail upward (negative-y). */
 .deck-doc-wipe.at-bottom {
   top: 100%;
+  box-shadow:
+    0 -3px 6px 0 #ffffff,
+    0 -10px 18px 1px var(--glow-color),
+    0 -22px 36px 2px var(--glow-color),
+    0 -40px 62px 4px var(--glow-color);
 }
 
 /* Brightness window — lit only while a wipe is actively playing, so the line
    never lingers at rest. Quick fade in/out at each end of the sweep. */
 .deck-doc-wipe.lit {
   opacity: 1;
-  transition: top 460ms var(--ease-smooth), opacity 120ms ease;
+  transition: top 460ms var(--ease-in), opacity 120ms ease;
 }
 
 .deck.no-anim .deck-doc-wipe {

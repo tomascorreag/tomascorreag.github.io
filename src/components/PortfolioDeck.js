@@ -31,6 +31,7 @@ import { createMediaElement, createSpritesheetElement } from '../utils/media.js'
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { ICONS } from '../config/icons.js';
 import { deviceTier } from '../config/device.js';
+import { attachVideoControls } from './VideoControls.js';
 
 // DEV: temporarily forced off to test the carousel animation. Restore to:
 //   window.matchMedia('(prefers-reduced-motion: reduce)').matches || deviceTier === 'low';
@@ -284,7 +285,6 @@ function buildOutroSlide() {
     el('div', { class: 'deck-outro-inner' }, [
       el('p', { class: 'deck-outro-kicker', text: 'end of selection' }),
       el('h2', { class: 'deck-outro-title crt-effects', text: 'Want to see more?' }),
-      el('p', { class: 'deck-outro-text', text: 'This is a curated cut. The full portfolio lives on the main site.' }),
       el('a', {
         class: 'deck-outro-btn',
         html: 'Visit the main site<span class="deck-cta-arrow">▸</span>',
@@ -337,6 +337,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   const total = page.slides.length + (page.outro ? 1 : 0);
   let index = 0;
   let docOpen = false;
+  let docControls = null; // video control bar handle for the open doc's banner
 
   // ── Scaffold ──
   const deck = el('div', { class: `deck${reduceMotion ? ' no-anim' : ''}${isMobile ? ' is-mobile' : ''}` });
@@ -346,7 +347,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   const header = el('header', { class: 'deck-header' }, [
     el('div', { class: 'deck-header-titles' }, [
       el('h1', { class: 'deck-title crt-effects', text: page.title }),
-      page.intro && el('p', { class: 'deck-intro', text: page.intro }),
+      page.intro && el('p', { class: 'deck-intro', html: applyInline(page.intro) }),
     ]),
   ]);
 
@@ -442,7 +443,14 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   }
 
   function openDoc(entry) {
+    docControls?.destroy(); // stale bar from a previously opened doc
+    docControls = null;
     docContent.replaceChildren(buildDocument(entry.item));
+    if (entry.item.hasAudio) {
+      const wrap = docContent.querySelector('.article-banner-wrap');
+      const video = wrap?.querySelector('video');
+      if (video) docControls = attachVideoControls(video, wrap, { reveal: 'auto' });
+    }
     docContent.scrollTop = 0;
     flashWipe();
     wipe.classList.add('at-bottom'); // edge sweeps top → bottom with the clip
@@ -452,6 +460,10 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   }
 
   function closeDoc() {
+    // closeDoc only hides the overlay — the doc (and its autoplaying video)
+    // stays mounted behind it. destroy() re-mutes, so no audio leaks through.
+    docControls?.destroy();
+    docControls = null;
     flashWipe();
     wipe.classList.remove('at-bottom'); // edge rides bottom → top — same wipe, reversed
     overlay.classList.remove('open');
@@ -506,6 +518,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   return {
     destroy() {
       clearTimeout(wipeTimer);
+      docControls?.destroy();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', relayout);
       deck.remove();

@@ -55,11 +55,12 @@ for (const items of Object.values(CATEGORIES)) {
  */
 export const PORTFOLIO_PAGES = {
   // UCL MA Digital Media: Production — application portfolio.
-  // Shared at: https://tomascorreag.github.io/?p=ucl-digital-media
-  'ucl-digital-media': {
+  // Slug is an opaque hash so the URL can't be guessed/enumerated by reading it.
+  // Shared at: https://tomascorreag.github.io/?p=65f27a44
+  '65f27a44': {
     title: 'Tomás Correa — Selected Work',
-    intro: 'Curated for the UCL MA Digital Media: Production application\nTap any piece to read more',
-    items: ['paramo', 'ardo', 'frenesi'],
+    intro: 'Curated for **UCL MA Digital Media: Production**\nTap any piece to read more',
+    items: ['arbo', 'paramo', 'frenesi', 'ardo'],
     outro: true,
   },
 };

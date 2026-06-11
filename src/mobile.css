@@ -1079,10 +1079,83 @@ html.mobile-mode {
 
 
 /* ============================================================================
+   Desktop-recommended notice — modal shown on page load (see showDesktopNotice
+   in mobile.js). Direct child of <body>, above everything incl. the sheet,
+   shared by the main shell and the ?p= portfolio decks.
+   ============================================================================ */
+
+.m-notice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--gutter) + var(--safe-t)) calc(var(--gutter) + var(--safe-r))
+           calc(var(--gutter) + var(--safe-b)) calc(var(--gutter) + var(--safe-l));
+  background: rgba(0, 0, 0, 0.7);
+  animation: m-notice-in 220ms ease both;
+  transition: opacity 250ms ease;
+}
+.m-notice-overlay.fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes m-notice-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.m-notice-box {
+  max-width: 340px;
+  padding: 20px;
+  background: var(--bg-raised);
+  border: 1px solid var(--mg-line);
+  border-radius: var(--radius);
+  box-shadow: 0 0 32px rgba(0, 0, 0, 0.6);
+}
+
+.m-notice-title {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mg);
+  text-shadow: 0 0 8px var(--glow);
+}
+
+.m-notice-msg {
+  margin: 0 0 18px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--mg-dim);
+}
+
+.m-notice-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  min-height: var(--tap);
+  background: transparent;
+  border: 1px solid var(--mg-line);
+  border-radius: var(--radius);
+  color: var(--mg);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.m-notice-btn:active { background: rgba(108, 255, 108, 0.1); }
+
+
+/* ============================================================================
    Reduced-motion fallbacks
    ============================================================================ */
 
 @media (prefers-reduced-motion: reduce) {
+  .m-notice-overlay { animation: none; transition: opacity 1ms linear; }
+
   /* Intro: drop clip-path + animation, show everything instantly */
   .m-intro-terminal .body {
     clip-path: none;

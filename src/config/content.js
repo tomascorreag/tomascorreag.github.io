@@ -175,7 +175,7 @@ export const GENERAL_CONTENT = {
       ]
     },
     { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
-    { label: 'Game Development', detail: 'ARBO: Arena Tactics (Steam, closed alpha) — Technical Artist & lead developer' },
+    { label: 'Game Development', detail: 'ARBO: Arena Tactics (shipped on Steam): Technical Artist & lead developer' },
   ],
   tools: ['Unity', 'Blender', 'C#', 'Python', 'HLSL/GLSL', 'SQL'],
   contacts: [
@@ -212,8 +212,8 @@ export const GAMES = [
     id: 'arbo',
     src: 'Games/ARBO/ARBO_thumb.jpg',
     title: 'ARBO: Arena Tactics',
-    summary: 'Turn-based tactical combat with deckbuilding, built in Unity. In closed alpha on Steam.',
-    description: 'Turn-based tactical combat with a deckbuilding layer, built in Unity. Two players each command a team of heroes on a hex grid, assembling protocol decks to outmaneuver and KO the opposition. I served as Technical Artist and lead developer — owning the real-time visual pipeline and editor tooling, and co-developing core gameplay systems and UI/UX. In closed alpha on Steam.',
+    summary: 'Turn-based tactical combat with deckbuilding, built in Unity. Shipped on Steam in 2025.',
+    description: 'Turn-based tactical combat with a deckbuilding layer, built in Unity and shipped on Steam in October 2025. Two players each command a team of hero robots across hex-grid arenas with elevation and line-of-sight, building protocol decks to outmaneuver and KO each other — StarCraft positioning crossed with Magic: The Gathering deck construction. I was the Technical Artist and a lead developer: I owned the real-time visual pipeline and editor tooling, and co-developed the core gameplay systems and UI/UX.',
     links: [
       { label: 'Steam', icon: 'steam', url: 'https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/' },
       { label: 'Website', icon: 'website', url: 'https://arbo.xyz/' },
@@ -221,15 +221,15 @@ export const GAMES = [
     page: `
 ## About the Project
 
-Turn-based tactical combat with a deckbuilding layer, built in Unity. Two players command teams of heroes on hex-grid arenas.
+Turn-based tactical combat with a deckbuilding layer, built in Unity and shipped on Steam in October 2025. Two players each command a team of hero robots across hex-grid arenas — the design splices StarCraft's asymmetric units and positional play with Magic: The Gathering's deck construction and cost curves.
 
-- **4 hero classes**, each with 3 combat themes that guide deckbuilding
-- **15-card protocol decks** — energy, MP, and shield as cost pools
-- **Hex-grid arenas** with water, ice, magma, tar, and elevation
-- **Initiative-based turns** with accuracy-vs-evasion rolls and line-of-sight
-- **Deep status-effect layer** — 39 effect types shipped
+- **4 hero classes** — Worldforger, Reaver, Archon, Specter — each with 3 combat themes that steer how you build a deck
+- **15-card protocol decks** drawing on energy, movement, and shields as cost pools. Energy doubles as health, so every cast spends survivability
+- **Hex-grid arenas** featuring water, ice, magma, tar, and concealment tiles, plus per-tile elevation that shapes movement, targeting, and sightlines
+- **Initiative-based turns** with accuracy-vs-evasion rolls — evasion scales with distance — and full line-of-sight occlusion from terrain and structures
+- **A deep status-effect layer**, with 39 distinct effect types spanning stat modifiers, damage-over-time, control, immunities, and stacking mechanics
 
-Game modes: 1v1 multiplayer, ranked ladder, LLM-driven tutorial opponent, and an AI-reasoning-agent mode where natural-language commands drive match play.
+Four ways to play: online 1v1 multiplayer, a ranked ladder, an LLM-driven tutorial opponent, and Prompt Battler — an AI-agent mode where natural-language commands drive the match.
 
 ---
 
@@ -237,11 +237,12 @@ Game modes: 1v1 multiplayer, ranked ladder, LLM-driven tutorial opponent, and an
 
 Technical Artist and co-lead developer.
 
-- **Real-time visual pipeline** — custom shaders via Shader Graph + HLSL/GLSL in URP
-- **All VFX** — particle systems, VFX Graph, and bespoke implementations
-- **Custom Unity editor tools** for myself and the dev team to use
+- **Real-time visual pipeline**: custom shaders in URP, built with Shader Graph and HLSL/GLSL
+- **All VFX**: particle systems, VFX Graph, and bespoke effects
+- **Custom Unity editor tools** for myself and the rest of the team
+- Led the **2D-to-3D production transition**: a planned, year-long migration of the whole visual stack, executed across parallel branches without halting live development
 - Co-developed the **hex-grid combat engine**, protocol-deck system, and status-effect framework
-- Co-developed **UI/UX** across the stack
+- Co-developed the **UI/UX** across the stack
 
 ---
 
@@ -252,9 +253,13 @@ Technical Artist and co-lead developer.
 
 ## Technical Highlights
 
-- Custom real-time **shader pipeline** in URP (Shader Graph + HLSL/GLSL)
-- **VFX** via particle systems, VFX Graph, and custom implementations
-- **Editor tooling** enabling designers to author and tune game content without code
+- A custom real-time **shader pipeline** in URP, combining Shader Graph with hand-written HLSL/GLSL
+- **VFX** spanning particle systems, VFX Graph, and fully custom effects
+- **Editor tooling** that lets designers author and tune content without writing code
+- **Fully data-driven content**: classes, protocols, operations, and arena setups defined in JSON profiles, so balance and content iteration never touches engine code
+- **Elevation-aware combat math**: line-of-sight traced hex-by-hex over terrain heights, and chance-to-hit built on distance-scaled evasion
+- **Two-tier networking**: Photon Fusion for in-match state sync, Colyseus for lobbies, matchmaking, and ranked
+- **Server-driven AI opponents**: an LLM tutorial opponent with hint support and a reasoning agent powering the Prompt Battler mode, with per-turn failsafe timing
 
 ![ARBO Incendiary Flames VFX](Games/ARBO/flamethrower.jpg)
 *Incendiary Flames. Particle systems and post-processing on display.*
@@ -276,23 +281,23 @@ Technical Artist and co-lead developer.
     },
     title: 'Páramo',
     summary: 'Environmental strategy on a Colombian páramo, built in Godot 4. Work in progress.',
-    description: 'An environmental strategy game set on a Colombian **páramo** (a high-altitude Andean ecosystem that supplies water to millions downstream). The player is a field coordinator protecting the mountain from extractive, biological, and climate threats while managing community relationships and scarce resources. Built in Godot 4 with isometric pixel art. Designed as procedural rhetoric: the game\'s systems argue about conservation, not its text. Work in progress.',
+    description: 'An environmental strategy game set on a Colombian **páramo**, a high-altitude Andean ecosystem that supplies water to millions of people downstream. You play a field coordinator defending the mountain against extractive, biological, and climate threats while juggling community relationships and scarce resources. Built in Godot 4 with isometric pixel art. The argument lives in the systems rather than the script: it is a game about conservation that makes its case through play. Work in progress.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],
     page: `
 ## About the Project
 
-Tower defense meets environmental strategy, built in Godot 4. You are a field coordinato protecting a Colombian páramo — a high-altitude Andean ecosystem that functions as a water factory for millions downstream. A glacial laguna sits at the summit. If it dies, everything below it dies.
+Tower defense meets environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high-altitude Andean ecosystem that works as a water factory for millions of people downstream. A glacial laguna sits at the summit. If it dies, everything below it dies with it.
 
 Threats climb the mountain from below:
 
-- **Extractive** — illegal miners, legal mining operations with government permits, land speculators
-- **Biological** — invasive grasses creeping uphill, feral cattle compacting soil
-- **Human** — unmanaged tourists, reckless campers who start fires, desperate subsistence farmers with no alternatives
-- **Environmental** — drought, wildfire, erosion, and an uncounterable climate shift that makes every year harder
+- **Extractive:** illegal miners, permitted mining operations, and land speculators
+- **Biological:** invasive grasses creeping uphill and feral cattle compacting the soil
+- **Human:** unmanaged tourists, reckless campers who start fires, and subsistence farmers with no other options
+- **Environmental:** drought, wildfire, erosion, and an uncounterable climate shift that makes every year harder
 
-Three resources govern the run: **water** generated by the ecosystem itself, **funding** from grants and eco-tourism, and **community support** — a global modifier that determines whether locals are allies or adversaries.
+Three resources govern a run. **Water** comes from the ecosystem itself, **funding** from grants and eco-tourism, and **community support** acts as a global modifier that decides whether locals are allies or adversaries.
 
 ![Páramo isometric tile system](Games/Paramo/Large.png)
 *Isometric tile grid with elevation, vegetation, and terrain variety.*
@@ -301,34 +306,34 @@ Three resources govern the run: **water** generated by the ecosystem itself, **f
 
 ## Design Intent
 
-Designed as procedural rhetoric in the sense Ian Bogost defines it: the game's arguments are carried by its systems, not its narrative. If the prose were stripped and the player still arrived at the proposition through play, the argument is procedural.
+The game is built as procedural rhetoric in Ian Bogost's sense: its arguments are carried by the systems, not the narrative. The test is simple. Strip the prose, and if play alone still leads you to the proposition, the argument is procedural.
 
-**Core claim:** conservation is asymmetric, community-dependent, and partially losing — and no amount of competence makes the player a savior.
+**The core claim:** conservation is asymmetric, community-dependent, and partly a losing fight. No amount of competence turns you into a savior.
 
-Sub-arguments carried by the rules:
+The rules carry the sub-arguments:
 
-- **Destruction is cheap; repair is dear** — a frailejon takes 3–4 seasons to mature and seconds to burn; scarred tiles never fully recover
-- **Harm has long latency** — laguna contamination is invisible until nearly irreversible; act upstream before you see the damage
-- **Fortress conservation fails** — fencing without community programs craters support, multiplying threats
-- **Permitted extraction is the worst threat** — legal mining can't be physically stopped; the probabilistic legal path can lose
-- **Climate is a ceiling, not an enemy** — no counter, only adaptation
-- **The map remembers** — damage is partially irreversible; the end-of-run view shows what was lost, not what was scored
+- **Destruction is cheap; repair is dear.** A frailejón takes three or four seasons to mature and seconds to burn, and scarred tiles never fully recover.
+- **Harm runs on a long delay.** Laguna contamination stays invisible until it is nearly irreversible, so you have to act upstream of the damage.
+- **Fortress conservation fails.** Fencing the mountain off without community programs craters support and multiplies threats.
+- **Permitted extraction is the worst threat.** Legal mining cannot be physically stopped, and the probabilistic legal route can still lose.
+- **Climate is a ceiling, not an enemy.** There is no counter for it, only adaptation.
+- **The map remembers.** Damage is partly irreversible, and the end-of-run screen shows what was lost rather than what was scored.
 
 ![Páramo mountain at dusk](Games/Paramo/Small.png)
-*The mountain at dusk — stream, vegetation gradients, and atmospheric fog.*
+*The mountain at dusk: stream, vegetation gradients, and atmospheric fog.*
 
 ---
 
 ## Technical Overview
 
-Godot 4, isometric pixel art. All systems data-driven — new content is configuration, not code.
+Godot 4, isometric pixel art. Every system is data-driven, so new content is configuration rather than code.
 
-- **Tile-based ecosystem simulation** — per-tile health states, moisture propagation, altitude-dependent rules
-- **Threat spawner** — seasonal intensity curves, weighted randomness, climate escalation
-- **Fog-of-war and visibility** — monitoring stations, ranger patrols, directional audio cues
-- **Interaction tiers** — field presence (planting, firefighting) vs. station management (legal, hiring, strategy)
+- **Tile-based ecosystem simulation:** per-tile health states, moisture propagation, and altitude-dependent rules
+- **Threat spawner:** seasonal intensity curves, weighted randomness, and climate escalation
+- **Fog-of-war and visibility:** monitoring stations, ranger patrols, and directional audio cues
+- **Two interaction tiers:** field presence (planting, firefighting) and station management (legal action, hiring, strategy)
 
-*Work in progress — targeting a vertical-slice release: one handcrafted mountain, 10 seasons, core threat and tool sets, full resource loop.*
+*Work in progress, targeting a vertical-slice release: one handcrafted mountain, 10 seasons, the core threat and tool sets, and the full resource loop.*
 
 ---
 
@@ -371,7 +376,7 @@ export const CATEGORIES = {
     {
       id: 'fabric', src: '3d-assets/fabricThumb.png', alt: 'Procedural fabric weave material', cols: 4, rows: 2,
       title: 'Procedural Fabric Material',
-      description: 'A fully parametric weave material for Blender. A single node group exposes the weave pattern, scale, colour, and wear — scaling from tight basket to loose knit while staying physically believable.',
+      description: 'A fully parametric weave material for Blender. One node group exposes the weave pattern, scale, colour, and wear, so it scales from a tight basket to a loose knit while staying physically believable.',
       gallery: [
         '3d-assets/fabric_details/detail1-min.png',
         '3d-assets/fabric_details/detail2-min.png',
@@ -382,7 +387,7 @@ export const CATEGORIES = {
     {
       id: 'ice', src: '3d-assets/iceThumb.png', alt: 'Procedural ice in a glass', cols: 4, rows: 2,
       title: 'Procedural Ice',
-      description: 'A procedural setup for building any kind of ice in Blender (Cycles), combining Geometry Nodes, the shader graph, and volumetric shading. Shown here in a glass with a drink — one of many possible variations.',
+      description: 'A procedural setup for building any kind of ice in Blender (Cycles), combining Geometry Nodes, the shader graph, and volumetric shading. Shown here in a glass with a drink, one of many possible variations.',
       gallery: [
         '3d-assets/ice_details/Glass_Var1.png',
         '3d-assets/ice_details/Glass_Var2.png',
@@ -393,7 +398,7 @@ export const CATEGORIES = {
     {
       id: 'toon', src: '3d-assets/toonThumb.webm', alt: 'Stylized toon shader render', cols: 4, rows: 2,
       title: 'Stylized Toon Shader',
-      description: 'A Blender EEVEE shader built to emulate an illustrated look — reaching for, though not quite landing on, Moebius-style renders. A non-photorealistic study in ramp shading and line work.',
+      description: 'A Blender EEVEE shader that emulates an illustrated look, aiming in the direction of Moebius-style renders. A non-photorealistic study in ramp shading and line work.',
       gallery: [
         '3d-assets/toon_details/toonHead.mp4',
       ],
@@ -401,7 +406,7 @@ export const CATEGORIES = {
     {
       id: 'eyes', src: '3d-assets/eyeThumb.png', alt: 'Procedural rigged eye', cols: 2, rows: 2,
       title: 'Procedural Eyes',
-      description: 'An anatomically detailed procedural eye — iris pattern, sclera veins, and cornea wetness all generated without textures. Fully parametric (vein density, iris and sclera colour, and more) and rigged for animation out of the gate, including pupil dilation.',
+      description: 'An anatomically detailed procedural eye. The iris pattern, sclera veins, and cornea wetness are all generated without a single texture. Fully parametric (vein density, iris and sclera colour, and more) and rigged for animation from the start, pupil dilation included.',
       gallery: [
         '3d-assets/eye_details/var2.png',
         '3d-assets/eye_details/var3.png',
@@ -436,7 +441,7 @@ export const CATEGORIES = {
     {
       id: 'alt-realities', src: '3d-art/thumb1.mp4', alt: 'Forest clearing with a worker and floating debris', cols: 4, rows: 2,
       title: 'Another Day at the Office',
-      description: 'An early piece, submitted to Pwnisher\'s 2021 "Alternate Realities" challenge, with the required circle carved from negative space in the upper right. Everything but the character animation — modeling, texturing, shading, particles, boids, and cloth — built in Blender.',
+      description: 'An early piece, submitted to Pwnisher\'s 2021 "Alternate Realities" challenge, with the required circle carved out of the negative space in the upper right. Everything but the character animation is mine: modeling, texturing, shading, particles, boids, and cloth, all built in Blender.',
       page: `
 An early piece, submitted to Pwnisher's **"Alternate Realities" challenge** (2021). Entries had to work a circle into the frame; here it reads as **negative space** in the upper-right corner rather than a literal object.
 
@@ -455,10 +460,28 @@ Built and rendered in **Blender**.
 `,
     },
     {
-      id: 'ardo', src: '3d-art/thumb2.png', alt: 'Visceral organic character bust', cols: 2, rows: 2, title: 'Ardo.',
-      description: 'A personal piece made to channel a period of real anger — an end-to-end exercise in modeling, shading, and lighting in Blender, built on my custom parametric Eyes and Flesh assets.',
+      id: 'ardo', src: '3d-art/thumb2.png', alt: 'Character screaming as he burns in a nighttime wildfire', cols: 2, rows: 2, title: 'Ardo.',
+      description: 'A character burns alive in a nighttime wildfire, screaming. Conceived to give form to deep rage and despair. Built end-to-end in Blender on my own parametric Eyes and Flesh assets.',
       page: `
-*Ardo* (2024) came out of a period of real anger and became a way to channel it — built end-to-end in **Blender** as an exercise in modeling, shading, and lighting.
+*Ardo* (2024) means *I burn* in Spanish, and the piece takes the title at its word. It was conceived in a period of deep rage and despair, and made with one intent: to give that state a body, so it could exist somewhere outside of me.
+
+---
+
+## The Expression
+
+A man burns alive in the middle of a forest wildfire at night. The frame stays close on his head as he screams, skin and flesh igniting. There is no story around it and no second read intended. This is what that period felt like from the inside, and I wanted the image to be as direct as the feeling was.
+
+The contrast that carries the piece is between the figure and the night around him. The fire is violent and immediate; the forest behind it is still, dark, and completely indifferent. Rage is loud, but despair is the part where the world around you doesn't react. Both had to be in the same frame.
+
+Making it was the way through. By the time the piece was finished, the feeling had somewhere to live that wasn't me.
+
+---
+
+## Process
+
+I sculpted the head from scratch, iterating on it over about a month. The screaming expression took most of those passes; a face that extreme collapses into caricature very easily, and it had to stay believable for the image to hurt.
+
+The lighting was the hardest part. Fire wants to dominate every frame it appears in, and I wanted the atmospheric stillness of the night to survive next to it. Most of the lighting work went into holding that balance, letting the chaos of the flames and the calm of the dark coexist without one flattening the other.
 
 ---
 
@@ -467,31 +490,31 @@ Built and rendered in **Blender**.
 ![Procedural Flesh material](3d-assets/flesh_details/var1_comp.png){right}
 The surface shading is driven by two of my own parametric assets, both available in the **3D Tech** section.
 
-*Flesh — a fully parametric organic material.*
+*Flesh: a fully parametric organic material.*
 
-The **Flesh** material handles the raw, living tissue — subsurface warmth, wetness, and pore-level detail, all procedural and tunable without textures.
+The **Flesh** material handles the raw, living tissue: subsurface warmth, wetness, and pore-level detail, all procedural and tunable without textures.
 
 ---
 
 ![Procedural Eyes](3d-assets/eye_details/var2.png){left}
-*Eyes — anatomically detailed and rigged.*
+*Eyes: anatomically detailed and rigged.*
 
-The **Eyes** are anatomically detailed and rigged — iris pattern, sclera veins, and cornea wetness generated without a single texture map.
+The **Eyes** are anatomically detailed and rigged, with iris pattern, sclera veins, and cornea wetness generated without a single texture map.
 `,
     },
     {
       id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armor', cols: 2, rows: 4, title: 'Menpō (面頬)',
       description: 'A modeling and hard-surface study of a Japanese menpō (samurai facial armour), focused on facial anatomy and shading. Built end-to-end in Blender.',
       page: `
-*Menpō* (2021) is a modeling exercise built around a Japanese **menpō** — the half-face armour worn beneath a samurai helmet. The appeal was the face itself: studying its anatomy and translating it into hard, forged metal.
+*Menpō* (2021) is a modeling exercise built around a Japanese **menpō**, the half-face armour worn beneath a samurai helmet. The draw was the face itself: studying its anatomy and translating it into hard, forged metal.
 
 ---
 
 ## Focus
 
-- **Facial anatomy** — getting the underlying structure right so the mask reads as a face, not just a shape
-- **Hard-surface shading** — worn, hammered metal with believable wear and specular break-up
-- **Composition** — framing and lighting to give the piece presence
+- **Facial anatomy:** getting the underlying structure right so the mask reads as a face, not just a shape
+- **Hard-surface shading:** worn, hammered metal with believable wear and specular break-up
+- **Composition:** framing and lighting that give the piece presence
 
 Built end-to-end in **Blender**.
 `,
@@ -508,8 +531,8 @@ Built end-to-end in **Blender**.
 
 Translating a 2D painting into a dimensional scene, made end-to-end:
 
-- **Whales and their skeletons** — the central forms, modeled from scratch
-- **The lighthouse** anchoring the composition
+- **Whales and their skeletons**, the central forms, modeled from scratch
+- **The lighthouse** that anchors the composition
 - **Volumetric lighting** to carry the mood and depth of the original painting
 
 Built end-to-end in **Blender**.
@@ -523,10 +546,10 @@ Built end-to-end in **Blender**.
       // - lists, ![alt](path) images (path relative to src/assets/thumbnails/), and
       // [Label|icon](url) link rows. When omitted, the short `description` is shown instead.
       page: `
-A fantastical greenhouse on Mars, powering a giant brain — part of an ongoing exploration of brain-themed surrealism and the fantastical compositions to set them in.
+A fantastical greenhouse on Mars, powering a giant brain. It is part of an ongoing exploration of brain-themed surrealism and the fantastical settings that frame it.
 
 ![Brain-City companion study](3d-art/brainCityThumb.png){right}
-*Brain-City — a companion study: a vast city floating in space, powered by a brain (or a brain powered by a city?).*
+*Brain-City, a companion study: a vast city floating in space, powered by a brain (or is it a brain powered by a city?).*
 
 The companion **Brain-City** piece extends the same motif into a sprawling city suspended in space.
 
@@ -556,29 +579,43 @@ Made entirely by me in **Blender**.
 `,
     },
     {
-      id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí',
-      description: 'A short film I directed and produced on psychoactive-substance use, gender, and sexuality. 2nd place (Animation) at the 8th Festival de Cortos Psicoactivos. Made almost entirely by me in Blender (Cycles).',
+      // hasAudio: the clip has a soundtrack — detail/doc views attach custom
+      // video controls (play/pause/seek/mute) so visitors can unmute it.
+      id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí', hasAudio: true,
+      description: 'A short film I directed and produced on psychoactive-substance use, gender, and sexuality, made to push back against the taboos around them in Colombia. 2nd place (Animation) at the 8th Festival de Cortos Psicoactivos. Made almost entirely by me in Blender (Cycles).',
       page: `
-*Frenesí* (2022) is a short film I directed and produced on psychoactive-substance use and its links to gender and sexuality — a thread central to harm-reduction discourse in Colombia.
+*Frenesí* (2022) is a short film I directed and produced about psychoactive-substance use and its ties to gender and sexuality. In Colombia these subjects are mostly discussed in whispers, if at all.
+
+---
+
+## Why I Made It
+
+I grew up in a society where drug use, sex, and gender identity are wrapped in taboo, and in Colombia the cost of that taboo is not abstract. It is violence. The drug trade has fed decades of armed conflict, yet the stigma lands hardest on the people who use: criminalized, pushed to the margins, and in the worst cases murdered in so-called social cleansing. Trans and queer Colombians are harassed and killed for being visible. None of this is prevented by the silence around these subjects. The silence is what lets it continue.
+
+Taboo also does its quieter damage. When something can't be discussed openly, people can't ask questions or get accurate information, and seeking help comes with shame attached. Stigma doesn't stop drug use and it doesn't make anyone's identity disappear. It pushes both into the dark, where the harm compounds.
+
+Breaking a taboo is not the same as promoting what it hides. People are going to use substances, have sex, and live across the spectrum of gender whether we talk about it or not. Talking about it honestly is what makes those realities safer and the people living them less alone. That principle is the core of harm reduction, and it is the reason this film exists.
+
+*Frenesí* treats these subjects as ordinary parts of human experience. In a country where saying that out loud is still difficult, that felt worth making.
 
 ---
 
 ## Recognition
 
-**2nd place, Animation category** — 8th *Festival de Cortos Psicoactivos* (Psychoactive Short Film Festival), out of hundreds of submissions. The festival is organized by **Échele Cabeza**, a Colombian harm-reduction NGO.
+**2nd place, Animation category** at the 8th *Festival de Cortos Psicoactivos* (Psychoactive Short Film Festival), out of hundreds of submissions. The festival is run by **Échele Cabeza**, a Colombian harm-reduction NGO.
 
 ---
 
 ## Craft
 
-Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)** — modeling, animation, shading, lighting, and rendering.
+Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)**: modeling, animation, shading, lighting, and rendering.
 `,
     },
     {
       id: 'bioshock', src: '3d-art/bioshockThumb.webm', alt: 'Recreated BioShock hallway', cols: 2, rows: 2, title: 'Bioshock Hallway',
-      description: 'A recreation of a hallway from the original *BioShock* — a study in modeling, materials, and composition. Built in Blender; every asset is mine except the vending-machine texture.',
+      description: 'A recreation of a hallway from the original *BioShock*, and a study in modeling, materials, and composition. Built in Blender, where every asset is mine except the vending-machine texture.',
       page: `
-*Bioshock Hallway* (2023) recreates a corridor from the original **BioShock** — a franchise I love, and one whose art direction I wanted to explore firsthand.
+*Bioshock Hallway* (2023) recreates a corridor from the original **BioShock**, a franchise I love and one whose art direction I wanted to explore firsthand.
 
 ---
 
@@ -586,7 +623,7 @@ Apart from the voice acting, the film was made entirely by me in **Blender (Cycl
 
 A study in modeling, materials, and composition:
 
-- Every asset modeled, textured, and shaded by me — **except the vending-machine texture**
+- Every asset modeled, textured, and shaded by me, **except the vending-machine texture**
 - Period materials: worn brass, cracked tile, water-stained surfaces
 - Lighting and framing tuned to the game's claustrophobic mood
 
@@ -597,13 +634,13 @@ Built end-to-end in **Blender**.
       id: 'rebel-chase', src: '3d-art/starWarsChaseThumb.webm', alt: 'X-Wing chasing a TIE Fighter', cols: 2, rows: 2, title: 'Rebel Dogfight',
       description: 'A Star Wars scene: an X-Wing chasing down a TIE Fighter. An exploration of action-camera animation, environment design, and explosion VFX. Built in Blender; the X-Wing model was sourced online.',
       page: `
-*Rebel Dogfight* is a Star Wars-inspired chase — an **X-Wing** running down a **TIE Fighter**.
+*Rebel Dogfight* is a Star Wars-inspired chase: an **X-Wing** running down a **TIE Fighter**.
 
 ---
 
 ## Focus
 
-- **Action-camera animation** — choreographing a fast, readable dogfight
+- **Action-camera animation:** choreographing a fast, readable dogfight
 - **Environment design** for the surrounding space
 - **Explosion VFX**
 

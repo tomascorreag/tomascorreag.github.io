@@ -18,6 +18,7 @@ import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, var
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
 import { createMediaElement, createSpritesheetElement } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
+import { attachVideoControls } from './components/VideoControls.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -105,6 +106,22 @@ function destroySplatViewer(viewer) {
   const container = viewer.renderer?.domElement?.parentElement;
   viewer.destroy();
   if (container) container.remove();
+}
+
+/**
+ * Mounts the custom control bar (play/pause/seek/mute) over a detail-active
+ * video, for items flagged `hasAudio`. The bar is a child of itemEl, so it
+ * rides along when fullscreen resizes the item.
+ *
+ * @param {HTMLElement} itemEl - The .mosaic-item.detail-active element
+ * @param {Object} itemData - Content data (checked for hasAudio)
+ * @returns {{ destroy(): void }|null}
+ */
+function mountDetailVideoControls(itemEl, itemData) {
+  if (!itemData?.hasAudio) return null;
+  const video = itemEl.querySelector(':scope > video');
+  if (!video) return null;
+  return attachVideoControls(video, itemEl, { reveal: 'hover' });
 }
 
 // Inject CSS variables from centralized config
@@ -1519,6 +1536,10 @@ function swapDetailImage(newRelPath, clickedThumb) {
     destroySplatViewer(activeDetail.viewer);
     activeDetail.viewer = null;
   }
+  // The swapped-in media is always a gallery extra (never item.src), so the
+  // controls don't come back until the item is reopened or navigated to.
+  activeDetail.videoControls?.destroy();
+  activeDetail.videoControls = null;
 
   // `oldMedia` is the <picture> or <video> (the direct child of .mosaic-item).
   // querySelector('img, video') would find the inner <img> and we'd need to
@@ -1552,7 +1573,12 @@ function swapDetailImage(newRelPath, clickedThumb) {
 function attachMediaClickHandler(itemEl) {
   const media = itemEl.querySelector('img, video');
   if (!media) return;
-  const handler = () => enterDetailFullscreen();
+  // Toggle, not just enter: during fullscreen the item is raised above the
+  // backdrop (z-index, see .detail-transitioning in style.css) so the video
+  // controls stay clickable — which means the media itself now receives
+  // clicks that used to land on the backdrop. Exiting here preserves the
+  // "click anywhere to leave fullscreen" behavior.
+  const handler = () => { detailFullscreen ? exitDetailFullscreen() : enterDetailFullscreen(); };
   media.addEventListener('click', handler);
   if (activeDetail) {
     activeDetail._mediaEl = media;
@@ -1582,7 +1608,7 @@ function detachMediaClickHandler() {
  */
 function openDetail(itemEl, itemData) {
   const sessionId = ++detailSessionId;
-  activeDetail = { el: itemEl, data: itemData, viewer: null, sessionId, placeholder: null };
+  activeDetail = { el: itemEl, data: itemData, viewer: null, videoControls: null, sessionId, placeholder: null };
 
   const containerRect = mosaicEl.getBoundingClientRect();
 
@@ -1649,7 +1675,10 @@ function openDetail(itemEl, itemData) {
   anim.onfinish = () => {
     buildDetailInfo(itemData, layout);
     // Attach click-to-fullscreen on the media element
-    if (activeDetail?.sessionId === sessionId) attachMediaClickHandler(itemEl);
+    if (activeDetail?.sessionId === sessionId) {
+      attachMediaClickHandler(itemEl);
+      activeDetail.videoControls = mountDetailVideoControls(itemEl, itemData);
+    }
 
     // If this is a splat item, mount the 3D viewer on top of the thumbnail
     if (itemData.type === 'splat' && itemData.splat?.file) {
@@ -1963,6 +1992,10 @@ function closeDetail(instant = false) {
   // element transitions back to grid size (avoids flash of squished canvas).
   destroySplatViewer(viewer);
 
+  // Same timing for the video controls — the bar must not flash inside the
+  // thumbnail while the item shrinks back into the grid (and destroy re-mutes).
+  activeDetail.videoControls?.destroy();
+
   activeDetail = null;
 
   // Remove detail info + nav bar, restore grid pointer events
@@ -2268,6 +2301,8 @@ async function navigateDetail(direction) {
     // Destroy current splat viewer before fading out
     destroySplatViewer(activeDetail.viewer);
     activeDetail.viewer = null;
+    activeDetail.videoControls?.destroy();
+    activeDetail.videoControls = null;
 
     // Fade out current image + info, then swap to new item
     const { el: currentEl } = activeDetail;
@@ -2312,7 +2347,7 @@ async function navigateDetail(direction) {
     nextEl.classList.remove('fading-out');
 
     const sessionId = ++detailSessionId;
-    activeDetail = { el: nextEl, data: nextData, viewer: null, sessionId, placeholder: null };
+    activeDetail = { el: nextEl, data: nextData, viewer: null, videoControls: null, sessionId, placeholder: null };
     mosaicFocusIndex = nextIdx;
 
     // Fade in after a frame (let browser paint the positioned element first)
@@ -2324,6 +2359,7 @@ async function navigateDetail(direction) {
     buildDetailInfo(nextData, layout);
     // Attach click-to-fullscreen for the new item
     attachMediaClickHandler(nextEl);
+    activeDetail.videoControls = mountDetailVideoControls(nextEl, nextData);
 
     // Mount splat viewer for the next item if it's a splat
     if (nextData.type === 'splat' && nextData.splat?.file) {
@@ -2358,6 +2394,9 @@ document.addEventListener('keydown', (e) => {
 
   // --- Detail view mode ---
   if (activeDetail) {
+    // A focused seek bar owns the arrow keys (scrubbing) — don't navigate.
+    // Escape still falls through so it keeps closing fullscreen/detail.
+    if (key !== 'Escape' && e.target.closest?.('.video-controls')) return;
     if (key === 'Escape') {
       if (detailFullscreen) {
         exitDetailFullscreen();
