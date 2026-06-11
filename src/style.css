@@ -907,6 +907,8 @@ body {
   z-index: 1000;
   /* above .crt-overlay (100) so the cards/thumbnails render on top of the
      scanlines, like the regular thumbnail mosaic */
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-primary) transparent;
 }
 
 .game-card {
@@ -1013,18 +1015,91 @@ body {
   /* above .crt-overlay so images render clean, like mosaic thumbnails */
   pointer-events: none;
   /* let clicks pass through to .detail-nav underneath */
-  scrollbar-width: thin;
-  scrollbar-color: var(--text-primary) transparent;
 }
 
-.mosaic-grid.article-mode::-webkit-scrollbar {
-  width: 6px;
+/* Native scrollbar hidden in article + games views — replaced by the custom
+ * .crt-scrollbar (a real element that can sit below the scanline overlay and
+ * take the frame's CRT filter; native chrome can do neither). */
+.mosaic-grid.article-mode,
+.mosaic-grid.games-mode {
+  scrollbar-width: none;
 }
 
-.mosaic-grid.article-mode::-webkit-scrollbar-thumb {
-  background: var(--mg-line);
-  border-radius: 3px;
+.mosaic-grid.article-mode::-webkit-scrollbar,
+.mosaic-grid.games-mode::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Custom CRT scrollbar ──────────────────────────────────────────────────
+ * Lives in #crt-screen at z 99 (just under .crt-overlay's 100) so the
+ * scanlines paint over it, like the frame. Positioned in the right gutter
+ * BETWEEN the mosaic's right edge (2%) and the frame — i.e. OUTSIDE the
+ * z-1000 scroll container, so nothing occludes it and the thumb stays
+ * draggable. Synced to the scroll container in CrtScrollbar.js. */
+.crt-scrollbar {
+  position: absolute;
+  /* frame right edge sits at calc(2% - 2rem); +8px tucks the bar just inside
+   * it with a thin margin from the border. */
+  right: calc(2% - 2rem + 8px);
+  /* Stretched toward the frame's inner corners, anchored to the frame's own
+   * coordinate (5% - 2rem) so the corner gaps stay constant across screen
+   * sizes. Top clears the tab-header bar (.mosaic-handle ends ~frame-top+33px);
+   * bottom sits near the corner, ~matching the right inset. */
+  top: calc(5% - 2rem + 42px);
+  bottom: calc(5% - 2rem + 10px);
+  width: 14px;    /* ~90% of the previous 16px */
+  z-index: 99;
+  pointer-events: none;   /* track ignores input; thumb re-enables below */
+  opacity: 0;
+  transition: opacity 300ms ease;
+  /* Faint guide rail so the track reads as a channel. */
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-radius: 8px;
+}
+
+.crt-scrollbar.visible {
+  opacity: 1;
+}
+
+/* Faint end caps — mark the scroll extents so the track ends read clearly. */
+.crt-scrollbar::before,
+.crt-scrollbar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: color-mix(in srgb, var(--text-primary) 38%, transparent);
   box-shadow: 0 0 4px var(--glow-color);
+}
+
+.crt-scrollbar::before { top: 0; }
+.crt-scrollbar::after { bottom: 0; }
+
+.crt-scrollbar-thumb {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border-radius: 8px;
+  background: var(--text-primary);
+  pointer-events: auto;
+  cursor: grab;
+  /* A bit more glow than the native version's single 8px shadow. */
+  box-shadow:
+    0 0 6px var(--glow-color),
+    0 0 14px var(--glow-color),
+    0 0 26px var(--glow-color);
+  will-change: transform, height;
+}
+
+.crt-scrollbar-thumb:active {
+  cursor: grabbing;
+}
+
+/* When hidden (no overflow) the bar is opacity:0 but the thumb would still
+ * catch clicks in the gutter — disable its input until the bar is shown. */
+.crt-scrollbar:not(.visible) .crt-scrollbar-thumb {
+  pointer-events: none;
 }
 
 .article-page {
@@ -1042,15 +1117,28 @@ body {
   padding-bottom: 3rem;
 }
 
-/* CRT glow on text — applied to the whole page, counteracted on images */
+/* CRT glow on text — applied to the whole page, counteracted on images.
+ * NOTE: blur is deliberately NOT on the page container. A parent filter:blur()
+ * rasterizes the whole subtree and blurs it, and children can't subtract it
+ * (unlike brightness, which composes multiplicatively). Body text reads
+ * cleaner crisp, so blur is re-applied only on .article-title/.article-heading. */
 .article-page {
-  filter: blur(calc(var(--crt-blur, 0.4px) * 0.25)) brightness(calc(1 + 0.4 * var(--crt-glow-brightness, 1)));
+  filter: brightness(calc(1 + 0.4 * var(--crt-glow-brightness, 1)));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -0.5) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.2)),
     calc(var(--rgb-offset, 1px) * 0.5) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.2)),
     0 0 calc(3px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(40% * var(--crt-glow-intensity, 1)), transparent),
     0 0 calc(8px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(25% * var(--crt-glow-intensity, 1)), transparent),
     0 0 calc(16px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(15% * var(--crt-glow-intensity, 1)), transparent);
+}
+
+/* Markdown body — flex column so blocks (paragraphs, headings, lists, figures)
+ * get a consistent vertical rhythm. Without this they collapse to their own
+ * margins (.article-text is margin:0), leaving paragraphs flush. */
+.article-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
 }
 
 /* ---- Banner ---- */
@@ -1155,6 +1243,8 @@ div.article-banner {
   margin: 0;
   line-height: 1.1;
   color: #ffffff;
+  /* Blur lives here (not on .article-page) so body text stays crisp. */
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.25));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -0.7) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
     calc(var(--rgb-offset, 1px) * 0.7) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 0.5)),
@@ -1164,9 +1254,9 @@ div.article-banner {
 }
 
 .article-description {
-  font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+  font-size: clamp(0.68rem, 1.55vw, 0.82rem);
   font-weight: 200;
-  line-height: 1.6;
+  line-height: 1.8;
   margin: 0;
   color: #d2e8d2;
 }
@@ -1174,8 +1264,16 @@ div.article-banner {
 .article-heading {
   font-size: clamp(0.9rem, 2.2vw, 1.2rem);
   font-weight: 600;
-  margin: 1rem 0 0;
+  /* Extra top margin (added to the body's flex gap) sets a heading further
+   * from the section above it than paragraphs sit from each other. */
+  margin: 0.9rem 0 0;
   color: #edfaed;
+}
+
+/* CRT blur on headings — scoped to .article-page so the detail panel (which
+ * has no page-level CRT filter) keeps its headings crisp, as before. */
+.article-page .article-heading {
+  filter: blur(calc(var(--crt-blur, 0.4px) * 0.25));
 }
 
 .article-heading::before {
@@ -1184,24 +1282,24 @@ div.article-banner {
 }
 
 .article-text {
-  font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+  font-size: clamp(0.68rem, 1.55vw, 0.82rem);
   font-weight: 200;
-  line-height: 1.6;
+  line-height: 1.8;
   margin: 0;
   color: #d2e8d2;
 }
 
 .article-list {
-  font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+  font-size: clamp(0.68rem, 1.55vw, 0.82rem);
   font-weight: 200;
-  line-height: 1.6;
+  line-height: 1.8;
   margin: 0.25rem 0;
   padding-left: 1.5em;
   color: #d2e8d2;
 }
 
 .article-list li {
-  margin-bottom: 0.3em;
+  margin-bottom: 0.55em;
 }
 
 /* ---- Figures (images / videos in content blocks) ---- */
@@ -1753,7 +1851,7 @@ div.article-banner {
 }
 
 .detail-info.portrait .detail-info-body > * {
-  margin: 0 0 0.75rem;
+  margin: 0 0 1.1rem;
 }
 
 .detail-info.portrait .detail-info-body > :last-child {
@@ -1769,9 +1867,9 @@ div.article-banner {
 
 .detail-info p {
   margin: 0;
-  font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+  font-size: clamp(0.68rem, 1.55vw, 0.82rem);
   font-weight: 200;
-  line-height: 1.6;
+  line-height: 1.8;
   color: #d2e8d2;
 }
 
@@ -1781,7 +1879,7 @@ div.article-banner {
 .detail-info-body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1.1rem;
 }
 
 /* .article-figure's brightness filter counteracts the .article-page CRT
@@ -2012,6 +2110,13 @@ div.article-banner {
 .vc-btn:hover,
 .vc-btn:focus-visible {
   border-color: color-mix(in srgb, var(--text-primary) 50%, transparent);
+}
+
+/* Touch: fatter hit targets (44px-ish total with the bar padding) */
+@media (hover: none) {
+  .vc-btn {
+    padding: 0.55rem;
+  }
 }
 
 .vc-time {

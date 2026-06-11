@@ -169,7 +169,7 @@ export const GENERAL_CONTENT = {
   skills: [
     { label: 'Shaders & VFX', detail: 'Real-time shaders, particle systems, post-processing' },
     {
-      label: '3D Art & Materials', detail: 'Modeling, texturing, procedural workflows in Blender', thumbnails: [
+      label: '3D Art & Materials', detail: 'Modelling, texturing, procedural workflows in Blender', thumbnails: [
         { category: '3D Art', itemIndex: 1 },
         { category: '3D Art', itemIndex: 2 },
       ]
@@ -192,7 +192,7 @@ export const GENERAL_CONTENT = {
 };
 
 /**
- * Games section — each entry is a shipped game with a banner, description, and links.
+ * Games section — each entry is a game or interactive artifact with a banner, description, and links.
  *   - src: thumbnail path (relative to assets/thumbnails/) — should be 2:1 aspect ratio
  *   - title: game name
  *   - description: short blurb
@@ -288,7 +288,7 @@ Technical Artist and co-lead developer.
     page: `
 ## About the Project
 
-Tower defense meets environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high-altitude Andean ecosystem that works as a water factory for millions of people downstream. A glacial laguna sits at the summit. If it dies, everything below it dies with it.
+Tower defence meets environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high-altitude Andean ecosystem that works as a water factory for millions of people downstream. A glacial laguna sits at the summit. If it dies, everything below it dies with it.
 
 Threats climb the mountain from below:
 
@@ -338,6 +338,54 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
 ---
 
 [Play|website](https://tomascorreag.github.io/Paramo/)
+`,
+  },
+  {
+    id: 'scars-of-violence',
+    src: 'artifacts/MapColombia_thumb.png',
+    title: 'Scars of Violence',
+    summary: 'A browser-based map of Colombia that renders seven decades of the armed conflict’s documented violence as wounds that heal into permanent scars. A digital-humanities artifact built with Svelte and MapLibre GL.',
+    description: 'An interactive, browser-based map of Colombia that renders the documented violence of the armed conflict (1958–present) as wounds on the territory that heal into permanent scars. A digital-humanities artifact built on the case-by-case archive of the Centro Nacional de Memoria Histórica (CNMH), in Svelte and MapLibre GL.',
+    links: [
+      { label: 'Explore', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia' },
+    ],
+    page: `
+## About the Project
+
+An interactive, browser-based map of Colombia that renders the documented violence of the country's armed conflict (1958–present) as **wounds on the territory that heal into permanent scars**. The marks are drawn from the case-by-case record compiled by the **Centro Nacional de Memoria Histórica** (CNMH) in its SIEVCAC archive.
+
+Time is the central dimension. As the timeline plays from 1958 to the present:
+
+- Each documented event appears **on its exact date**, as a wound at the place it occurred. Its visual extent is proportional to the number of victims — nothing is sized by interpretation or emphasis.
+- The wound flares while fresh, then fades over roughly three years, leaving a **permanent scar** that never disappears. By the end of playback the map is not empty: it is covered in seven decades of accumulated marks.
+- Blood-like tendrils spread from each wound across the surrounding territory, their density tracking victim counts, settling into thin, dark, permanent traces.
+- Clicking a scar opens the documented record behind it — modality, date, place, and a demographic portrait of the victims, with its source citation.
+
+The wound-and-scar metaphor is the thesis of the piece: violence is not a sequence of isolated incidents but an injury to territory and population whose marks persist. A massacre in 1997 is still visible in 2026, because it is still present in the country.
+
+---
+
+## Why I Made It
+
+**Rutas del Conflicto** (rutasdelconflicto.com) is the direct inspiration. Their navigable, place-by-place archive of the conflict's massacres showed me that memory work could take the form of a map rather than a linear narrative. This piece keeps their core gesture — geography as the way into the conflict — while experimenting with a more visceral visual register: animation, accumulation, the wound-and-scar metaphor, to test whether the territory's marking can be *felt* as well as consulted. It is an homage and an experiment on top of their idea, not a correction of it.
+
+The conflict's toll is usually communicated as aggregate numbers, and aggregates anaesthetise. The hypothesis is that a spatial-temporal rendering can do what a table cannot: convey that the violence had a *shape* — that it concentrated in specific regions, moved across the country in waves, and left wounds that are both spatial and temporal, and still visible decades later.
+
+The second motivation is the **CNMH** itself. Its patient, rigorous, case-by-case documentation of the conflict in SIEVCAC is one of the most important memory undertakings in the country, and it deserves to be seen by more than researchers who can parse a CSV. This project puts interactive data visualisation at the service of an archive that already exists, rather than making a new claim about the conflict.
+
+---
+
+## Commitments
+
+Because the archive records real victims, the design carries non-negotiable constraints:
+
+- **Fidelity over drama.** Every mark corresponds to a documented case with a citation back to its source record. Missing values stay missing and are disclosed; the emotional force must come from the truth of the data, not embellishment of it. No coordinate, date, or victim count is ever estimated, interpolated, or fabricated.
+- **Interpretation is labeled.** The wound metaphor is an authored reading, and the interface says so. The viewer can always reach the underlying record.
+- **Dignity.** The archive is published for memory, research, and education. The aesthetic aims for gravity — a dark cartographic register, not spectacle.
+
+---
+
+[Explore the Map|website](https://tomascorreag.github.io/MapColombia)
 `,
   },
   {
@@ -396,8 +444,8 @@ export const CATEGORIES = {
       ],
     },
     {
-      id: 'toon', src: '3d-assets/toonThumb.webm', alt: 'Stylized toon shader render', cols: 4, rows: 2,
-      title: 'Stylized Toon Shader',
+      id: 'toon', src: '3d-assets/toonThumb.webm', alt: 'Stylised toon shader render', cols: 4, rows: 2,
+      title: 'Stylised Toon Shader',
       description: 'A Blender EEVEE shader that emulates an illustrated look, aiming in the direction of Moebius-style renders. A non-photorealistic study in ramp shading and line work.',
       gallery: [
         '3d-assets/toon_details/toonHead.mp4',
@@ -441,7 +489,7 @@ export const CATEGORIES = {
     {
       id: 'alt-realities', src: '3d-art/thumb1.mp4', alt: 'Forest clearing with a worker and floating debris', cols: 4, rows: 2,
       title: 'Another Day at the Office',
-      description: 'An early piece, submitted to Pwnisher\'s 2021 "Alternate Realities" challenge, with the required circle carved out of the negative space in the upper right. Everything but the character animation is mine: modeling, texturing, shading, particles, boids, and cloth, all built in Blender.',
+      description: 'An early piece, submitted to Pwnisher\'s 2021 "Alternate Realities" challenge, with the required circle carved out of the negative space in the upper right. Everything but the character animation is mine: modelling, texturing, shading, particles, boids, and cloth, all built in Blender.',
       page: `
 An early piece, submitted to Pwnisher's **"Alternate Realities" challenge** (2021). Entries had to work a circle into the frame; here it reads as **negative space** in the upper-right corner rather than a literal object.
 
@@ -451,7 +499,7 @@ An early piece, submitted to Pwnisher's **"Alternate Realities" challenge** (202
 
 Everything in the shot but the character's walk is mine:
 
-- **Modeling, texturing, and shading** of the full environment
+- **Modelling, texturing, and shading** of the full environment
 - **Particle emitters** scattering the forest and grass field
 - **Boid simulation** driving the swarm of flies
 - **Cloth simulation** for the clothing and the tarp
@@ -503,10 +551,10 @@ The **Eyes** are anatomically detailed and rigged, with iris pattern, sclera vei
 `,
     },
     {
-      id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armor', cols: 2, rows: 4, title: 'Menpō (面頬)',
-      description: 'A modeling and hard-surface study of a Japanese menpō (samurai facial armour), focused on facial anatomy and shading. Built end-to-end in Blender.',
+      id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armour', cols: 2, rows: 4, title: 'Menpō (面頬)',
+      description: 'A modelling and hard-surface study of a Japanese menpō (samurai facial armour), focused on facial anatomy and shading. Built end-to-end in Blender.',
       page: `
-*Menpō* (2021) is a modeling exercise built around a Japanese **menpō**, the half-face armour worn beneath a samurai helmet. The draw was the face itself: studying its anatomy and translating it into hard, forged metal.
+*Menpō* (2021) is a modelling exercise built around a Japanese **menpō**, the half-face armour worn beneath a samurai helmet. The draw was the face itself: studying its anatomy and translating it into hard, forged metal.
 
 ---
 
@@ -521,7 +569,7 @@ Built end-to-end in **Blender**.
     },
     {
       id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.png', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro',
-      description: 'An homage to the band Burning Caravan and their album *Ciudad Faro*, rebuilding the cover composition in 3D. A study in modeling whales and their skeletons, the lighthouse, and volumetric lighting. Built end-to-end in Blender.',
+      description: 'An homage to the band Burning Caravan and their album *Ciudad Faro*, rebuilding the cover composition in 3D. A study in modelling whales and their skeletons, the lighthouse, and volumetric lighting. Built end-to-end in Blender.',
       page: `
 *Ciudad Faro* (2022) is a tribute to **Burning Caravan**, a band whose work I love, rebuilding the composition of their album cover of the same name as a 3D scene.
 
@@ -531,7 +579,7 @@ Built end-to-end in **Blender**.
 
 Translating a 2D painting into a dimensional scene, made end-to-end:
 
-- **Whales and their skeletons**, the central forms, modeled from scratch
+- **Whales and their skeletons**, the central forms, modelled from scratch
 - **The lighthouse** that anchors the composition
 - **Volumetric lighting** to carry the mood and depth of the original painting
 
@@ -557,7 +605,7 @@ The companion **Brain-City** piece extends the same motif into a sprawling city 
 
 ## Technique
 
-- Stylized composite rendered end-to-end in **Blender**
+- Stylised composite rendered end-to-end in **Blender**
 - **Particle systems** scattering the rocks across the Martian surface
 - Volumetric atmosphere graded in post
 `,
@@ -590,7 +638,7 @@ Made entirely by me in **Blender**.
 
 ## Why I Made It
 
-I grew up in a society where drug use, sex, and gender identity are wrapped in taboo, and in Colombia the cost of that taboo is not abstract. It is violence. The drug trade has fed decades of armed conflict, yet the stigma lands hardest on the people who use: criminalized, pushed to the margins, and in the worst cases murdered in so-called social cleansing. Trans and queer Colombians are harassed and killed for being visible. None of this is prevented by the silence around these subjects. The silence is what lets it continue.
+I grew up in a society where drug use, sex, and gender identity are wrapped in taboo, and in Colombia the cost of that taboo is not abstract. It is violence. The drug trade has fed decades of armed conflict, yet the stigma lands hardest on the people who use: criminalised, pushed to the margins, and in the worst cases murdered in so-called social cleansing. Trans and queer Colombians are harassed and killed for being visible. None of this is prevented by the silence around these subjects. The silence is what lets it continue.
 
 Taboo also does its quieter damage. When something can't be discussed openly, people can't ask questions or get accurate information, and seeking help comes with shame attached. Stigma doesn't stop drug use and it doesn't make anyone's identity disappear. It pushes both into the dark, where the harm compounds.
 
@@ -608,12 +656,12 @@ Breaking a taboo is not the same as promoting what it hides. People are going to
 
 ## Craft
 
-Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)**: modeling, animation, shading, lighting, and rendering.
+Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)**: modelling, animation, shading, lighting, and rendering.
 `,
     },
     {
       id: 'bioshock', src: '3d-art/bioshockThumb.webm', alt: 'Recreated BioShock hallway', cols: 2, rows: 2, title: 'Bioshock Hallway',
-      description: 'A recreation of a hallway from the original *BioShock*, and a study in modeling, materials, and composition. Built in Blender, where every asset is mine except the vending-machine texture.',
+      description: 'A recreation of a hallway from the original *BioShock*, and a study in modelling, materials, and composition. Built in Blender, where every asset is mine except the vending-machine texture.',
       page: `
 *Bioshock Hallway* (2023) recreates a corridor from the original **BioShock**, a franchise I love and one whose art direction I wanted to explore firsthand.
 
@@ -621,9 +669,9 @@ Apart from the voice acting, the film was made entirely by me in **Blender (Cycl
 
 ## What I Built
 
-A study in modeling, materials, and composition:
+A study in modelling, materials, and composition:
 
-- Every asset modeled, textured, and shaded by me, **except the vending-machine texture**
+- Every asset modelled, textured, and shaded by me, **except the vending-machine texture**
 - Period materials: worn brass, cracked tile, water-stained surfaces
 - Lighting and framing tuned to the game's claustrophobic mood
 

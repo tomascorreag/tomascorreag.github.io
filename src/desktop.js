@@ -19,6 +19,7 @@ import { ICONS as CONTACT_ICONS } from './config/icons.js';
 import { createMediaElement, createSpritesheetElement } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 import { attachVideoControls } from './components/VideoControls.js';
+import { createCrtScrollbar } from './components/CrtScrollbar.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -516,6 +517,18 @@ const mosaicEl = document.getElementById('mosaic');
 let mosaicHasContent = false;
 let staggerTimeouts = [];
 
+// Custom CRT scrollbar — mounted only in the scrolling views (article + games).
+// One instance at a time; mountScrollbar() tears down any previous one first.
+let crtScrollbar = null;
+function mountScrollbar() {
+  crtScrollbar?.destroy();
+  crtScrollbar = createCrtScrollbar(mosaicEl, crtScreen);
+}
+function unmountScrollbar() {
+  crtScrollbar?.destroy();
+  crtScrollbar = null;
+}
+
 // ---- Detail view state ----
 // Tracks which mosaic item is currently expanded (null = grid mode).
 // Like a "selected" reference in a UI controller — only one at a time.
@@ -585,6 +598,9 @@ function applyDiagonalReveal(containerEl) {
 async function renderMosaic(category) {
   const items = CATEGORIES[category];
   if (!items) return;
+
+  // Leaving any scrolling view — the thumbnail grid / General don't use it.
+  unmountScrollbar();
 
   // Close any open detail before switching categories
   if (activeDetail) closeDetail(true);
@@ -760,6 +776,7 @@ async function renderGames() {
   mosaicHasContent = true;
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
+  mountScrollbar();
 }
 
 // ========================================================================
@@ -815,6 +832,7 @@ async function openArticlePage(itemData, returnTo) {
   mosaicHasContent = true;
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
   mosaicEl.classList.add('visible');
+  mountScrollbar();
 }
 
 /**
@@ -942,6 +960,10 @@ async function closeArticlePage() {
 
   const { returnTo, observer } = activeArticle;
   if (observer) observer.disconnect();
+
+  // Drop the custom scrollbar as the article fades (re-mounted by the target
+  // view if it scrolls — e.g. returning to Games).
+  unmountScrollbar();
 
   // Remove nav bar
   crtScreen.querySelector('.detail-nav')?.remove();

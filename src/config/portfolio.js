@@ -60,7 +60,7 @@ export const PORTFOLIO_PAGES = {
   '65f27a44': {
     title: 'Tomás Correa — Selected Work',
     intro: 'Curated for **UCL MA Digital Media: Production**\nTap any piece to read more',
-    items: ['arbo', 'paramo', 'frenesi', 'ardo'],
+    items: ['arbo', 'paramo', 'scars-of-violence', 'frenesi', 'ardo'],
     outro: true,
   },
 };

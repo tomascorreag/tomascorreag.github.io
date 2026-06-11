@@ -11,6 +11,32 @@ function isVideoPath(src) {
   return VIDEO_EXTS.has(ext);
 }
 
+// Bare URL / domain matcher. Two alternatives: a full http(s) URL, or a bare
+// domain whose final label is a whitelisted TLD (so "README.md" / "Three.js"
+// don't get linked). The leading (?<![@/\w]) lookbehind skips emails (@) and
+// pieces of an already-matched URL (/), and avoids latching onto a word.
+const BARE_TLDS = 'com|org|net|io|art|gg|dev|co|edu|gov|app|games';
+const URL_RE = new RegExp(
+  String.raw`(?<![@/\w])((?:https?:\/\/)[^\s<]+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:${BARE_TLDS})(?:\/[^\s<]*)?)`,
+  'gi',
+);
+
+// Linkify bare URLs in the gaps between existing <a>…</a> tags. Splitting on
+// the anchor tag (captured group → kept in the array at odd indices) means we
+// never touch URLs that the explicit [label](url) syntax already linked.
+function autolinkBareUrls(html) {
+  return html
+    .split(/(<a\b[^>]*>.*?<\/a>)/gis)
+    .map((seg, i) => {
+      if (i % 2 === 1) return seg; // an <a>…</a> segment — leave untouched
+      return seg.replace(URL_RE, (m) => {
+        const href = /^https?:\/\//i.test(m) ? m : `https://${m}`;
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${m}</a>`;
+      });
+    })
+    .join('');
+}
+
 export function applyInline(text) {
   const tmp = document.createElement('span');
   tmp.textContent = text;
@@ -21,6 +47,7 @@ export function applyInline(text) {
     /\[([^\]]+)\]\(([^)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
   );
+  html = autolinkBareUrls(html);
   return html;
 }
 
