@@ -59,7 +59,7 @@ export const PORTFOLIO_PAGES = {
   // Shared at: https://tomascorreag.github.io/?p=65f27a44
   '65f27a44': {
     title: 'Tomás Correa — Selected Work',
-    intro: 'Curated for **UCL MA Digital Media: Production**\nTap any piece to read more',
+    intro: 'Curated for **UCL MA Digital Media: Production**\nSelect any piece to read more',
     items: ['arbo', 'paramo', 'scars-of-violence', 'frenesi', 'ardo'],
     outro: true,
   },

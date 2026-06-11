@@ -169,10 +169,7 @@ export const GENERAL_CONTENT = {
   skills: [
     { label: 'Shaders & VFX', detail: 'Real-time shaders, particle systems, post-processing' },
     {
-      label: '3D Art & Materials', detail: 'Modelling, texturing, procedural workflows in Blender', thumbnails: [
-        { category: '3D Art', itemIndex: 1 },
-        { category: '3D Art', itemIndex: 2 },
-      ]
+      label: '3D Art & Materials', detail: 'Modelling, texturing, procedural workflows in Blender',
     },
     { label: 'Tools & Pipelines', detail: 'Custom editor tools, asset pipelines, workflow automation' },
     { label: 'Game Development', detail: 'ARBO: Arena Tactics (shipped on Steam): Technical Artist & lead developer' },
@@ -235,7 +232,7 @@ Four ways to play: online 1v1 multiplayer, a ranked ladder, an LLM-driven tutori
 
 ## My Role
 
-Technical Artist and co-lead developer.
+Technical Artist and co-lead developer at **ReBlink**, the Bogotá studio where ARBO was built — one of two core developers on a small multidisciplinary team across four years of professional development (2021–2025).
 
 - **Real-time visual pipeline**: custom shaders in URP, built with Shader Graph and HLSL/GLSL
 - **All VFX**: particle systems, VFX Graph, and bespoke effects
@@ -280,8 +277,8 @@ Technical Artist and co-lead developer.
       background: '#94a8bf',
     },
     title: 'Páramo',
-    summary: 'Environmental strategy on a Colombian páramo, built in Godot 4. Work in progress.',
-    description: 'An environmental strategy game set on a Colombian **páramo**, a high-altitude Andean ecosystem that supplies water to millions of people downstream. You play a field coordinator defending the mountain against extractive, biological, and climate threats while juggling community relationships and scarce resources. Built in Godot 4 with isometric pixel art. The argument lives in the systems rather than the script: it is a game about conservation that makes its case through play. Work in progress.',
+    summary: 'Environmental strategy on a Colombian páramo, built in Godot 4. Work in progress (2026–present).',
+    description: 'An environmental strategy game set on a Colombian **páramo**, a high-altitude Andean ecosystem that supplies water to millions of people downstream. You play a field coordinator defending the mountain against extractive, biological, and climate threats while juggling community relationships and scarce resources. Built in Godot 4 with isometric pixel art. The argument lives in the systems rather than the script: it is a game about conservation that makes its case through play. Work in progress (2025–present).',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],
@@ -289,6 +286,8 @@ Technical Artist and co-lead developer.
 ## About the Project
 
 Tower defence meets environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high-altitude Andean ecosystem that works as a water factory for millions of people downstream. A glacial laguna sits at the summit. If it dies, everything below it dies with it.
+
+**Solo project (2025–present):** all design, code, pixel art, and writing are mine.
 
 Threats climb the mountain from below:
 
@@ -333,7 +332,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
 - **Fog-of-war and visibility:** monitoring stations, ranger patrols, and directional audio cues
 - **Two interaction tiers:** field presence (planting, firefighting) and station management (legal action, hiring, strategy)
 
-*Work in progress, targeting a vertical-slice release: one handcrafted mountain, 10 seasons, the core threat and tool sets, and the full resource loop.*
+*Work in progress (2025–present), targeting a vertical-slice release: one handcrafted mountain, 10 seasons, the core threat and tool sets, and the full resource loop.*
 
 ---
 
@@ -343,16 +342,21 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
   {
     id: 'scars-of-violence',
     src: 'artifacts/MapColombia_thumb.png',
+    // kindLabel: deck-card corner chip. Without it this entry (it lives in
+    // GAMES) would read "GAME" — wrong register for a memory artifact.
+    kindLabel: 'ARTIFACT',
     title: 'Scars of Violence',
     summary: 'A browser-based map of Colombia that renders seven decades of the armed conflict’s documented violence as wounds that heal into permanent scars. A digital-humanities artifact built with Svelte and MapLibre GL.',
-    description: 'An interactive, browser-based map of Colombia that renders the documented violence of the armed conflict (1958–present) as wounds on the territory that heal into permanent scars. A digital-humanities artifact built on the case-by-case archive of the Centro Nacional de Memoria Histórica (CNMH), in Svelte and MapLibre GL.',
+    description: 'An interactive, browser-based map of Colombia that renders the documented violence of the armed conflict (1958–present) as wounds on the territory that heal into permanent scars. A digital-humanities artifact built on the case-by-case archive of the Centro Nacional de Memoria Histórica (CNMH), in Svelte and MapLibre GL. Solo project, 2026.',
     links: [
-      { label: 'Explore', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia' },
+      { label: 'Explore', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
     ],
     page: `
 ## About the Project
 
 An interactive, browser-based map of Colombia that renders the documented violence of the country's armed conflict (1958–present) as **wounds on the territory that heal into permanent scars**. The marks are drawn from the case-by-case record compiled by the **Centro Nacional de Memoria Histórica** (CNMH) in its SIEVCAC archive.
+
+**Solo project (2026):** concept, design, code, and data processing are all mine, built on the CNMH's published archive.
 
 Time is the central dimension. As the timeline plays from 1958 to the present:
 
@@ -385,7 +389,7 @@ Because the archive records real victims, the design carries non-negotiable cons
 
 ---
 
-[Explore the Map|website](https://tomascorreag.github.io/MapColombia)
+[Explore the Map|website](https://tomascorreag.github.io/MapColombia/?lang=en)
 `,
   },
   {
@@ -630,6 +634,8 @@ Made entirely by me in **Blender**.
       // hasAudio: the clip has a soundtrack — detail/doc views attach custom
       // video controls (play/pause/seek/mute) so visitors can unmute it.
       id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí', hasAudio: true,
+      kindLabel: 'FILM', // deck-card chip — it's an awarded short film, not a "3D" still
+
       description: 'A short film I directed and produced on psychoactive-substance use, gender, and sexuality, made to push back against the taboos around them in Colombia. 2nd place (Animation) at the 8th Festival de Cortos Psicoactivos. Made almost entirely by me in Blender (Cycles).',
       page: `
 *Frenesí* (2022) is a short film I directed and produced about psychoactive-substance use and its ties to gender and sexuality. In Colombia these subjects are mostly discussed in whispers, if at all.
@@ -644,7 +650,7 @@ Taboo also does its quieter damage. When something can't be discussed openly, pe
 
 Breaking a taboo is not the same as promoting what it hides. People are going to use substances, have sex, and live across the spectrum of gender whether we talk about it or not. Talking about it honestly is what makes those realities safer and the people living them less alone. That principle is the core of harm reduction, and it is the reason this film exists.
 
-*Frenesí* treats these subjects as ordinary parts of human experience. In a country where saying that out loud is still difficult, that felt worth making.
+*Frenesí* treats these subjects as ordinary parts of human experience. In a country where saying that out loud is still difficult, that **was worth making**.
 
 ---
 
@@ -656,7 +662,7 @@ Breaking a taboo is not the same as promoting what it hides. People are going to
 
 ## Craft
 
-Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)**: modelling, animation, shading, lighting, and rendering.
+Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)**: modelling, animation, shading, lighting, rendering, sound design.
 `,
     },
     {

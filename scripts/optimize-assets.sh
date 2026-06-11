@@ -123,6 +123,10 @@ run_img_ff() {
     return 0
   fi
   echo "    FAILED: $src -> $dst" >&2
+  # Remove the partial/zero-byte output ffmpeg left behind — otherwise the next
+  # run's needs_update sees it as up-to-date and the failure becomes permanent
+  # (and the broken variant would be served in preference to the source).
+  rm -f "$dst"
   FAILED=$((FAILED + 1))
   return 1
 }
@@ -313,6 +317,7 @@ convert_video() {
         VID_CONVERTED=$((VID_CONVERTED + 1))
       else
         echo "    FAILED: $src -> $webm" >&2
+        rm -f "$webm"   # don't leave a partial output masking the failure
         FAILED=$((FAILED + 1))
       fi
     else
@@ -334,6 +339,7 @@ convert_video() {
         VID_CONVERTED=$((VID_CONVERTED + 1))
       else
         echo "    FAILED: $src -> $mp4" >&2
+        rm -f "$mp4"    # don't leave a partial output masking the failure
         FAILED=$((FAILED + 1))
       fi
     else

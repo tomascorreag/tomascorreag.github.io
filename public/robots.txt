@@ -1,0 +1,5 @@
+# Gated portfolio decks (/?p=<slug>) are unlisted — keep them out of crawlers
+# that don't execute JS (the JS-injected meta noindex covers the rest).
+# The main site itself stays indexable.
+User-agent: *
+Disallow: /*?p=

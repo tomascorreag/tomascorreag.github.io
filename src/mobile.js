@@ -107,13 +107,12 @@ let activeSheet = null;  // { el, categoryId, index, items, viewer, ... }
 //
 // One-shot modal shown on page load before anything else mounts. Tells the
 // visitor the full experience lives on desktop. Gated by sessionStorage so a
-// reload / main-site ↔ deck navigation within the same tab doesn't nag twice;
-// a fresh tab (new session) shows it again.
+// reload within the same tab doesn't nag twice; a fresh tab (new session)
+// shows it again. NOT shown on gated `?p=` deck routes (see boot()).
 //
 // Appended straight to <body> (not #mobile-app) so it sits above the app's
-// scanline overlay and works on the deck path too, where #mobile-app never
-// exists. Returns a promise that resolves on dismissal so boot() can hold
-// the intro / deck mount until the visitor has acknowledged it.
+// scanline overlay. Returns a promise that resolves on dismissal so boot()
+// can hold the intro until the visitor has acknowledged it.
 // ---------------------------------------------------------------------------
 const NOTICE_KEY = 'm-desktop-notice-dismissed';
 
@@ -184,23 +183,21 @@ function showDesktopNotice() {
 export async function boot() {
   document.documentElement.classList.add('mobile-mode');
 
-  // Kick off the notice immediately (page load), but don't await yet — the
-  // deck path below starts its chunk download concurrently so dismissing the
-  // notice doesn't then stall on the network.
-  const noticeDone = showDesktopNotice();
-
   // URL-gated portfolio decks: `/?p=<slug>` boots straight into the slide deck
-  // (shared component with desktop, code-split), skipping the mobile intro/tabs.
-  // Done before the stub removal below so we can drop all of them — the deck
-  // owns its own full-screen container and CRT vignette.
+  // (shared component with desktop, code-split), skipping the mobile intro/tabs
+  // AND the desktop-recommended notice — these links go to reviewers, and an
+  // apologetic interstitial before any work is visible is the wrong first
+  // impression for a deck that is perfectly mobile-capable.
   const gatedSlug = new URLSearchParams(window.location.search).get('p');
   if (gatedSlug !== null) {
     document.querySelectorAll('#crt-screen, #mosaic, .crt-overlay').forEach((el) => el.remove());
     const m = await import('./components/PortfolioDeck.js');
-    await noticeDone; // deck mounts (and starts animating) only once acknowledged
     m.mountDeck(gatedSlug, { isMobile: true });
     return;
   }
+
+  // Main mobile site: show the desktop-recommended notice before the intro.
+  const noticeDone = showDesktopNotice();
 
   // Remove desktop DOM stubs — index.html ships empty placeholders for the
   // terminal / mosaic / scanline overlay so the desktop entry can boot

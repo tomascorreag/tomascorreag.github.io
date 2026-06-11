@@ -240,7 +240,8 @@ function buildDocument(item) {
 
 /**
  * The compact card shown on a slide. Clicking (or Enter/Space) calls onOpen.
- * `kind` drives the small type label only.
+ * The small type label comes from the item's optional `kindLabel` (e.g.
+ * 'FILM', 'ARTIFACT'), falling back to GAME/3D by `kind`.
  */
 function buildCard(entry, indexLabel, onOpen) {
   const { item, kind } = entry;
@@ -268,7 +269,7 @@ function buildCard(entry, indexLabel, onOpen) {
     [
       mediaBox,
       el('div', { class: 'deck-card-body' }, [
-        el('span', { class: 'deck-card-kind', text: kind === 'game' ? 'GAME' : '3D' }),
+        el('span', { class: 'deck-card-kind', text: item.kindLabel || (kind === 'game' ? 'GAME' : '3D') }),
         el('span', { class: 'deck-card-num', text: indexLabel }),
         el('h2', { class: 'deck-card-title crt-effects', text: item.title || 'Untitled' }),
         blurb && el('p', { class: 'deck-card-desc', html: applyInline(blurb) }),
@@ -451,7 +452,9 @@ export function mountDeck(slug, { isMobile = false } = {}) {
       const video = wrap?.querySelector('video');
       if (video) docControls = attachVideoControls(video, wrap, { reveal: 'auto' });
     }
-    docContent.scrollTop = 0;
+    // The overlay (.deck-doc-overlay) is the scroll container, not docContent —
+    // reset it so the previous doc's scroll position doesn't carry over.
+    overlay.scrollTop = 0;
     flashWipe();
     wipe.classList.add('at-bottom'); // edge sweeps top → bottom with the clip
     overlay.classList.add('open');
