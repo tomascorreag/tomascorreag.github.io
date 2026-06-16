@@ -1,0 +1,336 @@
+/*
+ * base.css — the only render-blocking stylesheet.
+ *
+ * Loaded from index.html for EVERY visitor before either app branch is
+ * chosen, so it must stay small. Contains exactly what both branches (or the
+ * pre-boot blank page) need:
+ *   - fonts (Martian Mono) — shared by desktop, mobile, and the deck
+ *   - the :root palette + timing vars — .vc-* and the splat spinner key off
+ *     --text-primary/--glow-color, and mobile loads neither desktop sheet
+ *   - reset + dark page background — prevents a white flash before the
+ *     branch-specific CSS chunk arrives
+ *   - the splat-viewer container/spinner + video controls — used by desktop
+ *     detail views, deck docs, AND mobile sheets
+ *   - the html.mobile-mode killswitch that hides the desktop scene markup
+ *
+ * Everything desktop-only lives in style.css (imported by desktop.js),
+ * mobile-only in mobile.css (imported by mobile.js), deck-only in
+ * components/portfolio-deck.css (imported by PortfolioDeck.js). Each chunk's
+ * CSS downloads with its JS — visitors never pay for the other branch.
+ */
+
+/* ============================================
+   Self-hosted Fonts
+   ============================================ */
+
+/* Martian Mono — variable weight 100-800 */
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('./assets/fonts/MartianMono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('./assets/fonts/MartianMono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ============================================
+   CSS Reset & Base
+   ============================================ */
+
+:root {
+  /* Era-specific palette colors */
+  --terminal-green: #6cff6c;
+  --terminal-bg: #0a0a0a;
+  --crt-cyan: #00d4ff;
+  --crt-magenta: #ff00ff;
+  --crt-bg: #0a0a12;
+  --xp-blue: #0054e3;
+  --xp-silver: #ece9d8;
+  --xp-bg: #3a6ea5;
+
+  /* Semantic variables - change based on active era */
+  --text-primary: var(--terminal-green);
+  --text-secondary: color-mix(in srgb, var(--text-primary) 75%, transparent);
+  --bg-primary: var(--terminal-bg);
+  --glow-color: rgba(51, 255, 51, 0.5);
+  --accent: var(--terminal-green);
+
+  /* Animation timing - centralized for consistency */
+  --timing-fast: 150ms;
+  --timing-normal: 300ms;
+  --timing-slow: 600ms;
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.42, 0, 1, 1);
+}
+
+/* Era: Terminal (default) - green phosphor monitor aesthetic */
+[data-era="terminal"],
+:root {
+  --text-primary: var(--terminal-green);
+  --bg-primary: var(--terminal-bg);
+  --glow-color: rgba(51, 255, 51, 0.5);
+}
+
+/* Era: CRT/90s - early color CRT, synthwave hints */
+[data-era="crt"] {
+  --text-primary: var(--crt-cyan);
+  --bg-primary: var(--crt-bg);
+  --glow-color: rgba(0, 212, 255, 0.5);
+  --accent: var(--crt-magenta);
+}
+
+/* White terminal variant — used after rabbit→cursor morph */
+.terminal.white {
+  --text-primary: #ffffff;
+  --glow-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Era: XP - Windows XP aesthetic */
+[data-era="xp"] {
+  --text-primary: #000;
+  --bg-primary: var(--xp-silver);
+  --glow-color: none;
+  --accent: var(--xp-blue);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  /* Both branches are dark; painting it here (the only blocking sheet)
+   * prevents a white flash in the gap before the JS chunk's CSS arrives. */
+  background-color: var(--bg-primary);
+}
+
+
+/* ============================================
+   Gaussian Splat 3D Viewer
+   ============================================ */
+
+/*
+ * Container for the WebGL canvas inside a detail-active mosaic item.
+ * Fills the item absolutely, sits on top of the thumbnail.
+ *
+ * filter: none !important — safety net against any inherited CRT filters.
+ * The mosaic grid (z-index 1000) already sits above .crt-overlay (100),
+ * so scanlines don't cover it. This just guards against filter inheritance
+ * from parent selectors that might blur/distort the 3D canvas.
+ */
+.splat-viewer-container {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  /* Above the thumbnail img/video inside the detail-active item */
+  filter: none !important;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.splat-viewer-container.loaded {
+  opacity: 1;
+}
+
+/* Canvas fills container exactly */
+.splat-viewer-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Loading spinner — CSS-only, no extra DOM needed.
+ * Shows a rotating ring while the .spz file downloads.
+ * Hidden once .loaded class is added after SplatMesh.onLoad fires.
+ * Like a loading wheel in a game's asset streaming UI. */
+.splat-viewer-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: splat-spin 0.8s linear infinite;
+  z-index: 3;
+  transition: opacity 300ms ease;
+}
+
+.splat-viewer-container.loaded::before,
+.splat-viewer-container.error::before {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes splat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   Video Controls (audio-bearing pieces)
+   ============================================ */
+
+/*
+ * Custom control bar for videos flagged hasAudio (see VideoControls.js).
+ * Pinned to the bottom of a positioned host (.vc-host) — the detail-active
+ * item, the deck doc banner wrap, or the mobile sheet media box.
+ *
+ * Reveal: hover on mouse (media query below), .vc-visible toggled by tap on
+ * touch. The bar also stays up while paused (.vc-paused) and while any of its
+ * controls hold keyboard focus (:focus-within) — a frozen frame with no
+ * resume button is a dead end.
+ *
+ * Everything keys off --text-primary so the alternate CRT themes restyle
+ * the bar for free.
+ */
+.video-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  /* Above the media (and the deck banner's ::after sweep) */
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.78));
+  font-family: 'Martian Mono', monospace;
+  color: var(--text-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+  cursor: default;
+  /* the media behind keeps zoom-in; the bar itself is plain UI */
+}
+
+.video-controls.vc-visible,
+.video-controls.vc-paused,
+.video-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: hover) {
+  .vc-host:hover .video-controls {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.vc-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  padding: 0.25rem;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.vc-btn svg {
+  width: 16px;
+  height: 16px;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.vc-btn:hover,
+.vc-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--text-primary) 50%, transparent);
+}
+
+/* Touch: fatter hit targets (44px-ish total with the bar padding) */
+@media (hover: none) {
+  .vc-btn {
+    padding: 0.55rem;
+  }
+}
+
+.vc-time {
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+/*
+ * Seek bar — a flat 2px line with a square thumb, matching the site's
+ * deliberately sharp corners. The played portion is painted by the
+ * --vc-progress custom property (set from JS on timeupdate) as a hard-stop
+ * gradient; Firefox gets it natively via ::-moz-range-progress.
+ */
+.vc-seek {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.vc-seek::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right,
+      var(--text-primary) var(--vc-progress, 0%),
+      color-mix(in srgb, var(--text-primary) 25%, transparent) var(--vc-progress, 0%));
+}
+
+.vc-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  margin-top: -3px;
+  background: var(--text-primary);
+  border-radius: 0;
+  box-shadow: 0 0 6px var(--text-primary);
+}
+
+.vc-seek::-moz-range-track {
+  height: 2px;
+  background: color-mix(in srgb, var(--text-primary) 25%, transparent);
+}
+
+.vc-seek::-moz-range-progress {
+  height: 2px;
+  background: var(--text-primary);
+}
+
+.vc-seek::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--text-primary);
+  box-shadow: 0 0 6px var(--text-primary);
+}
+
+/* ── Mobile branch ──────────────────────────────────────────────────────────
+   The mobile experience is an entirely separate app (see src/mobile.js +
+   src/mobile.css). When that app boots it adds .mobile-mode on <html>,
+   which hides the desktop scene so its setup (terminal, rabbit, mosaic)
+   never renders underneath.                                                  */
+html.mobile-mode #crt-screen,
+html.mobile-mode .crt-overlay,
+html.mobile-mode #mosaic {
+  display: none !important;
+}

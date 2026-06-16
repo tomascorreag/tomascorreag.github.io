@@ -27,6 +27,8 @@ export class SplatViewer {
     this.resizeObserver = null;
     this.animFrameId = null;
     this.destroyed = false;
+    this.needsRender = true;
+    this.loaded = false;
   }
 
   /**
@@ -78,6 +80,11 @@ export class SplatViewer {
     this.controls.autoRotate = orbitCfg.autoRotate;
     this.controls.autoRotateSpeed = orbitCfg.autoRotateSpeed;
 
+    // Render-on-demand dirty flag. OrbitControls fires 'change' whenever it
+    // actually moves the camera (drag, zoom, damping inertia) — that's our
+    // "scene is dirty" signal.
+    this.controls.addEventListener('change', () => { this.needsRender = true; });
+
     // --- Splat Mesh ---
     // SplatMesh handles loading + rendering. Pass url directly —
     // it fetches, decodes, and builds the GPU buffers internally.
@@ -85,6 +92,8 @@ export class SplatViewer {
       url,
       maxSh: tier.maxSh,
       onLoad: () => {
+        this.loaded = true;
+        this.needsRender = true;
         if (!this.destroyed && opts.onLoad) opts.onLoad();
       },
       onError: (err) => {
@@ -104,24 +113,36 @@ export class SplatViewer {
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(w, h);
+      this.needsRender = true;
     });
     this.resizeObserver.observe(container);
 
-    // --- Render Loop ---
+    // --- Render Loop (on demand) ---
+    // The rAF tick always runs (it's cheap), but GPU work only happens when
+    // something changed — like a game editor viewport that re-renders on
+    // input instead of free-running. An idle splat costs ~zero GPU/battery.
+    //
+    // controls.update() must run every tick so damping inertia plays out; in
+    // three r182 it returns true exactly when it moved the camera (and fires
+    // 'change'), so either signal marks the frame dirty. Until the splat
+    // finishes loading we render unconditionally — Spark builds GPU buffers
+    // progressively and there's no change event for that.
     const clock = new THREE.Clock();
     const animate = () => {
       if (this.destroyed) return;
       this.animFrameId = requestAnimationFrame(animate);
 
-      this.controls.update(); // Required for damping to work
+      const moved = this.controls.update();
 
-      // Spark needs the clock delta for internal animations
-      const delta = clock.getDelta();
-      if (this.splatMesh) {
-        this.splatMesh.update(this.renderer, this.camera, delta);
+      if (moved || this.needsRender || !this.loaded) {
+        this.needsRender = false;
+        // Spark needs the clock delta for internal animations
+        const delta = clock.getDelta();
+        if (this.splatMesh) {
+          this.splatMesh.update(this.renderer, this.camera, delta);
+        }
+        this.renderer.render(this.scene, this.camera);
       }
-
-      this.renderer.render(this.scene, this.camera);
     };
     animate();
   }
@@ -160,6 +181,10 @@ export class SplatViewer {
     if (this.renderer) {
       this.renderer.domElement.remove();
       this.renderer.dispose();
+      // dispose() frees three's GPU resources but the context itself lives
+      // until GC. Browsers cap WebGL contexts per tab (~8-16); force the
+      // loss now so rapid open/close cycles can't exhaust the pool.
+      this.renderer.forceContextLoss?.();
       this.renderer = null;
     }
 

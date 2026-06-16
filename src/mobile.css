@@ -2,8 +2,8 @@
  * Mobile experience — independent from the desktop stylesheet.
  *
  * Loaded only when src/mobile.js is dynamically imported (i.e. on phones).
- * Fonts are already declared + self-hosted in style.css so we can rely on
- * Martian Mono / Space Mono being available without redefining @font-face.
+ * Fonts are already declared + self-hosted in base.css (the render-blocking
+ * shared sheet) so Martian Mono is available without redefining @font-face.
  *
  * Scope: everything lives under html.mobile-mode so the desktop cascade is
  * untouched even if this file is ever loaded on desktop by mistake.
@@ -445,18 +445,40 @@ html.mobile-mode {
   scroll-behavior: smooth;
   padding: 18px calc(var(--gutter) + var(--safe-r))
            28px calc(var(--gutter) + var(--safe-l));
-  /*
-   * Fade the top + bottom edges of the scroll area so content hints it
-   * continues past the header / tab bar rather than butting up against
-   * them. Pure CSS, no JS scroll listeners needed.
-   */
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 12px,
-    black calc(100% - 12px),
-    transparent 100%
-  );
+  /* Top/bottom edge fade moved off mask-image: a masked scroller forces
+   * some mobile GPUs to re-rasterize the masked content every scrolled
+   * frame. The ::before/::after gradient strips below paint once and
+   * composite — visually identical over the solid --bg background. */
+}
+
+/* Edge-fade strips: fixed over the scroll area's top and bottom, fading
+ * from the page background to transparent so content appears to slip under
+ * the header / tab bar. Positioned on .m-shell's grid via the same insets
+ * as .m-content; pointer-events: none keeps scrolling untouched. */
+.m-content::before,
+.m-content::after {
+  content: '';
+  position: sticky;
+  left: 0;
+  right: 0;
+  display: block;
+  height: 12px;
+  margin-bottom: -12px;
+  flex-shrink: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.m-content::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--bg), transparent);
+}
+
+.m-content::after {
+  bottom: 0;
+  margin-bottom: 0;
+  margin-top: -12px;
+  background: linear-gradient(to top, var(--bg), transparent);
 }
 
 .m-content::-webkit-scrollbar { width: 6px; }
@@ -713,7 +735,7 @@ html.mobile-mode {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 65vh;
+  max-height: 65svh; /* svh: small viewport — sized as if the iOS toolbar is visible, so media never overshoots when it is */
   object-fit: cover;
 }
 
@@ -943,8 +965,8 @@ html.mobile-mode {
   margin: var(--gutter) calc(-1 * (var(--gutter) + var(--safe-r)))
           var(--gutter) calc(-1 * (var(--gutter) + var(--safe-l)));
   background: var(--bg-sunk);
-  min-height: 45vh;
-  max-height: 65vh;
+  min-height: 45svh;
+  max-height: 65svh; /* svh: small viewport — sized as if the iOS toolbar is visible, so media never overshoots when it is */
   display: flex;
   align-items: center;
   justify-content: center;

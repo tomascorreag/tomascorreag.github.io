@@ -52,30 +52,47 @@ export function createCrtScrollbar(scrollEl, parentEl) {
   }
 
   // ── Drag-to-scroll ──────────────────────────────────────────────────────
-  let grabOffset = 0; // cursor offset within the thumb at grab time
+  // Geometry (track rect, thumb height, scroll range) is stable for the
+  // duration of a drag, so it's snapshotted once on pointerdown instead of
+  // re-read per pointermove — five forced layout reads per event otherwise,
+  // interleaved with the scrollTop write. Moves are rAF-coalesced like the
+  // scroll→thumb direction above; latest pointer position wins.
+  let grabOffset = 0;  // cursor offset within the thumb at grab time
+  let dragGeom = null; // { trackTop, maxTop, overflow } while dragging
+  let dragRaf = 0;
+  let dragY = 0;
+
+  function applyDrag() {
+    dragRaf = 0;
+    if (!dragGeom) return;
+    let top = dragY - dragGeom.trackTop - grabOffset;
+    top = Math.max(0, Math.min(dragGeom.maxTop, top));
+    scrollEl.scrollTop = (top / dragGeom.maxTop) * dragGeom.overflow;
+  }
 
   function onPointerMove(e) {
-    const trackTop = bar.getBoundingClientRect().top;
-    const trackH = bar.clientHeight;
-    const thumbH = thumb.offsetHeight;
-    const maxTop = trackH - thumbH;
-    if (maxTop <= 0) return;
-
-    let top = e.clientY - trackTop - grabOffset;
-    top = Math.max(0, Math.min(maxTop, top));
-
-    const overflow = scrollEl.scrollHeight - scrollEl.clientHeight;
-    scrollEl.scrollTop = (top / maxTop) * overflow;
+    dragY = e.clientY;
+    if (!dragRaf) dragRaf = requestAnimationFrame(applyDrag);
   }
 
   function onPointerUp(e) {
     thumb.releasePointerCapture?.(e.pointerId);
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);
+    dragGeom = null;
+    if (dragRaf) { cancelAnimationFrame(dragRaf); dragRaf = 0; }
   }
 
   function onPointerDown(e) {
     e.preventDefault();
+    const trackTop = bar.getBoundingClientRect().top;
+    const maxTop = bar.clientHeight - thumb.offsetHeight;
+    if (maxTop <= 0) return;
+    dragGeom = {
+      trackTop,
+      maxTop,
+      overflow: scrollEl.scrollHeight - scrollEl.clientHeight,
+    };
     grabOffset = e.clientY - thumb.getBoundingClientRect().top;
     thumb.setPointerCapture?.(e.pointerId);
     window.addEventListener('pointermove', onPointerMove);
@@ -107,6 +124,7 @@ export function createCrtScrollbar(scrollEl, parentEl) {
       window.removeEventListener('pointerup', onPointerUp);
       delayed.forEach(clearTimeout);
       if (raf) cancelAnimationFrame(raf);
+      if (dragRaf) cancelAnimationFrame(dragRaf);
       bar.remove();
     },
   };

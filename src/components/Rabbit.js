@@ -31,6 +31,14 @@ export class Rabbit extends Sprite {
     this.glowAnimationId = null;
     this.isFrozen = false;
 
+    // Cached bottom-center point — getBoundingClientRect is a forced layout
+    // read, and the mousemove path runs up to 1000×/s on high-Hz mice. The
+    // rect only changes during spawn/drop/jump animations and on resize, so
+    // we cache it when the rabbit settles (like caching a world transform
+    // instead of querying the physics engine every frame).
+    this._bottomCenter = null;
+    this._mouseRafId = null;
+
     // Mouse interaction handlers (stored for cleanup)
     this.mouseHandler = null;
     this.clickHandler = null;
@@ -94,6 +102,7 @@ export class Rabbit extends Sprite {
       const visualHeight = RABBIT_CONFIG.height * this.scale;
       this.y = window.innerHeight - visualHeight;
       this.updatePosition();
+      this.refreshBottomCenter();
     };
     this.element.addEventListener('animationend', onSpawnEnd);
 
@@ -169,6 +178,7 @@ export class Rabbit extends Sprite {
       this.y = window.innerHeight - visualHeight;
       this.updatePosition();
       this.element.style.backgroundPosition = `0px 0`;
+      this.refreshBottomCenter();
     };
     this.element.addEventListener('animationend', onDropEnd);
   }
@@ -239,6 +249,7 @@ export class Rabbit extends Sprite {
         const offset = RABBIT_CONFIG.jumpDistance * direction;
         this.x = this.x - offset;
         this.updatePosition();
+        this.refreshBottomCenter();
 
         this.element.classList.remove('jumping');
 
@@ -262,18 +273,38 @@ export class Rabbit extends Sprite {
       return { distance: Infinity, rabbitBottomX: 0, rabbitBottomY: 0 };
     }
 
-    // Get actual rendered position (includes CSS animation transforms)
-    const rect = this.element.getBoundingClientRect();
-
-    // Bottom center of the rendered element
-    const rabbitBottomX = rect.left + rect.width / 2;
-    const rabbitBottomY = rect.bottom;
+    // While animating, the rendered position changes per frame — read live.
+    // Settled, the cached point is identical and costs no layout pass.
+    let rabbitBottomX, rabbitBottomY;
+    if (this.isSpawning || this.isJumping || this.glowAnimationId) {
+      const rect = this.element.getBoundingClientRect();
+      rabbitBottomX = rect.left + rect.width / 2;
+      rabbitBottomY = rect.bottom;
+    } else {
+      if (!this._bottomCenter) this.refreshBottomCenter();
+      rabbitBottomX = this._bottomCenter.x;
+      rabbitBottomY = this._bottomCenter.y;
+    }
 
     const dx = clientX - rabbitBottomX;
     const dy = clientY - rabbitBottomY;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     return { distance, rabbitBottomX, rabbitBottomY };
+  }
+
+  /**
+   * Re-reads the rendered rect and caches the bottom-center point.
+   * Call whenever the rabbit settles (spawn/drop/jump end) or the
+   * viewport resizes.
+   */
+  refreshBottomCenter() {
+    if (!this.element) return;
+    const rect = this.element.getBoundingClientRect();
+    this._bottomCenter = {
+      x: rect.left + rect.width / 2,
+      y: rect.bottom,
+    };
   }
 
   /**
@@ -349,12 +380,22 @@ export class Rabbit extends Sprite {
       this.earlyMouseHandler = null;
     }
 
+    // rAF-coalesced: pointer events can outpace the display (1000Hz mice);
+    // anything more than once per frame is wasted work. Latest coords win.
     this.mouseHandler = (e) => {
       // Store mouse position for glow updates during movement
       this.lastMouseX = e.clientX;
       this.lastMouseY = e.clientY;
+      if (this._mouseRafId) return;
+      this._mouseRafId = requestAnimationFrame(() => {
+        this._mouseRafId = null;
+        this.processMouseMove();
+      });
+    };
 
-      const { distance } = this.getDistanceToBottomCenter(e.clientX, e.clientY);
+    this.processMouseMove = () => {
+      if (!this.element) return;
+      const { distance } = this.getDistanceToBottomCenter(this.lastMouseX, this.lastMouseY);
 
       // Update glow based on proximity (skip if animation loop is running)
       if (!this.glowAnimationId) {
@@ -396,6 +437,9 @@ export class Rabbit extends Sprite {
 
     this.addEventListener(document, 'mousemove', this.mouseHandler);
     this.addEventListener(document, 'click', this.clickHandler);
+    // The cached bottom-center goes stale if the viewport changes size
+    // (the rabbit is anchored to the viewport bottom).
+    this.addEventListener(window, 'resize', () => this.refreshBottomCenter());
   }
 
   /**

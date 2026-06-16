@@ -66,7 +66,25 @@
     <!-- Structured data: CSP hash in script-src above must match this block byte-for-byte. -->
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","name":"Tomás Correa","jobTitle":"Technical Artist","url":"https://tomascorreag.github.io/"}</script>
 
-    <link rel="stylesheet" href="/src/style.css" />
+    <!--
+      Font preload: the first thing any visitor sees is terminal text typing
+      in Martian Mono. Without this hint the font is discovered only after
+      the CSS downloads and parses, so first visits watched the intro swap
+      from fallback monospace mid-animation (font-display: swap). crossorigin
+      is required even same-origin — font fetches use CORS mode, and a
+      preload whose mode mismatches is silently discarded (double download).
+      Vite rewrites the href to the hashed URL at build time.
+    -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/src/assets/fonts/MartianMono-latin.woff2" />
+
+    <!--
+      base.css is the ONLY render-blocking stylesheet: fonts, palette vars,
+      reset/background, and the few components shared by both branches.
+      The desktop scene CSS ships inside the desktop JS chunk (desktop.js
+      imports style.css), mobile CSS inside the mobile chunk, deck CSS inside
+      the deck chunk — no visitor downloads the other branch's styles.
+    -->
+    <link rel="stylesheet" href="/src/base.css" />
   </head>
   <body>
     <!-- CRT screen container - all CRT effects apply to content inside -->

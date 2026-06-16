@@ -526,7 +526,9 @@ function renderCategoryFeed(categoryId) {
 
   const feed = h('section', { class: 'm-feed' });
   items.forEach((item, idx) => {
-    const card = buildFeedCard(item);
+    // First card is the LCP candidate — load it eagerly at high priority
+    // instead of letting loading=lazy deprioritize the first paint.
+    const card = buildFeedCard(item, { eager: idx === 0 });
     card.addEventListener('click', () => openSheet(categoryId, idx));
     feed.appendChild(card);
   });
@@ -534,9 +536,9 @@ function renderCategoryFeed(categoryId) {
   scheduleFadeStagger(feed);
 }
 
-function buildFeedCard(item) {
+function buildFeedCard(item, { eager = false } = {}) {
   const mediaWrap = h('div', { class: 'm-card-media' });
-  const media = buildMedia(item, { inCard: true });
+  const media = buildMedia(item, { inCard: true, eager });
   mediaWrap.appendChild(media);
 
   if (item.type === 'splat') {
@@ -554,15 +556,22 @@ function buildFeedCard(item) {
 }
 
 /** Builds a <picture> or <video> element appropriate for the item. */
-function buildMedia(item, { inCard = false } = {}) {
+function buildMedia(item, { inCard = false, eager = false } = {}) {
   if (item.type === 'spritesheet') {
     const sprite = createSpritesheetElement(item.spritesheet, { alt: item.alt || item.title || '', responsive: true });
     if (sprite) return sprite;
     return h('div', { style: { aspectRatio: '4 / 3', background: '#060806' } });
   }
+  // Cards render edge-to-edge → 100vw sizes lets the browser pick the
+  // smallest srcset tier that covers the screen at its pixel ratio.
+  // preload is always 'metadata': full preload of off-card media was a
+  // cellular-data trap, and autoplaying videos buffer themselves anyway.
   const el = createMediaElement(item.src, {
     alt: item.alt || item.title || '',
-    video: { preload: inCard ? 'metadata' : 'auto' },
+    sizes: '100vw',
+    lazy: !eager,
+    fetchPriority: eager ? 'high' : null,
+    video: { preload: 'metadata' },
   });
   // Placeholder matches pre-existing behavior for unresolved thumbnails.
   if (!el) return h('div', { style: { aspectRatio: '4 / 3', background: '#060806' } });
@@ -589,7 +598,7 @@ function renderGamesFeed() {
     const banner = game.type === 'spritesheet'
       ? createSpritesheetElement(game.spritesheet, { alt: game.title, className: 'm-game-banner', responsive: true })
       : game.src
-        ? createMediaElement(game.src, { alt: game.title, className: 'm-game-banner' })
+        ? createMediaElement(game.src, { alt: game.title, className: 'm-game-banner', sizes: '100vw' })
         : null;
 
     const links = (game.links || []).map((l) =>
@@ -826,7 +835,8 @@ async function renderSheetItem(index) {
     let activeMediaSrc = item.src;
 
     const thumbs = all.map((src, i) => {
-      const thumbMedia = createMediaElement(src, { alt: '' });
+      // Gallery strip thumbs render ~25vw wide — the 480w tier covers them.
+      const thumbMedia = createMediaElement(src, { alt: '', sizes: '25vw' });
       const t = h('button', {
         class: 'm-gallery-thumb' + (i === 0 ? ' is-active' : ''),
         attrs: { type: 'button', 'aria-label': `Image ${i + 1}` },
@@ -850,7 +860,7 @@ async function renderSheetItem(index) {
         media.classList.remove('loading');
         // Swap main media — rebuild full variant chain, not just .src
         // (a <picture>'s <source> children would override any .src change).
-        const newMedia = createMediaElement(src, { alt: '', lazy: false });
+        const newMedia = createMediaElement(src, { alt: '', lazy: false, sizes: '100vw' });
         if (newMedia) {
           media.replaceChildren(newMedia);
           // Thumb 0 is the primary media — swapping back to an audio-bearing

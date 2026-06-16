@@ -8,15 +8,20 @@
  * - Queue and execute commands sequentially
  */
 
+// Desktop-scene styles ride this chunk (same pattern as mobile.css in
+// mobile.js): index.html only blocks on the small shared base.css, and the
+// ~70KB desktop sheet downloads in parallel with this module — never on
+// mobile, where this chunk is never imported.
+import './style.css';
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
-import { deviceTier } from './config/device.js';
+import { deviceTier, getSaveData, getNetworkType } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement } from './utils/media.js';
+import { createMediaElement, createSpritesheetElement, pauseManagedVideos, resumeManagedVideos } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
@@ -459,6 +464,14 @@ function preloadImage(src) {
  * so we never compete with critical resources like the rabbit spritesheet.
  */
 function preloadThumbnails() {
+  // Respect explicit and implicit data constraints. saveData is the user
+  // saying "don't burn my data" — skip speculative work entirely. On slow
+  // networks or weak devices, still warm the (small, tiered) images but
+  // never prefetch full video files the visitor may never watch.
+  if (getSaveData()) return;
+  const net = getNetworkType();
+  const preloadVideos = deviceTier !== 'low' && (net === null || net === '4g');
+
   const allItems = Object.values(CATEGORIES).flat();
   if (allItems.length === 0) return;
 
@@ -472,19 +485,27 @@ function preloadThumbnails() {
         // pick source[0] if supported, and that's ~universal on modern devices.
         const variants = variantsFor(item.src);
         if (!variants) return;
-        const url = variants.kind === 'image'
-          ? (variants.sources[0]?.url || variants.fallback.url)
-          : variants.sources[0]?.url;
-        if (!url) return;
 
         if (variants.kind === 'video') {
+          if (!preloadVideos) return;
+          const url = variants.sources[0]?.url;
+          if (!url) return;
           // For video: a low-priority fetch pulls it into browser's HTTP cache.
           fetch(url, { priority: 'low' }).catch(() => {});
         } else {
+          // Image srcsets carry several width tiers — warm the ~960w one
+          // (what a mosaic card actually renders) rather than the full-size
+          // candidate. Format: "url1 480w, url2 960w, url3 1920w".
+          const srcset = variants.sources[0]?.srcset || variants.fallback.url;
+          const candidates = srcset.split(',').map((c) => {
+            const [url, desc] = c.trim().split(/\s+/);
+            return { url, w: parseInt(desc, 10) || Infinity };
+          });
+          const pick = candidates.find((c) => c.w >= 960) || candidates[candidates.length - 1];
           // For images: creating an Image() triggers a standard fetch.
           // Once loaded, the browser serves it from cache on next request.
           const img = new Image();
-          img.src = url;
+          img.src = pick.url;
         }
       }, i * 200);
     });
@@ -639,7 +660,13 @@ async function renderMosaic(category) {
       div.dataset.cols = item.cols;
       div.dataset.rows = item.rows;
 
-      const media = createMediaElement(item.src, { alt: item.alt });
+      // sizes hint: the mosaic container is ~55vw with ~7 tracks, so a card
+      // renders at roughly cols × 9vw — lets the browser pick the 480/960
+      // tier instead of full-size for grid cells.
+      const media = createMediaElement(item.src, {
+        alt: item.alt,
+        sizes: `${Math.min((item.cols || 1) * 9, 55)}vw`,
+      });
       if (!media) continue; // skip items with unresolved thumbnails
 
       div.appendChild(media);
@@ -723,7 +750,7 @@ async function renderGames() {
       const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
       if (banner) card.appendChild(banner);
     } else if (game.src) {
-      const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner' });
+      const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner', sizes: '55vw' });
       if (banner) card.appendChild(banner);
     }
 
@@ -854,6 +881,7 @@ function buildArticleContent(itemData) {
         alt: itemData.title || '',
         className: 'article-banner',
         lazy: false,
+        sizes: '55vw',
       });
     if (bannerMedia) {
       const bannerWrap = document.createElement('div');
@@ -910,7 +938,12 @@ function buildArticleContent(itemData) {
   if (itemData.page) {
     const body = document.createElement('div');
     body.className = 'article-body';
-    const fragment = parseMarkdown(itemData.page, { createMediaElement, iconMap: CONTACT_ICONS });
+    const fragment = parseMarkdown(itemData.page, {
+      // Article figures render inside the ~55vw column (floats are narrower,
+      // but sizes only needs an upper bound to beat the 100vw default).
+      createMediaElement: (src, o) => createMediaElement(src, { sizes: '55vw', ...o }),
+      iconMap: CONTACT_ICONS,
+    });
     body.appendChild(fragment);
     wrapper.appendChild(body);
   }
@@ -1054,7 +1087,7 @@ function renderGeneralContent() {
         const item = CATEGORIES[ref.category]?.[ref.itemIndex];
         if (!item) continue;
 
-        const media = createMediaElement(item.src, { alt: item.alt ?? '' });
+        const media = createMediaElement(item.src, { alt: item.alt ?? '', sizes: '15vw' });
         if (!media) continue;
 
         const thumb = document.createElement('div');
@@ -1569,7 +1602,7 @@ function swapDetailImage(newRelPath, clickedThumb) {
   const oldMedia = activeDetail.el.querySelector(':scope > picture, :scope > video');
   if (!oldMedia) return;
 
-  const newMedia = createMediaElement(newRelPath, { alt: '', lazy: false });
+  const newMedia = createMediaElement(newRelPath, { alt: '', lazy: false, sizes: '60vw' });
   if (!newMedia) return;
 
   oldMedia.style.transition = 'opacity 150ms ease';
@@ -1668,6 +1701,10 @@ function openDetail(itemEl, itemData) {
   allItems.forEach(el => {
     if (el !== itemEl) el.classList.add('fading-out');
   });
+  // .fading-out is opacity:0 — the videos underneath still intersect the
+  // viewport, so the offscreen manager (sans IO-v2) won't catch them.
+  // Pause them explicitly; closeDetail/navigateDetail resume.
+  pauseManagedVideos(v => !itemEl.contains(v));
 
   // Position the item absolutely at the target rect
   itemEl.classList.add('detail-active');
@@ -1819,7 +1856,12 @@ function appendDetailBody(container, itemData) {
   if (itemData.page) {
     const body = document.createElement('div');
     body.className = 'detail-info-body';
-    const fragment = parseMarkdown(itemData.page, { createMediaElement, iconMap: CONTACT_ICONS });
+    const fragment = parseMarkdown(itemData.page, {
+      // Article figures render inside the ~55vw column (floats are narrower,
+      // but sizes only needs an upper bound to beat the 100vw default).
+      createMediaElement: (src, o) => createMediaElement(src, { sizes: '55vw', ...o }),
+      iconMap: CONTACT_ICONS,
+    });
     body.appendChild(fragment);
     // The detail panel has no scroll-reveal observer (unlike the article page)
     // and fades in as a whole, so reveal markdown blocks immediately —
@@ -1863,7 +1905,7 @@ function buildDetailInfo(itemData, layout) {
     info.appendChild(textCol);
 
     if (itemData.gallery && itemData.gallery.length > 0) {
-      const media = createMediaElement(itemData.gallery[0], { alt: '', lazy: false });
+      const media = createMediaElement(itemData.gallery[0], { alt: '', lazy: false, sizes: '40vw' });
       if (media) {
         const sideImg = document.createElement('div');
         sideImg.className = 'detail-info-side-image';
@@ -1890,7 +1932,7 @@ function buildDetailInfo(itemData, layout) {
       galleryEl.className = 'detail-gallery';
 
       itemData.gallery.forEach((extraSrc) => {
-        const media = createMediaElement(extraSrc, { alt: '' });
+        const media = createMediaElement(extraSrc, { alt: '', sizes: '15vw' });
         if (!media) return;
         const thumb = document.createElement('div');
         thumb.className = 'gallery-thumb';
@@ -2029,6 +2071,9 @@ function closeDetail(instant = false) {
   // its unscrolled spot, not wherever the user had scrolled to.
   mosaicEl.classList.remove('detail-mode', 'detail-scroll');
   mosaicEl.scrollTop = 0;
+
+  // Mosaic videos paused on openDetail come back with the grid.
+  resumeManagedVideos();
 
   // Cancel any in-progress animation
   itemEl.getAnimations().forEach(a => a.cancel());
@@ -2367,6 +2412,11 @@ async function navigateDetail(direction) {
     nextEl._detailLayout = layout;
     // Now safe — nextEl is already absolutely positioned and invisible via detail-fading
     nextEl.classList.remove('fading-out');
+
+    // Hand video playback over: everything outside the incoming item stays
+    // paused (it's behind the detail view), the incoming item's video runs.
+    pauseManagedVideos(v => !nextEl.contains(v));
+    resumeManagedVideos(v => nextEl.contains(v));
 
     const sessionId = ++detailSessionId;
     activeDetail = { el: nextEl, data: nextData, viewer: null, videoControls: null, sessionId, placeholder: null };

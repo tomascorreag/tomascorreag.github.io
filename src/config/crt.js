@@ -127,39 +127,82 @@ export function injectCRTVariables() {
  * Glow noise — mostly holds at baseline, occasionally drops then recovers.
  *
  * Like a fluorescent tube that's mostly stable but occasionally dips —
- * each tick has a small chance of triggering a drop to a random value
- * between min and baseline, then lerps back up. Same pattern as a
- * damage flash that decays back to 1.0 in a game shader.
+ * a drop snaps the intensity to a random value between min and baseline,
+ * then it lerps back up. Same pattern as a damage flash that decays back
+ * to 1.0 in a game shader.
+ *
+ * Implementation note (perf): writing a custom property on :root
+ * invalidates style for everything reading it — here that's multi-layer
+ * text-shadows under the terminal's full-screen filter, so every write is
+ * a repaint. The old version wrote 32×/s forever. This version is
+ * episodic: drops are scheduled with an exponentially-distributed timeout
+ * (same statistics as "4% chance per 32Hz tick"), and a rAF loop runs
+ * ONLY during the short recovery (~0.2s), snaps to baseline, then goes
+ * fully idle — zero writes between drops. rAF also auto-pauses in hidden
+ * tabs, where setInterval would have kept firing.
  */
-let glowNoiseInterval = null;
+let glowNoiseTimer = null;
+let glowNoiseFrame = null;
+let glowNoiseActive = false;
 
 export function startGlowNoise() {
-  if (glowNoiseInterval) return;
+  if (glowNoiseActive) return;
 
   const config = getActiveConfig();
   const { glowNoiseMin: min, glowNoiseFrequency: freq,
     glowNoiseDropChance: chance, glowNoiseRecovery: recovery } = config;
   const baseline = config.glowIntensity;
   if (!freq) return;
+  // Low tier disables blur/RGB-split already — the flicker isn't worth a
+  // style invalidation storm on weak hardware either.
+  if (getDeviceTier() === 'low') return;
 
+  glowNoiseActive = true;
   const root = document.documentElement;
+  const tickMs = 1000 / freq;
+  // Close enough to baseline to be invisible → snap and stop writing.
+  const epsilon = 0.005;
   let current = baseline;
 
-  glowNoiseInterval = setInterval(() => {
-    if (Math.random() < chance) {
-      // Drop to a random depth between min and baseline
+  // Exponential inter-arrival time with the same mean as the old
+  // per-tick coin flip: rate = chance × freq drops per second.
+  const nextDropDelay = () =>
+    -Math.log(1 - Math.random()) / (chance * freq) * 1000;
+
+  const scheduleDrop = () => {
+    glowNoiseTimer = setTimeout(() => {
+      glowNoiseTimer = null;
+      // Hidden tab: skip the episode entirely, try again later.
+      if (document.hidden) { scheduleDrop(); return; }
       current = min + Math.random() * (baseline - min);
-    } else {
-      // Recover toward baseline
-      current += (baseline - current) * recovery;
-    }
-    root.style.setProperty('--crt-glow-intensity', current.toFixed(3));
-  }, 1000 / freq);
+      root.style.setProperty('--crt-glow-intensity', current.toFixed(3));
+      let lastTick = performance.now();
+      const recover = (now) => {
+        glowNoiseFrame = null;
+        // Keep the original 32Hz recovery cadence regardless of frame rate.
+        if (now - lastTick >= tickMs) {
+          lastTick = now;
+          current += (baseline - current) * recovery;
+          if (Math.abs(baseline - current) < epsilon) {
+            root.style.setProperty('--crt-glow-intensity', baseline);
+            scheduleDrop();
+            return;
+          }
+          root.style.setProperty('--crt-glow-intensity', current.toFixed(3));
+        }
+        glowNoiseFrame = requestAnimationFrame(recover);
+      };
+      glowNoiseFrame = requestAnimationFrame(recover);
+    }, nextDropDelay());
+  };
+
+  scheduleDrop();
 }
 
 export function stopGlowNoise() {
-  if (glowNoiseInterval) {
-    clearInterval(glowNoiseInterval);
-    glowNoiseInterval = null;
-  }
+  if (glowNoiseTimer) clearTimeout(glowNoiseTimer);
+  if (glowNoiseFrame) cancelAnimationFrame(glowNoiseFrame);
+  glowNoiseTimer = null;
+  glowNoiseFrame = null;
+  glowNoiseActive = false;
 }

@@ -68,10 +68,15 @@ export function getSaveData() {
   return navigator.connection?.saveData ?? false;
 }
 
-/** True if viewport + touch signals suggest mobile/tablet. */
+/** True if viewport + touch signals suggest mobile/tablet.
+ *
+ * MUST match the routing check in main.js: a coarse-pointer tablet (e.g. a
+ * 1280px Android tablet) boots the mobile shell, and if this check disagreed
+ * it would score tier 'high' and mount SH3/2x splat viewers inside a mobile
+ * sheet. Same signal, same answer: coarse pointer OR narrow viewport. */
 export function isMobileDevice() {
-  return window.innerWidth <= 768 ||
-    ('ontouchstart' in window && window.innerWidth <= 1024);
+  return window.matchMedia('(hover: none) and (pointer: coarse)').matches ||
+    window.innerWidth <= 820;
 }
 
 // --- Tier assignment ---

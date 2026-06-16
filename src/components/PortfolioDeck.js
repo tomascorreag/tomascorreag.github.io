@@ -27,6 +27,11 @@
  */
 
 import { resolvePage } from '../config/portfolio.js';
+// Deck styles ride this chunk: the deck only exists on `/?p=` visits, so its
+// ~14KB of CSS has no business in the render-blocking stylesheet every
+// visitor downloads. Vite extracts this into the PortfolioDeck chunk's CSS
+// and loads it alongside the dynamic import (same pattern as mobile.css).
+import './portfolio-deck.css';
 import { createMediaElement, createSpritesheetElement } from '../utils/media.js';
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { ICONS } from '../config/icons.js';
@@ -88,15 +93,19 @@ function buildItemMedia(item, { className = '', alt = item.title || '', lazy = t
  * The aspect-ratio is stashed in `dataset.ar`, so this is also the per-resize
  * recompute. No-ops until the box has a laid-out height (post-mount / on load).
  */
-function sizeMediaBox(box) {
+// Split into measure (layout reads) + apply (style writes) so relayout() can
+// batch all reads before any writes — a width write on slide i invalidates
+// layout and forces a full re-layout pass before slide i+1's reads otherwise
+// (classic read/write thrash, one forced layout per slide).
+function measureMediaBox(box) {
   const ar = parseFloat(box.dataset.ar);
-  if (!ar) return;
+  if (!ar) return null;
   const card = box.closest('.deck-card');
   const slide = box.closest('.deck-slide');
-  if (!card || !slide) return;
+  if (!card || !slide) return null;
 
   const h = box.clientHeight; // layout height — ignores the slide's transform scale
-  if (!h) return;
+  if (!h) return null;
 
   // Width the image WANTS (height × aspect-ratio), capped to the space available
   // in the slot (slot − slide padding − card padding/border). Wide pieces fill
@@ -109,17 +118,9 @@ function sizeMediaBox(box) {
   const slotInner = slide.clientWidth - px(ss.paddingLeft) - px(ss.paddingRight);
   const cardChrome = px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
   const avail = slotInner - cardChrome;
-  if (avail <= 0) return;
+  if (avail <= 0) return null;
 
   const w = Math.min(Math.round(h * ar), Math.floor(avail));
-  // `w` is the width the MEDIA box should be. The card is border-box (its width
-  // includes padding+border), so to give its *content* a width of `w` we must add
-  // the chrome back — otherwise the media box ends up `cardChrome` px narrower than
-  // `w` while keeping its full flex height, which letterboxes square/tall art top
-  // & bottom. (avail already subtracted cardChrome, so w + cardChrome ≤ slot.)
-  box.style.width = `${w}px`;
-  card.style.width = `${w + cardChrome}px`;
-
   // CSS clamps card width to --card-max (a sane cap that keeps the wide pixel-art
   // title banners from sprawling on big screens). But for a stretchable image/video
   // piece that cap can be SMALLER than the height-driven fill width `w`, which pins
@@ -127,7 +128,23 @@ function sizeMediaBox(box) {
   // those so the card grows to `w` — already ≤ the slot, so it never overflows.
   // Fixed pixel-art (spritesheet) cards keep the cap (Páramo stays as-is).
   const stretches = !!box.querySelector('img, video');
+  return { box, card, w, cardChrome, stretches };
+}
+
+function applyMediaBox({ box, card, w, cardChrome, stretches }) {
+  // `w` is the width the MEDIA box should be. The card is border-box (its width
+  // includes padding+border), so to give its *content* a width of `w` we must add
+  // the chrome back — otherwise the media box ends up `cardChrome` px narrower than
+  // `w` while keeping its full flex height, which letterboxes square/tall art top
+  // & bottom. (avail already subtracted cardChrome, so w + cardChrome ≤ slot.)
+  box.style.width = `${w}px`;
+  card.style.width = `${w + cardChrome}px`;
   card.style.maxWidth = stretches ? 'none' : '';
+}
+
+function sizeMediaBox(box) {
+  const m = measureMediaBox(box);
+  if (m) applyMediaBox(m);
 }
 
 /**
@@ -423,6 +440,26 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     nextBtn.disabled = index === total - 1;
     dotEls.forEach((d, i) => d.classList.toggle('active', i === index));
     slideEls.forEach((s, i) => s.classList.toggle('is-active', i === index));
+    syncSlideVideos();
+  }
+
+  // Only the centred card's video should decode/loop. Fully-offscreen slides
+  // are paused by the shared media manager already, but neighbours peek at
+  // the viewport edges and count as visible — sync them here. Clearing
+  // `autoplay` matters as much as pause(): a video whose data arrives later
+  // would otherwise start itself on a non-current slide.
+  function syncSlideVideos() {
+    slideEls.forEach((s, i) => {
+      s.querySelectorAll('video').forEach((v) => {
+        if (i === index) {
+          v.autoplay = true;
+          if (v.paused) v.play().catch(() => {});
+        } else {
+          v.autoplay = false;
+          if (!v.paused) v.pause();
+        }
+      });
+    });
   }
 
   // A card click means one of two things: tapping the already-centred card
@@ -463,8 +500,14 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   }
 
   function closeDoc() {
-    // closeDoc only hides the overlay — the doc (and its autoplaying video)
-    // stays mounted behind it. destroy() re-mutes, so no audio leaks through.
+    // closeDoc only hides the overlay — the doc stays mounted behind it
+    // (openDoc rebuilds the content anyway). Stop its videos: an invisible
+    // autoplaying loop keeps a decode pipeline alive indefinitely. Clearing
+    // autoplay also stops late-arriving data from restarting them.
+    docContent.querySelectorAll('video').forEach((v) => {
+      v.autoplay = false;
+      v.pause();
+    });
     docControls?.destroy();
     docControls = null;
     flashWipe();
@@ -509,21 +552,36 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   // the frame hugs (build-time clientHeight was 0). A second pass on the next
   // frame settles any title re-wrap caused by the first pass's width change.
   const relayout = () => {
+    // All reads first, then all writes (see measureMediaBox).
+    const jobs = [];
     for (const s of slideEls) {
       const box = s.querySelector('.deck-card-media');
-      if (box) sizeMediaBox(box);
+      if (!box) continue;
+      const m = measureMediaBox(box);
+      if (m) jobs.push(m);
     }
+    for (const j of jobs) applyMediaBox(j);
   };
   relayout();
   requestAnimationFrame(relayout);
-  window.addEventListener('resize', relayout);
+
+  // Debounced: iOS fires resize streams while the address bar collapses;
+  // re-laying-out every slide per event is pure waste — only the settled
+  // size matters.
+  let relayoutTimer = null;
+  const onResize = () => {
+    clearTimeout(relayoutTimer);
+    relayoutTimer = setTimeout(relayout, 120);
+  };
+  window.addEventListener('resize', onResize);
 
   return {
     destroy() {
       clearTimeout(wipeTimer);
+      clearTimeout(relayoutTimer);
       docControls?.destroy();
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', relayout);
+      window.removeEventListener('resize', onResize);
       deck.remove();
     },
   };
