@@ -18,6 +18,7 @@
  *   - Dynamic import for the splat viewer (same chunk as desktop)
  */
 
+import './article.css'; // shared .article-* markdown styles (page body in the sheet)
 import './mobile.css';
 import {
   CATEGORIES,
@@ -27,7 +28,8 @@ import {
 } from './config/content.js';
 import { ICONS } from './config/icons.js';
 import { createMediaElement, createSpritesheetElement } from './utils/media.js';
-import { applyInline } from './utils/markdown.js';
+import { applyInline, parseMarkdown } from './utils/markdown.js';
+import { openImageLightbox } from './utils/imageLightbox.js';
 import { attachVideoControls } from './components/VideoControls.js';
 
 
@@ -827,56 +829,28 @@ async function renderSheetItem(index) {
   if (item.title) info.appendChild(h('h2', { text: item.title }));
   if (item.description) info.appendChild(h('p', { unsafeHtml: applyInline(item.description) }));
 
-  // Gallery strip
-  if (Array.isArray(item.gallery) && item.gallery.length > 0) {
-    const gallery = h('div', { class: 'm-sheet-gallery' });
-    // First thumb = primary media (main shot)
-    const all = [item.src, ...item.gallery];
-    let activeMediaSrc = item.src;
-
-    const thumbs = all.map((src, i) => {
-      // Gallery strip thumbs render ~25vw wide — the 480w tier covers them.
-      const thumbMedia = createMediaElement(src, { alt: '', sizes: '25vw' });
-      const t = h('button', {
-        class: 'm-gallery-thumb' + (i === 0 ? ' is-active' : ''),
-        attrs: { type: 'button', 'aria-label': `Image ${i + 1}` },
-      }, [thumbMedia]);
-      t.addEventListener('click', () => {
-        if (src === activeMediaSrc) return;
-        activeMediaSrc = src;
-        // If a splat viewer is currently mounted (main item is a splat),
-        // tear it down before replacing the media node — otherwise its
-        // requestAnimationFrame keeps ticking on a detached canvas.
-        if (activeSheet?.viewer) {
-          destroySplatViewer(activeSheet.viewer);
-          activeSheet.viewer = null;
-        }
-        if (activeSheet) {
-          activeSheet.videoControls?.destroy();
-          activeSheet.videoControls = null;
-        }
-        // Invalidate any in-flight splat load targeting the main slot.
-        splatSession++;
-        media.classList.remove('loading');
-        // Swap main media — rebuild full variant chain, not just .src
-        // (a <picture>'s <source> children would override any .src change).
-        const newMedia = createMediaElement(src, { alt: '', lazy: false, sizes: '100vw' });
-        if (newMedia) {
-          media.replaceChildren(newMedia);
-          // Thumb 0 is the primary media — swapping back to an audio-bearing
-          // main video needs its controls again.
-          if (src === item.src && item.hasAudio && activeSheet) {
-            const video = media.querySelector('video');
-            if (video) activeSheet.videoControls = attachVideoControls(video, media, { reveal: 'tap' });
-          }
-        }
-        for (const other of thumbs) other.classList.remove('is-active');
-        t.classList.add('is-active');
-      });
-      return t;
+  // Document body — the markdown `page` (About/Role/Why + embedded images),
+  // matching the desktop detail view and the deck. Images are click-to-zoom via
+  // the shared lightbox (fixed overlay, touch-friendly). The sheet provides its
+  // own media + title + description above, so we render only the body blocks
+  // (not the .article-page banner/header).
+  if (item.page) {
+    const body = h('div', { class: 'm-sheet-body' });
+    body.appendChild(parseMarkdown(item.page, {
+      // Sheet body spans ~full viewport width.
+      createMediaElement: (src, o) => createMediaElement(src, { sizes: '100vw', ...o }),
+      iconMap: ICONS,
+    }));
+    // The sheet fades in as a whole (no scroll-reveal observer), so reveal the
+    // markdown blocks immediately — otherwise .article-reveal keeps them hidden.
+    body.querySelectorAll('.article-reveal').forEach((el) => el.classList.add('revealed'));
+    body.querySelectorAll('.article-figure').forEach((fig) => {
+      const img = fig.querySelector('img');
+      if (!img) return; // skip video figures
+      fig.classList.add('zoomable');
+      fig.addEventListener('click', () => openImageLightbox(img));
     });
-    for (const t of thumbs) gallery.appendChild(t);
-    info.appendChild(gallery);
+    info.appendChild(body);
   }
 }
 

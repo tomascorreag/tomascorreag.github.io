@@ -4,8 +4,8 @@
  * Each category maps to an array of thumbnail objects:
  *   - src: key into the thumbnailModules map (relative path from assets/thumbnails/)
  *   - alt: accessible description
- *   - cols: how many grid columns this item spans (1 or 2)
- *   - rows: how many grid rows this item spans (1 or 2)
+ *   - cols: how many grid columns this item spans (1–4)
+ *   - rows: how many grid rows this item spans (1–4)
  *   - title: (optional) display name shown in detail view
  *   - description: (optional) text shown below image in detail view
  *   - detailLayout: (optional) override auto AR-based layout in detail view
@@ -262,8 +262,7 @@ export const GAMES = [
     id: 'arbo',
     src: 'Games/ARBO/ARBO_thumb.jpg',
     title: 'ARBO: Arena Tactics',
-    summary: 'Turn-based tactical combat with deckbuilding, built in Unity. Shipped on Steam in 2025.',
-    description: 'Turn-based tactical combat with a deckbuilding layer, built in Unity and shipped on Steam in October 2025. Two players each command a team of hero robots across hex-grid arenas with elevation and line-of-sight, building protocol decks to outmaneuver and KO each other — StarCraft positioning crossed with Magic: The Gathering deck construction. I was the Technical Artist and a lead developer: I owned the real-time visual pipeline and editor tooling, and co-developed the core gameplay systems and UI/UX.',
+    description: 'ARBO: Arena Tactics is a two-player tactically deep strategy video game, shipped on Steam in closed alpha, where I was the Technical Artist and co-lead developer.',
     links: [
       { label: 'Steam', icon: 'steam', url: 'https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/' },
       { label: 'Website', icon: 'website', url: 'https://arbo.xyz/' },
@@ -271,28 +270,33 @@ export const GAMES = [
     page: `
 ## About the Project
 
-Turn-based tactical combat with a deckbuilding layer, built in Unity and shipped on Steam in October 2025. Two players each command a team of hero robots across hex-grid arenas — the design splices StarCraft's asymmetric units and positional play with Magic: The Gathering's deck construction and cost curves.
+In the near future, an alien species known as the **ARBO** arrives on Earth as humanity's guardians: they have come, they say, to warn us of the **Abyssals**, another alien race intent on enslaving the world. Racing to build an army of automata to defend itself, humanity instead gives rise to a wholly new form of artificial life: the **Syhm**. Then the ARBO's true intentions surface, and war breaks out between four factions: humans, Syhm, Abyssals, and ARBO.
 
-- **4 hero classes** — Worldforger, Reaver, Archon, Specter — each with 3 combat themes that steer how you build a deck
-- **15-card protocol decks** drawing on energy, movement, and shields as cost pools. Energy doubles as health, so every cast spends survivability
-- **Hex-grid arenas** featuring water, ice, magma, tar, and concealment tiles, plus per-tile elevation that shapes movement, targeting, and sightlines
-- **Initiative-based turns** with accuracy-vs-evasion rolls — evasion scales with distance — and full line-of-sight occlusion from terrain and structures
-- **A deep status-effect layer**, with 39 distinct effect types spanning stat modifiers, damage-over-time, control, immunities, and stacking mechanics
+Two players each command a small team of heroes and face off on a grid-based battlefield. Before every match you build your own deck of cards, so each game blends careful tactics with strategic deck-building. The goal is simple: outthink your opponent, control the ground, and knock out their team.
 
-Four ways to play: online 1v1 multiplayer, a ranked ladder, an LLM-driven tutorial opponent, and Prompt Battler — an AI-agent mode where natural-language commands drive the match.
+- **Four hero classes**, each with a distinct way of playing
+- **Cards you unlock and collect**, then build into your own decks, with dynamic and varied card mechanics where the card energy pool doubles as health, so every action is a trade-off between attacking and staying alive
+- **Dynamic battlefields with water, ice, lava, and high and low ground** that change how you move and what you can reach
+- **Four ways to play**, including online matches (casual and ranked), single-player boss fights, and an experimental mode where you command your team by typing plain-language orders to an AI
 
 ---
 
 ## My Role
 
-Technical Artist and co-lead developer at **ReBlink**, the Bogotá studio where ARBO was built — one of two core developers on a small multidisciplinary team across four years of professional development (2021–2025).
+I entered the project as a 3D artist working on the game art. Eventually I moved into development and became the Technical Artist and one of two core developers at **ReBlink**, the Canadian studio where ARBO was built, across five years on a small multidisciplinary team (2021-2026). I was responsible for:
 
-- **Real-time visual pipeline**: custom shaders in URP, built with Shader Graph and HLSL/GLSL
-- **All VFX**: particle systems, VFX Graph, and bespoke effects
-- **Custom Unity editor tools** for myself and the rest of the team
-- Led the **2D-to-3D production transition**: a planned, year-long migration of the whole visual stack, executed across parallel branches without halting live development
-- Co-developed the **hex-grid combat engine**, protocol-deck system, and status-effect framework
-- Co-developed the **UI/UX** across the stack
+- **The real-time visual pipeline**: the system that turns the game's art into what you see on screen, frame by frame
+- **Liaison** between engineering, Art, and Game Design departments.
+- **All visual effects**: explosions, impacts, energy, and everything that moves and glows in combat
+- The **entire game logic, interface and overall feel of using the game** (co-developed)
+- The **multiplayer game backend**, infrastructure to support online multiplayer games (co-developed)
+- **Custom tools inside Unity** that let the rest of the team build and tune content without writing code
+
+---
+
+## Why I Joined
+
+I joined ReBlink early and stayed for five years because the project offered something rare: complete ownership of a commercial game's visual identity, end to end. Every character, effect, and arena (how it looked, how it moved, how it felt to play) passed through my hands, and I built the core systems of the game, spanning from backend to UX. That work sits exactly on the line between art and engineering, which is where I do my best work. Shipping it on Steam, with a small team, after four years of building it together, is the professional achievement I'm proudest of.
 
 ---
 
@@ -303,13 +307,13 @@ Technical Artist and co-lead developer at **ReBlink**, the Bogotá studio where 
 
 ## Technical Highlights
 
-- A custom real-time **shader pipeline** in URP, combining Shader Graph with hand-written HLSL/GLSL
-- **VFX** spanning particle systems, VFX Graph, and fully custom effects
+- A custom real-time **shader pipeline** in Unity's URP, combining Shader Graph with hand-written HLSL/GLSL
+- **VFX** spanning particle systems, VFX Graph, and fully custom effects in C#
 - **Editor tooling** that lets designers author and tune content without writing code
 - **Fully data-driven content**: classes, protocols, operations, and arena setups defined in JSON profiles, so balance and content iteration never touches engine code
-- **Elevation-aware combat math**: line-of-sight traced hex-by-hex over terrain heights, and chance-to-hit built on distance-scaled evasion
-- **Two-tier networking**: Photon Fusion for in-match state sync, Colyseus for lobbies, matchmaking, and ranked
-- **Server-driven AI opponents**: an LLM tutorial opponent with hint support and a reasoning agent powering the Prompt Battler mode, with per-turn failsafe timing
+- **Deep C# combat logic**: a hex-tile based map system with pathfinding and line-of-sight, a deep status-effect system that affected everything from movement to chance-to-hit, and many other complex systems.
+- **Two-tier networking**: Photon Fusion and Colyseus for matchmaking, game lobbies, and in-game multiplayer
+- **Server-driven AI opponents**: an LLM-based AI opponent with a reasoning agent powering the Prompt-Battler mode
 
 ![ARBO Incendiary Flames VFX](Games/ARBO/flamethrower.jpg)
 *Incendiary Flames. Particle systems and post-processing on display.*
@@ -330,46 +334,49 @@ Technical Artist and co-lead developer at **ReBlink**, the Bogotá studio where 
       background: '#94a8bf',
     },
     title: 'Páramo',
-    summary: 'Environmental strategy on a Colombian páramo, built in Godot 4. Work in progress (2026–present).',
-    description: 'An environmental strategy game set on a Colombian **páramo**, a high-altitude Andean ecosystem that supplies water to millions of people downstream. You play a field coordinator defending the mountain against extractive, biological, and climate threats while juggling community relationships and scarce resources. Built in Godot 4 with isometric pixel art. The argument lives in the systems rather than the script: it is a game about conservation that makes its case through play. Work in progress (2025–present).',
+    description: 'Páramo is a WIP environmental strategy game I\'m designing and developing entirely on my own, set on a threatened ecosystem in the Andes.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],
     page: `
 ## About the Project
 
-Tower defence meets environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high-altitude Andean ecosystem that works as a water factory for millions of people downstream. A glacial laguna sits at the summit. If it dies, everything below it dies with it.
-
-**Solo project (2025–present):** all design, code, pixel art, and writing are mine.
+A mix of sandbox and environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high mountain ecosystem that acts as a water factory for millions of beings downstream. A glacial lake sits at the summit. If it dies, everything below it dies with it.
 
 Threats climb the mountain from below:
 
-- **Extractive:** illegal miners, permitted mining operations, and land speculators
-- **Biological:** invasive grasses creeping uphill and feral cattle compacting the soil
-- **Human:** unmanaged tourists, reckless campers who start fires, and subsistence farmers with no other options
-- **Environmental:** drought, wildfire, erosion, and an uncounterable climate shift that makes every year harder
+- **Extractive:** illegal miners, licensed mining operations, and land speculators
+- **Biological:** invasive grasses creeping uphill and stray cattle trampling the soil
+- **Human:** careless tourists, campers who start fires, and subsistence farmers with no other options
+- **Environmental:** drought, wildfire, erosion, and a steadily worsening climate you can never beat
 
-Three resources govern a run. **Water** comes from the ecosystem itself, **funding** from grants and eco-tourism, and **community support** acts as a global modifier that decides whether locals are allies or adversaries.
+Three things keep a run going. **Water** comes from the ecosystem itself, **funding** from grants and eco-tourism, and **community support** decides whether the people who live nearby are your allies or your adversaries.
 
 ![Páramo isometric tile system](Games/Paramo/Large.png)
 *Isometric tile grid with elevation, vegetation, and terrain variety.*
 
 ---
 
-## Design Intent
+## My Role
 
-The game is built as procedural rhetoric in Ian Bogost's sense: its arguments are carried by the systems, not the narrative. The test is simple. Strip the prose, and if play alone still leads you to the proposition, the argument is procedural.
+Solo project (2026-present). The design, the code, the pixel art, and the writing are all mine, built in Godot 4 with isometric pixel art.
 
-**The core claim:** conservation is asymmetric, community-dependent, and partly a losing fight. No amount of competence turns you into a savior.
+---
 
-The rules carry the sub-arguments:
+## Why I Made It
 
-- **Destruction is cheap; repair is dear.** A frailejón takes three or four seasons to mature and seconds to burn, and scarred tiles never fully recover.
-- **Harm runs on a long delay.** Laguna contamination stays invisible until it is nearly irreversible, so you have to act upstream of the damage.
-- **Fortress conservation fails.** Fencing the mountain off without community programs craters support and multiplies threats.
-- **Permitted extraction is the worst threat.** Legal mining cannot be physically stopped, and the probabilistic legal route can still lose.
-- **Climate is a ceiling, not an enemy.** There is no counter for it, only adaptation.
-- **The map remembers.** Damage is partly irreversible, and the end-of-run screen shows what was lost rather than what was scored.
+I wanted to make an argument through play rather than through a script, a game whose *rules* make the case, not its dialogue. The idea (game designers call it procedural rhetoric) is that if you strip away all the words and the way the game plays still convinces you of something, then the argument is built into the system itself.
+
+The core claim I'm building toward: conservation is uneven, depends on the people who live there, and is partly a fight you can't fully win. No amount of skill turns you into a savior.
+
+The rules carry the smaller arguments:
+
+- **Destruction is cheap; repair is expensive.** A frailejón plant takes years to grow and seconds to burn, and scarred land never fully recovers.
+- **Harm is delayed.** Contamination of the mountain lake stays invisible until it's nearly irreversible, so you have to act before the damage shows.
+- **Walling the mountain off doesn't work.** Locking people out instead of working with them destroys your support and multiplies the threats.
+- **The legal threats are as bad, or worse, as the illegal ones.** Licensed mining can't be physically stopped, and even the legal route to fight it can lose.
+- **Climate is a ceiling, not an enemy.** There's no way to beat it, only to adapt.
+- **The land remembers.** Damage is partly permanent, and the end screen shows you what was lost, not a score.
 
 ![Páramo mountain at dusk](Games/Paramo/Small.png)
 *The mountain at dusk: stream, vegetation gradients, and atmospheric fog.*
@@ -385,7 +392,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
 - **Fog-of-war and visibility:** monitoring stations, ranger patrols, and directional audio cues
 - **Two interaction tiers:** field presence (planting, firefighting) and station management (legal action, hiring, strategy)
 
-*Work in progress (2025–present), targeting a vertical-slice release: one handcrafted mountain, 10 seasons, the core threat and tool sets, and the full resource loop.*
+*Work in progress (2026-present), targeting a vertical-slice release: procedural levels with a different mountain every playthrough, the core threat and tool sets, and the full resource loop.*
 
 ---
 
@@ -399,34 +406,39 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
     // GAMES) would read "GAME" — wrong register for a memory artifact.
     kindLabel: 'ARTIFACT',
     title: 'Scars of Violence',
-    summary: 'A browser-based map of Colombia that renders seven decades of the armed conflict’s documented violence as wounds that heal into permanent scars. A digital-humanities artifact built with Svelte and MapLibre GL.',
-    description: 'An interactive, browser-based map of Colombia that renders the documented violence of the armed conflict (1958–present) as wounds on the territory that heal into permanent scars. A digital-humanities artifact built on the case-by-case archive of the Centro Nacional de Memoria Histórica (CNMH), in Svelte and MapLibre GL. Solo project, 2026.',
+    description: 'Scars of Violence is an interactive map of Colombia that I designed, built, and sourced all the data for, charting seventy years of the country\'s armed conflict.',
     links: [
       { label: 'Explore', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
     ],
     page: `
 ## About the Project
 
-An interactive, browser-based map of Colombia that renders the documented violence of the country's armed conflict (1958–present) as **wounds on the territory that heal into permanent scars**. The marks are drawn from the case-by-case record compiled by the **Centro Nacional de Memoria Histórica** (CNMH) in its SIEVCAC archive.
-
-**Solo project (2026):** concept, design, code, and data processing are all mine, built on the CNMH's published archive.
+An interactive, browser-based map of Colombia that shows the documented violence of the country\'s armed conflict (1958-present) as **wounds on the land that heal into permanent scars**. Every mark is drawn from the case-by-case record compiled by Colombia's **Centro Nacional de Memoria Histórica** (CNMH), the national body tasked with documenting the conflict.
 
 Time is the central dimension. As the timeline plays from 1958 to the present:
 
-- Each documented event appears **on its exact date**, as a wound at the place it occurred. Its visual extent is proportional to the number of victims — nothing is sized by interpretation or emphasis.
-- The wound flares while fresh, then fades over roughly three years, leaving a **permanent scar** that never disappears. By the end of playback the map is not empty: it is covered in seven decades of accumulated marks.
-- Blood-like tendrils spread from each wound across the surrounding territory, their density tracking victim counts, settling into thin, dark, permanent traces.
-- Clicking a scar opens the documented record behind it — modality, date, place, and a demographic portrait of the victims, with its source citation.
+- Each documented event appears on its exact date, as a wound at the place it happened. Its size reflects the number of victims.
+- The wound glows while fresh, then fades over roughly three years, leaving a **permanent scar** that never disappears. By the end the map is not empty, it is covered in seven decades of accumulated marks.
+- Blood-like tendrils spread from each wound across the surrounding land, denser where there were more victims, settling into thin, dark, permanent traces.
+- Clicking a wound or scar opens the record behind it: what happened, when, where, and who the victims were, with its source citation.
 
-The wound-and-scar metaphor is the thesis of the piece: violence is not a sequence of isolated incidents but an injury to territory and population whose marks persist. A massacre in 1997 is still visible in 2026, because it is still present in the country.
+The wound-and-scar metaphor is the heart of the piece: violence is an injury to a territory and its people, not a series of isolated incidents, and its marks persist. A massacre in 1997 is still visible in 2026, because it still persists in the people's collective and individual memory.
+
+---
+
+## My Role
+
+Solo project (2026). The concept, the design, the code, and all the data processing are mine. The underlying records come from the CNMH's published archive; turning that archive into a living, navigable map is my work.
 
 ---
 
 ## Why I Made It
 
-**Rutas del Conflicto** (rutasdelconflicto.com) is the direct inspiration. Their navigable, place-by-place archive of the conflict's massacres showed me that memory work could take the form of a map rather than a linear narrative. This piece keeps their core gesture — geography as the way into the conflict — while experimenting with a more visceral visual register: animation, accumulation, the wound-and-scar metaphor, to test whether the territory's marking can be *felt* as well as consulted. It is an homage and an experiment on top of their idea, not a correction of it.
+**Rutas del Conflicto** (rutasdelconflicto.com) is the direct inspiration. Their navigable, place-by-place archive of the conflict's massacres showed me that memory work could take the form of a map rather than a linear narrative. This piece keeps their core gesture (geography as the way into the conflict) while experimenting with a more visceral visual register: animation, accumulation, the wound-and-scar metaphor, to test whether the territory's marking can be *felt* as well as consulted. It is an homage and an experiment on top of their idea, not a correction of it.
 
-The conflict's toll is usually communicated as aggregate numbers, and aggregates anaesthetise. The hypothesis is that a spatial-temporal rendering can do what a table cannot: convey that the violence had a *shape* — that it concentrated in specific regions, moved across the country in waves, and left wounds that are both spatial and temporal, and still visible decades later.
+Something Rutas does especially well is the rigorous verification and narrative breakdown behind each event: a documented account of what happened, to whom, and how. That detail is what humanises the record and gives it emotional weight, more than any coordinate or victim count can. I couldn't find reliable breakdowns like that for most of the acts shown here, so for now most marks carry only their structured record. I'm writing those narratives in for some of the events, and raising that narrative impact little by little.
+
+The conflict's toll is usually communicated as aggregate numbers, and aggregates anaesthetise. The hypothesis is that a spatial-temporal rendering can do what a table cannot: convey that the violence had a *shape*: that it concentrated in specific regions, moved across the country in waves, and left wounds that are both spatial and temporal, and still visible decades later.
 
 The second motivation is the **CNMH** itself. Its patient, rigorous, case-by-case documentation of the conflict in SIEVCAC is one of the most important memory undertakings in the country, and it deserves to be seen by more than researchers who can parse a CSV. This project puts interactive data visualisation at the service of an archive that already exists, rather than making a new claim about the conflict.
 
@@ -438,7 +450,7 @@ Because the archive records real victims, the design carries non-negotiable cons
 
 - **Fidelity over drama.** Every mark corresponds to a documented case with a citation back to its source record. Missing values stay missing and are disclosed; the emotional force must come from the truth of the data, not embellishment of it. No coordinate, date, or victim count is ever estimated, interpolated, or fabricated.
 - **Interpretation is labeled.** The wound metaphor is an authored reading, and the interface says so. The viewer can always reach the underlying record.
-- **Dignity.** The archive is published for memory, research, and education. The aesthetic aims for gravity — a dark cartographic register, not spectacle.
+- **Dignity.** The archive is published for memory, research, and education. The aesthetic aims for gravity, a dark cartographic register, not spectacle.
 
 ---
 
@@ -457,10 +469,37 @@ Because the archive records real victims, the design carries non-negotiable cons
       background: 'transparent',
     },
     title: 'The Matrix',
-    description: 'A 2D platformer vertical slice showcasing CRT shaderwork and pixel art movement. Built in Unity.',
+    description: 'The Matrix is a short, playable 2D platformer demo I built on my own in Unity, styled after the look of an old CRT television.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/the-matrix-vertical-slice/' },
     ],
+    page: `
+## About the Project
+
+A short, playable slice of a 2D platformer set in the world of *The Matrix*: you run and jump as Neo through a side-scrolling level, the whole screen dressed in the glow and scanlines of an old CRT television.
+
+Built as an exercise in pixel art and post-processing effects.
+
+---
+
+## My Role
+
+Built on my own in **Unity**:
+
+- A custom **CRT screen shader** that gives the whole game the look of an old television: scanlines, glow, and curved glass
+- **Pixel-art character animation**, driven by hand-made sprite sheets in Aseprite.
+- The platformer movement and the level itself
+
+---
+
+## Why I Made It
+
+A focused study in two things I wanted to get right: a convincing CRT screen effect and crisp pixel-art movement, wrapped in something small and actually playable rather than a still image.
+
+---
+
+[Play|website](https://tomascorreag.github.io/the-matrix-vertical-slice/)
+`,
   },
 ];
 
@@ -479,208 +518,363 @@ export const CATEGORIES = {
     //   title: 'Crystal', description: '...', type: 'splat',
     //   splat: { file: 'crystal.spz' } },
     {
-      id: 'fabric', src: '3d-assets/fabricThumb.png', alt: 'Procedural fabric weave material', cols: 4, rows: 2,
-      title: 'Procedural Fabric Material',
-      description: 'A fully parametric weave material for Blender. One node group exposes the weave pattern, scale, colour, and wear, so it scales from a tight basket to a loose knit while staying physically believable.',
-      gallery: [
-        '3d-assets/fabric_details/detail1-min.png',
-        '3d-assets/fabric_details/detail2-min.png',
-        '3d-assets/fabric_details/detail4-min.png',
-        '3d-assets/fabric_details/detail5-min.png',
-      ],
+      id: 'flesh', src: '3d-assets/fleshThumb.png', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
+      title: 'Procedural Raw Flesh Material',
+      description: 'A raw-flesh material I built and sell for Blender, realistic living tissue with full control over its look.',
+      page: `
+## About
+
+![Raw flesh material: wet, fresh tissue](3d-assets/flesh_details/var1_comp.png){right}
+
+Realistic raw, living tissue with fine control over colour, wetness, and surface detail. Surface wetness, colour, and subsurface depth are all art-directable. It is one of my commercial materials and a consistent best-seller, with over 1,000 sales on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
+
+[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+
+---
+
+## My Role
+
+Designed and built entirely by me in **Blender (Cycles)**. I also package and sell it.
+
+---
+
+## Why I Made It
+
+I built it as a product: a fully parametric organic-tissue material other artists can buy and reuse. I also use it in my own work, for example it can be seen in *Ardo*, in the **3D Art** section.
+
+![Flesh material variation](3d-assets/flesh_details/var2_comp.png)
+![Flesh material variation](3d-assets/flesh_details/var3_comp.png)
+
+![Flesh material variation](3d-assets/flesh_details/var4_comp.png)
+![Flesh material variation](3d-assets/flesh_details/var5_comp.png)
+`,
     },
     {
       id: 'ice', src: '3d-assets/iceThumb.png', alt: 'Procedural ice in a glass', cols: 4, rows: 2,
       title: 'Procedural Ice',
-      description: 'A procedural setup for building any kind of ice in Blender (Cycles), combining Geometry Nodes, the shader graph, and volumetric shading. Shown here in a glass with a drink, one of many possible variations.',
-      gallery: [
-        '3d-assets/ice_details/Glass_Var1.png',
-        '3d-assets/ice_details/Glass_Var2.png',
-        '3d-assets/ice_details/Glass_Var3.png',
-        '3d-assets/ice_details/AllVars.png',
-      ],
+      description: 'A reusable Blender setup I built for creating almost any kind of ice, shown here as cubes in a glass with a drink.',
+      page: `
+## About
+
+![The full range of ice the setup can produce](3d-assets/ice_details/AllVars.png){right}
+*One setup, many possible variations*
+
+One setup that can produce a wide range of ice: different shapes, clarity, and surface looks. The version shown here, classic ice in a glass with a drink, is just one of many.
+
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
+
+[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+
+---
+
+## My Role
+
+Built entirely by me in **Blender**, combining geometry generation (Geometry Nodes), surface/volume shading, and the way light scatters inside the ice (volumetric shading).
+
+![Glass variation](3d-assets/ice_details/Glass_Var2.png)
+![Glass variation](3d-assets/ice_details/Glass_Var3.png)
+
+---
+
+## Why I Made It
+
+I built it for my own personal and commercial projects: a flexible, reusable tool for ice of any shape or clarity, rather than something rebuilt from scratch each time. Once it was general enough to reuse across my own work, it also became one of the products I sell.
+`,
     },
     {
       id: 'toon', src: '3d-assets/toonThumb.webm', alt: 'Stylised toon shader render', cols: 4, rows: 2,
       title: 'Stylised Toon Shader',
-      description: 'A Blender EEVEE shader that emulates an illustrated look, aiming in the direction of Moebius-style renders. A non-photorealistic study in ramp shading and line work.',
-      gallery: [
-        '3d-assets/toon_details/toonHead.mp4',
-      ],
+      description: 'A Blender shader I built that makes 3D models look hand-illustrated rather than photo-real, using the style of Moebius as a reference.',
+      page: `
+## About
+
+Applied to a 3D model, the shader replaces realistic shading with flat bands of light and clean outlines, so renders read as drawings rather than photographs, pushed toward an illustrated, Moebius-like look.
+
+![A head turntable showing the toon shader in motion](3d-assets/toon_details/toonHead.mp4)
+*Flat light bands and clean outlines hold up under animation*
+
+---
+
+## My Role
+
+Built entirely by me in **Blender (EEVEE)**, a non-photorealistic shader using ramp shading and line work.
+
+---
+
+## Why I Made It
+
+A study in non-photorealistic rendering: getting 3D to read as a drawing, and learning the techniques behind a stylised, illustrated look I admire.
+`,
     },
     {
       id: 'eyes', src: '3d-assets/eyeThumb.png', alt: 'Procedural rigged eye', cols: 2, rows: 2,
       title: 'Procedural Eyes',
-      description: 'An anatomically detailed procedural eye. The iris pattern, sclera veins, and cornea wetness are all generated without a single texture. Fully parametric (vein density, iris and sclera colour, and more) and rigged for animation from the start, pupil dilation included.',
-      gallery: [
-        '3d-assets/eye_details/var2.png',
-        '3d-assets/eye_details/var3.png',
-        '3d-assets/eye_details/var4.png',
-        '3d-assets/eye_details/var5.png',
-        '3d-assets/eye_details/allVars.png',
-      ],
+      description: 'A detailed, anatomically accurate eye I built in Blender, generated procedurally, fully adjustable, and rigged to animate.',
+      page: `
+## About
+
+![A procedural eye: iris pattern and sclera veining](3d-assets/eye_details/var2.png){right}
+
+Every part of the eye's look (the iris pattern, the veins in the white, the wet sheen of the cornea) is generated procedurally, without a single photograph. It's fully adjustable and rigged to animate, pupil dilation included.
+
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
+
+[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+
+---
+
+## My Role
+
+Designed, built, and rigged entirely by me in **Blender**, with controls over vein density, iris and sclera colour, and more.
+
+![Eye variation](3d-assets/eye_details/var3.png)
+![Eye variation](3d-assets/eye_details/var4.png)
+![Eye variation](3d-assets/eye_details/var5.png)
+
+---
+
+## Why I Made It
+
+I built it for my own work, a reusable and fully parametric eye I can drop into any character and tune to fit rather than rebuilding eyes from scratch. It's used in my piece *Ardo*, in the **3D Art** section. Once it was that reusable, it became something worth packaging and selling too.
+
+![The full range of eyes the setup can generate](3d-assets/eye_details/allVars.png)
+*Every iris, colour, and vein pattern is procedurally generated*
+`,
     },
     {
-      id: 'flesh', src: '3d-assets/fleshThumb.png', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
-      title: 'Procedural Raw Flesh Material',
-      description: 'A fully parametric organic flesh material for Blender (Cycles), with fine-grained controls over colour, wetness, and detail. Sold on Superhive (Blender Market) with 1,000+ sales.',
-      gallery: [
-        '3d-assets/flesh_details/var1_comp.png',
-        '3d-assets/flesh_details/var2_comp.png',
-        '3d-assets/flesh_details/var3_comp.png',
-        '3d-assets/flesh_details/var4_comp.png',
-        '3d-assets/flesh_details/var5_comp.png',
-      ],
+      id: 'fabric', src: '3d-assets/fabricThumb.png', alt: 'Procedural fabric weave material', cols: 4, rows: 2,
+      title: 'Procedural Fabric Material',
+      description: 'A reusable fabric material I built in Blender that can become almost any woven cloth.',
+      page: `
+## About
+
+![A close-up of the woven fabric material](3d-assets/fabric_details/detail1-min.png){right}
+
+One material that spans a huge range of woven cloth: a few controls take it from a broad basket-weave to a tight cloth knit, and it stays physically believable throughout.
+
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
+
+[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+
+---
+
+## My Role
+
+Designed and built entirely by me in **Blender**, driven by a single node group that exposes the weave pattern, scale, colour, and wear.
+
+![Fabric weave variation](3d-assets/fabric_details/detail2-min.png)
+![Fabric weave variation](3d-assets/fabric_details/detail4-min.png)
+
+---
+
+## Why I Made It
+
+I built it for my own personal and commercial projects as a single fully parametric tool, so any woven fabric can be dialled in instead of being modelled or textured from scratch each time. It's used in some of those projects, such as *Another Day at the Office*. That same generality is what let me turn it into one of my products.
+
+![A final fabric weave variation](3d-assets/fabric_details/detail5-min.png){left}
+
+A single node group exposes the weave pattern, scale, colour, and wear, so the same material covers everything from coarse upholstery to fine garment cloth.
+`,
     },
     {
       id: 'paint', src: '3d-assets/paintThumb.png', alt: 'Procedural brushstroke painting material', cols: 4, rows: 2,
       title: 'Brushstroke Painting Material',
-      description: 'A procedural oil-paint shader for Blender. It takes any image as input and renders it as if painted onto canvas with broad brushstrokes, impasto thickness driven by the source image.',
-      gallery: [
-        '3d-assets/paint_details/im2.png',
-        '3d-assets/paint_details/im5.png',
-      ],
+      description: 'A Blender shader I built that turns any image into an oil painting of broad brushstrokes on canvas.',
+      page: `
+## About
+
+Feed it any image and it re-renders the picture as if painted onto canvas with broad strokes, with the paint visibly thicker where the source is brighter.
+
+![Broad brushstrokes on canvas](3d-assets/paint_details/im2.png)
+![Another image through the painting shader](3d-assets/paint_details/im5.png)
+*The same shader applied to two different source images: impasto thickness follows each one's brightness*
+
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
+
+[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+
+---
+
+## My Role
+
+Built entirely by me in **Blender**, with the brushstroke thickness (the impasto) driven procedurally by the brightness of the source image.
+
+---
+
+## Why I Made It
+
+I built it for my own personal and commercial projects, a reusable shader that turns any image into something reading as a real, physical painting automatically. It started as a study in that effect, and once it was general enough to reuse, it also became a product, not just a study.
+`,
     },
   ],
   '3D Art': [
     {
       id: 'alt-realities', src: '3d-art/thumb1.mp4', alt: 'Forest clearing with a worker and floating debris', cols: 4, rows: 2,
       title: 'Another Day at the Office',
-      description: 'An early piece, submitted to Pwnisher\'s 2021 "Alternate Realities" challenge, with the required circle carved out of the negative space in the upper right. Everything but the character animation is mine: modelling, texturing, shading, particles, boids, and cloth, all built in Blender.',
+      description: 'An early 3D scene I made in Blender for a 2021 community art challenge, with everything but the character\'s walk built by me.',
       page: `
-An early piece, submitted to Pwnisher's **"Alternate Realities" challenge** (2021). Entries had to work a circle into the frame; here it reads as **negative space** in the upper-right corner rather than a literal object.
+## About the Piece
+
+A short scene made for Pwnisher's *Alternate Realities* challenge (2021): a plague doctor in a forest clearing, dragging another body to add to the pile. Contestants were given the motion-capture animation and the general composition: every entry had to work a circle into the upper-right corner of the frame. Here it reads as **negative space** rather than a literal object.
 
 ---
 
-## What I Made
+## My Role
 
-Everything in the shot but the character's walk is mine:
+I made everything but the character's walk animation and camera settings, built and rendered entirely in **Blender**:
 
-- **Modelling, texturing, and shading** of the full environment
-- **Particle emitters** scattering the forest and grass field
-- **Boid simulation** driving the swarm of flies
+- **Modelling, texturing, and lighting** of the full environment, characters, and objects
+- **Scattered detail**: the forest trees and the grass field
 - **Cloth simulation** for the clothing and the tarp
+- **A swarm of flies** driven by a flocking (boid) simulation
+- **Scene lighting and post-processing**, including multi-layered renders, compositing of additional elements like the lens flare, etc.
 
-Built and rendered in **Blender**.
+---
+
+## Why I Made It
+
+It's one of my early pieces, and much of what I learned about building a full scene start to finish (environment, simulations, lighting) came out of making it. I used many of these kinds of challenges to grow as an artist.
 `,
     },
     {
       id: 'ardo', src: '3d-art/thumb2.png', alt: 'Character screaming as he burns in a nighttime wildfire', cols: 2, rows: 2, title: 'Ardo.',
-      description: 'A character burns alive in a nighttime wildfire, screaming. Conceived to give form to deep rage and despair. Built end-to-end in Blender on my own parametric Eyes and Flesh assets.',
+      description: 'A personal 3D piece I made entirely in Blender, picturing a man burning alive in a night-time fire.',
       page: `
-*Ardo* (2024) means *I burn* in Spanish, and the piece takes the title at its word. It was conceived in a period of deep rage and despair, and made with one intent: to give that state a body, so it could exist somewhere outside of me.
+## About the Piece
+
+*Ardo.* (2024) means *I burn* in Spanish, and the image takes the title at its word: a man burns alive in a forest fire at night, the frame held close on his head as he screams. What carries it is the contrast between the figure and the night around him: the fire violent and immediate, the dark forest sky behind it still and completely indifferent.
 
 ---
 
-## The Expression
+## My Role
 
-A man burns alive in the middle of a forest wildfire at night. The frame stays close on his head as he screams, skin and flesh igniting. There is no story around it and no second read intended. This is what that period felt like from the inside, and I wanted the image to be as direct as the feeling was.
+Built end-to-end on my own in **Blender**, including two of my own custom assets (both in the **3D Tech** section).
 
-The contrast that carries the piece is between the figure and the night around him. The fire is violent and immediate; the forest behind it is still, dark, and completely indifferent. Rage is loud, but despair is the part where the world around you doesn't react. Both had to be in the same frame.
-
-Making it was the way through. By the time the piece was finished, the feeling had somewhere to live that wasn't me.
-
----
-
-## Process
-
-I sculpted the head from scratch, iterating on it over about a month. The screaming expression took most of those passes; a face that extreme collapses into caricature very easily, and it had to stay believable for the image to hurt.
-
-The lighting was the hardest part. Fire wants to dominate every frame it appears in, and I wanted the atmospheric stillness of the night to survive next to it. Most of the lighting work went into holding that balance, letting the chaos of the flames and the calm of the dark coexist without one flattening the other.
-
----
-
-## Custom Assets
+I sculpted the head from scratch. The screaming expression took most of the passes. A face that extreme slips into caricature very easily, and it had to stay believable for the image to land. Another important focus was on the lighting and post-processing: fire wants to dominate every frame it's in, and I wanted the stillness of the night to survive beside it, so the intensity of the flames and the calm of the dark could share one frame without either flattening the other. I created some of my procedural assets for this piece, including the material for the burning flesh and the parametric assets for the eyes.
 
 ![Procedural Flesh material](3d-assets/flesh_details/var1_comp.png){right}
-The surface shading is driven by two of my own parametric assets, both available in the **3D Tech** section.
+*Flesh: a fully parametric skin-and-tissue material.*
 
-*Flesh: a fully parametric organic material.*
-
-The **Flesh** material handles the raw, living tissue: subsurface warmth, wetness, and pore-level detail, all procedural and tunable without textures.
-
----
+The skin is driven by my **Flesh** material, raw, living tissue with warmth, wetness, and pore-level detail, all built procedurally rather than from photographs.
 
 ![Procedural Eyes](3d-assets/eye_details/var2.png){left}
 *Eyes: anatomically detailed and rigged.*
 
-The **Eyes** are anatomically detailed and rigged, with iris pattern, sclera veins, and cornea wetness generated without a single texture map.
+The **Eyes** are anatomically detailed and rigged, their pattern and detail generated without a single image texture.
+
+---
+
+## Why I Made It
+
+I made it during a period of intense rage and despair, with one intent: to give that state a body, so it could exist somewhere outside of me. There's no story around it and no second meaning intended. It's what that period felt like from the inside, made as direct as the feeling was. Rage is loud, but despair is the part where the world around you doesn't react; by the time it was finished, the feeling had somewhere to live that wasn't me.
 `,
     },
     {
       id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armour', cols: 2, rows: 4, title: 'Menpō (面頬)',
-      description: 'A modelling and hard-surface study of a Japanese menpō (samurai facial armour), focused on facial anatomy and shading. Built end-to-end in Blender.',
+      description: 'A 3D modelling study I made end-to-end in Blender of a Japanese menpō, the half-face armour worn beneath a samurai helmet.',
       page: `
-*Menpō* (2021) is a modelling exercise built around a Japanese **menpō**, the half-face armour worn beneath a samurai helmet. The draw was the face itself: studying its anatomy and translating it into hard, forged metal.
+## About the Piece
+
+A *menpō* (2021) is the half-face armour samurai wore beneath the helmet. This study recreates one covered in lacquered leather, with the focus on the facial anatomy underneath the mask. It was one of my first attempts at sculpting a face.
 
 ---
 
-## Focus
+## My Role
 
-- **Facial anatomy:** getting the underlying structure right so the mask reads as a face, not just a shape
-- **Hard-surface shading:** worn, hammered metal with believable wear and specular break-up
-- **Composition:** framing and lighting that give the piece presence
+Modelled, shaded, lit, and composed entirely by me in **Blender**. The work focused on three things:
 
-Built end-to-end in **Blender**.
+- **Facial anatomy**: getting the underlying structure right so the mask reads as a face, not just a shape
+- **Hard-surface shading**: worn, hammered metal with believable wear and highlights
+- **Composition**: framing and lighting that give the piece presence
+
+---
+
+## Why I Made It
+
+The draw was the face itself: studying its anatomy and translating it into hard, forged metal. It's a study, made to get better at both halves of that problem.
 `,
     },
     {
       id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.png', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro',
-      description: 'An homage to the band Burning Caravan and their album *Ciudad Faro*, rebuilding the cover composition in 3D. A study in modelling whales and their skeletons, the lighthouse, and volumetric lighting. Built end-to-end in Blender.',
+      description: 'A 3D piece I made end-to-end in Blender, rebuilding the cover painting of Burning Caravan\'s album *Ciudad Faro* as a three-dimensional scene.',
       page: `
-*Ciudad Faro* (2022) is a tribute to **Burning Caravan**, a band whose work I love, rebuilding the composition of their album cover of the same name as a 3D scene.
+## About the Piece
+
+*Ciudad Faro* (2022) rebuilds the album cover of the same name by **Burning Caravan**, a Colombian band I love, as a dimensional scene: floating whales and their skeletons drifting around a lighthouse, lit volumetrically to echo the mood of the original painting.
 
 ---
 
-## What I Built
+## My Role
 
-Translating a 2D painting into a dimensional scene, made end-to-end:
+Built start to finish on my own in **Blender**:
 
-- **Whales and their skeletons**, the central forms, modelled from scratch
+- **The whales and their skeletons**, the central forms, modelled from scratch
 - **The lighthouse** that anchors the composition
 - **Volumetric lighting** to carry the mood and depth of the original painting
 
-Built end-to-end in **Blender**.
+---
+
+## Why I Made It
+
+It's a tribute to Burning Caravan, whose music I love, and an exercise in translating a flat painting into a scene with real depth and light, taking something I admired and rebuilding it in my own medium.
 `,
     },
     {
       id: 'brain-farm', src: '3d-art/marsThumb.png', alt: 'Fantastical greenhouse on Mars powering a brain', cols: 4, rows: 2, title: 'Brain Farm',
-      description: 'A fantastical greenhouse on Mars, powering a giant brain. Part of an ongoing exploration of brain-themed surrealism, alongside the Brain-City study. A study in particle-scattered environments, built end-to-end in Blender.',
+      description: 'A 3D piece I made end-to-end in Blender, picturing a fantastical greenhouse on Mars that powers a giant brain.',
       // Optional `page` Markdown drives the detail-view body (parsed by parseMarkdown).
       // Same syntax as a GAMES item's `page`: ## headings, paragraphs, --- dividers,
       // - lists, ![alt](path) images (path relative to src/assets/thumbnails/), and
       // [Label|icon](url) link rows. When omitted, the short `description` is shown instead.
       page: `
-A fantastical greenhouse on Mars, powering a giant brain. It is part of an ongoing exploration of brain-themed surrealism and the fantastical settings that frame it.
+## About the Piece
+
+A surreal scene: a fantastical greenhouse on Mars powering a giant brain. It belongs to an ongoing series of mine built around brains and strange worlds that frame them.
 
 ![Brain-City companion study](3d-art/brainCityThumb.png){right}
 *Brain-City, a companion study: a vast city floating in space, powered by a brain (or is it a brain powered by a city?).*
 
-The companion **Brain-City** piece extends the same motif into a sprawling city suspended in space.
+The companion **Brain-City** piece extends the same idea into a sprawling city suspended in space.
 
 ---
 
-## Technique
+## My Role
 
-- Stylised composite rendered end-to-end in **Blender**
+A stylised composite built and rendered start to finish by me in **Blender**:
+
+- **Modelling and shading** the brain, structures, and character
 - **Particle systems** scattering the rocks across the Martian surface
-- Volumetric atmosphere graded in post
+- **Volumetric atmosphere** graded in post
+
+---
+
+## Why I Made It
+
+It's part of an ongoing personal exploration of brain-themed surrealism, a motif I keep returning to and reframing in different worlds.
 `,
     },
     {
       id: 'ascension', src: '3d-art/ascensionThumb.png', alt: 'Abstract volumetric light and particles', cols: 2, rows: 2, title: 'Ascension V',
-      description: 'Inspired by Moebius\' piece *Ascension*. An abstract study in volumetric lighting and particle simulation, built end-to-end in Blender.',
+      description: 'An abstract 3D piece I made end-to-end in Blender, drawn from *Ascension* by the artist Moebius.',
       page: `
-*Ascension V* (2025) is drawn from **Moebius'** piece *Ascension*. Moebius is a long-standing influence on my work, and this is an abstract study in his direction.
+## About the Piece
+
+*Ascension V* (2025) is an abstract study drawn from **Moebius'** work *Ascension*: glowing volumetric light and drifting humans shaping forms in space.
 
 ---
 
-## Focus
+## My Role
 
-- **Volumetric lighting** as the primary subject
-- **Particle simulation** shaping the forms in space
+Made entirely by me in **Blender**, focused on two things:
 
-Made entirely by me in **Blender**.
+- **Volumetric lighting** as the main subject: light you can see moving through the space
+- **Particle simulation** scattering human shapes to form patterns
+
+---
+
+## Why I Made It
+
+Moebius is a long-standing influence on my work, and this is an abstract study made in his direction, a way of learning from an artist I admire by working in his register. I found this piece particularly evocative and wanted to try to find the same sensation in my own style.
 `,
     },
     {
@@ -689,19 +883,29 @@ Made entirely by me in **Blender**.
       id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí', hasAudio: true,
       kindLabel: 'FILM', // deck-card chip — it's an awarded short film, not a "3D" still
 
-      description: 'A short film I directed and produced on psychoactive-substance use, gender, and sexuality, made to push back against the taboos around them in Colombia. 2nd place (Animation) at the 8th Festival de Cortos Psicoactivos. Made almost entirely by me in Blender (Cycles).',
+      description: '*Frenesí* (2022) is a short animated film I directed, produced, and made entirely on my own (aside from voice acting), about drug use, gender, and sexuality in Colombia.',
       page: `
-*Frenesí* (2022) is a short film I directed and produced about psychoactive-substance use and its ties to gender and sexuality. In Colombia these subjects are mostly discussed in whispers, if at all.
+## About the Piece
+
+A short animated film about psychoactive-substance use and its ties to gender and sexuality, important subjects in Colombia, with taboos that have cost many lives.  
+
+The film won 2nd place in the animation category at the 8th *Festival de Cortos Psicoactivos* (Psychoactive Short Film Festival) in Bogotá.
+
+---
+
+## My Role
+
+I directed and produced the film, and apart from the voice acting, made the whole thing myself in **Blender (Cycles)**: modelling, animation, shading, lighting, rendering, and sound design.
 
 ---
 
 ## Why I Made It
 
-I grew up in a society where drug use, sex, and gender identity are wrapped in taboo, and in Colombia the cost of that taboo is not abstract. It is violence. The drug trade has fed decades of armed conflict, yet the stigma lands hardest on the people who use: criminalised, pushed to the margins, and in the worst cases murdered in so-called social cleansing. Trans and queer Colombians are harassed and killed for being visible. None of this is prevented by the silence around these subjects. The silence is what lets it continue.
+I grew up in a society where drug use, sex, and gender identity are wrapped in taboo, and in Colombia the cost of that taboo is not abstract. It is violence. The drug trade has fed decades of armed conflict, yet the stigma often lands hardest on the people who use: discriminated against, pushed to the margins, and in the worst cases attacked in so-called social cleansing. Trans and queer Colombians are harassed and killed for being visible. None of this is prevented by the silence around these subjects. The silence is what lets it continue.
 
 Taboo also does its quieter damage. When something can't be discussed openly, people can't ask questions or get accurate information, and seeking help comes with shame attached. Stigma doesn't stop drug use and it doesn't make anyone's identity disappear. It pushes both into the dark, where the harm compounds.
 
-Breaking a taboo is not the same as promoting what it hides. People are going to use substances, have sex, and live across the spectrum of gender whether we talk about it or not. Talking about it honestly is what makes those realities safer and the people living them less alone. That principle is the core of harm reduction, and it is the reason this film exists.
+Breaking a taboo is not the same as promoting what it hides. People are going to use substances, have sex, and live across the spectrum of gender whether we talk about it or not. Talking about it honestly is what makes those realities safer and the people living them less alone. That principle is at the core of harm reduction, and it is the reason this film exists.
 
 *Frenesí* treats these subjects as ordinary parts of human experience. In a country where saying that out loud is still difficult, that **was worth making**.
 
@@ -710,48 +914,57 @@ Breaking a taboo is not the same as promoting what it hides. People are going to
 ## Recognition
 
 **2nd place, Animation category** at the 8th *Festival de Cortos Psicoactivos* (Psychoactive Short Film Festival), out of hundreds of submissions. The festival is run by **Échele Cabeza**, a Colombian harm-reduction NGO.
-
----
-
-## Craft
-
-Apart from the voice acting, the film was made entirely by me in **Blender (Cycles)**: modelling, animation, shading, lighting, rendering, sound design.
 `,
     },
     {
       id: 'bioshock', src: '3d-art/bioshockThumb.webm', alt: 'Recreated BioShock hallway', cols: 2, rows: 2, title: 'Bioshock Hallway',
-      description: 'A recreation of a hallway from the original *BioShock*, and a study in modelling, materials, and composition. Built in Blender, where every asset is mine except the vending-machine texture.',
+      description: 'A 3D recreation of a corridor from the video game *BioShock*, built end-to-end in Blender.',
       page: `
-*Bioshock Hallway* (2023) recreates a corridor from the original **BioShock**, a franchise I love and one whose art direction I wanted to explore firsthand.
+## About the Piece
+
+A recreation of a corridor from the original *BioShock* (2023), a study in modelling, materials, and composition that captures the game's period look and claustrophobic mood.
 
 ---
 
-## What I Built
+## My Role
 
-A study in modelling, materials, and composition:
+Built end-to-end in **Blender**:
 
-- Every asset modelled, textured, and shaded by me, **except the vending-machine texture**
-- Period materials: worn brass, cracked tile, water-stained surfaces
+- Every asset modelled, textured, and shaded by me, except for the vending-machine texture image.
+- Period materials: worn brass, mouldy wallpaper, water-stained surfaces
 - Lighting and framing tuned to the game's claustrophobic mood
 
-Built end-to-end in **Blender**.
+---
+
+## Why I Made It
+
+*BioShock* is a game I love, and its art direction is some of the most distinctive I know. I wanted to explore it firsthand, to understand how that world is built by rebuilding a piece of it myself.
 `,
     },
     {
       id: 'rebel-chase', src: '3d-art/starWarsChaseThumb.webm', alt: 'X-Wing chasing a TIE Fighter', cols: 2, rows: 2, title: 'Rebel Dogfight',
-      description: 'A Star Wars scene: an X-Wing chasing down a TIE Fighter. An exploration of action-camera animation, environment design, and explosion VFX. Built in Blender; the X-Wing model was sourced online.',
+      description: 'A Star Wars-inspired 3D scene I made in Blender, of an X-Wing chasing down a TIE Fighter.',
       page: `
-*Rebel Dogfight* is a Star Wars-inspired chase: an **X-Wing** running down a **TIE Fighter**.
+## About the Piece
+
+A short cinematic shot in the Star Wars vein: an **X-Wing** running down a **TIE Fighter** through space, built around a fast, readable action-camera chase and an explosion finish.
 
 ---
 
-## Focus
+## My Role
 
-- **Action-camera animation:** choreographing a fast, readable dogfight
+Made in **Blender** in 2022. The X-Wing model was sourced online; everything else is mine:
+
+- **Action-camera animation**: choreographing a fast, readable dogfight
 - **Environment design** for the surrounding space
-- **Explosion VFX**
+- **TIE Fighter modelling**
+- **Explosion VFX**, simulated using Blender's built-in fluid dynamics.
 
-Made in **Blender**. The X-Wing model was sourced online; everything else is mine.
+---
+
+## Why I Made It
+
+I wanted to push myself on motion, framing, and timing. Animating a fast, readable dogfight is a different problem from a still image, and this was the piece where I went after it.
 `,
     },
   ],

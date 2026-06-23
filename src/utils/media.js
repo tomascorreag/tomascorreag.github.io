@@ -11,11 +11,15 @@ import { getSaveData } from '../config/device.js';
  * manager pauses media that leaves the viewport (or the tab) and resumes it
  * on re-entry.
  *
- * Chrome supports IntersectionObserver v2 (trackVisibility), which also
- * reports false when an element is covered or at opacity:0 — exactly what
- * happens to mosaic videos behind an open detail view. Other browsers fall
- * back to plain intersection (no regression vs. the old always-playing
- * behavior), plus the explicit pauseManagedVideos() hooks below.
+ * We use a PLAIN IntersectionObserver (v1) — viewport intersection only. The
+ * v2 trackVisibility mode was tried and removed: it reports an element as not
+ * visible whenever a CSS filter/transform "distorts" it, which includes the
+ * brightness(1.2) the mosaic applies to a video on hover — so hovering a video
+ * paused it. v2's only real benefit (detecting a video covered by an open
+ * detail view) is already handled explicitly by the pauseManagedVideos() hooks
+ * below, called on detail open/close/navigate; tab-hidden is handled by the
+ * visibilitychange hook. So v1 + those hooks cover every case with no way for a
+ * hover effect to ever pause a visible video.
  *
  * Play/pause ownership rules:
  *   - The manager only resumes videos IT paused (pausedByManager), never a
@@ -39,21 +43,14 @@ function ensureObserver() {
     for (const entry of entries) {
       const h = managedHandlers.get(entry.target);
       if (!h) continue;
-      // isVisible is IO-v2 (Chrome only): false when covered/opacity:0.
-      // Elsewhere it's undefined → use plain intersection.
-      h.lastVisible = entry.isVisible ?? entry.isIntersecting;
+      // Plain viewport intersection — blind to CSS filters/transforms, so a
+      // hover brightness can never flip this to paused.
+      h.lastVisible = entry.isIntersecting;
       if (h.lastVisible) h.onEnter(); else h.onExit();
     }
   };
 
-  try {
-    // trackVisibility requires delay ≥ 100; throws on Chrome if omitted.
-    mediaObserver = new IntersectionObserver(onEntries, {
-      threshold: 0.05, trackVisibility: true, delay: 200,
-    });
-  } catch {
-    mediaObserver = new IntersectionObserver(onEntries, { threshold: 0.05 });
-  }
+  mediaObserver = new IntersectionObserver(onEntries, { threshold: 0.05 });
 
   if (!visibilityHooked) {
     visibilityHooked = true;

@@ -12,6 +12,7 @@
 // mobile.js): index.html only blocks on the small shared base.css, and the
 // ~70KB desktop sheet downloads in parallel with this module — never on
 // mobile, where this chunk is never imported.
+import './article.css'; // shared markdown styles (also used by deck + mobile)
 import './style.css';
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js';
@@ -761,7 +762,7 @@ async function renderGames() {
     h2.textContent = game.title;
     info.appendChild(h2);
 
-    const cardText = game.summary || game.description;
+    const cardText = game.description;
     if (cardText) {
       const p = document.createElement('p');
       p.innerHTML = applyInline(cardText);
@@ -1575,53 +1576,6 @@ function exitDetailFullscreen() {
 }
 
 /**
- * Swaps the main detail media with a crossfade.
- * Destroys any active splat viewer before swapping.
- *
- * Takes a relative path (not a URL) so it can rebuild the full <picture>
- * / <video> fallback chain — setting .src on an <img> inside a <picture>
- * is ignored whenever a <source> above it can decode.
- *
- * @param {string} newRelPath - Relative thumbnail path (matches item.src format)
- * @param {HTMLElement} clickedThumb - The gallery thumb that was clicked
- */
-function swapDetailImage(newRelPath, clickedThumb) {
-  if (!activeDetail) return;
-  if (activeDetail.viewer) {
-    destroySplatViewer(activeDetail.viewer);
-    activeDetail.viewer = null;
-  }
-  // The swapped-in media is always a gallery extra (never item.src), so the
-  // controls don't come back until the item is reopened or navigated to.
-  activeDetail.videoControls?.destroy();
-  activeDetail.videoControls = null;
-
-  // `oldMedia` is the <picture> or <video> (the direct child of .mosaic-item).
-  // querySelector('img, video') would find the inner <img> and we'd need to
-  // walk up; selecting picture|video directly is cleaner.
-  const oldMedia = activeDetail.el.querySelector(':scope > picture, :scope > video');
-  if (!oldMedia) return;
-
-  const newMedia = createMediaElement(newRelPath, { alt: '', lazy: false, sizes: '60vw' });
-  if (!newMedia) return;
-
-  oldMedia.style.transition = 'opacity 150ms ease';
-  oldMedia.style.opacity = '0';
-  oldMedia.addEventListener('transitionend', () => {
-    // Replace element wholesale so <source> variants update, not just .src.
-    oldMedia.replaceWith(newMedia);
-    // Starting state for fade-in on the new element
-    newMedia.style.opacity = '0';
-    newMedia.style.transition = 'opacity 150ms ease';
-    requestAnimationFrame(() => { newMedia.style.opacity = ''; });
-    setTimeout(() => { newMedia.style.transition = ''; }, 160);
-  }, { once: true });
-
-  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
-  clickedThumb.classList.add('active');
-}
-
-/**
  * Attaches the fullscreen click handler to the media element inside itemEl.
  * Stores handler + element refs on activeDetail for later cleanup.
  */
@@ -1846,8 +1800,9 @@ function updateDetailNavButtons() {
  */
 /**
  * Renders an item's text body into a detail-info container.
- * Prefers `page` (full Markdown via parseMarkdown); falls back to the short
- * `description` as a single inline-formatted paragraph for un-migrated items.
+ * `description` is the lead paragraph (same text shown on cards/mobile); when a
+ * `page` exists it follows as full Markdown via parseMarkdown. So `page` should
+ * NOT repeat the description — the renderer prepends it here.
  *
  * @param {HTMLElement} container - Where the body is appended (info or text column)
  * @param {Object} itemData - Content data (page, description, ...)
@@ -1856,6 +1811,14 @@ function appendDetailBody(container, itemData) {
   if (itemData.page) {
     const body = document.createElement('div');
     body.className = 'detail-info-body';
+    // Lead paragraph from `description`, so the doc opens with the same intro
+    // shown elsewhere without it being hand-copied into the `page` markdown.
+    if (itemData.description) {
+      const lead = document.createElement('p');
+      lead.className = 'article-description';
+      lead.innerHTML = applyInline(itemData.description);
+      body.appendChild(lead);
+    }
     const fragment = parseMarkdown(itemData.page, {
       // Article figures render inside the ~55vw column (floats are narrower,
       // but sizes only needs an upper bound to beat the 100vw default).
@@ -1903,21 +1866,6 @@ function buildDetailInfo(itemData, layout) {
     }
     appendDetailBody(textCol, itemData);
     info.appendChild(textCol);
-
-    if (itemData.gallery && itemData.gallery.length > 0) {
-      const media = createMediaElement(itemData.gallery[0], { alt: '', lazy: false, sizes: '40vw' });
-      if (media) {
-        const sideImg = document.createElement('div');
-        sideImg.className = 'detail-info-side-image';
-        sideImg.appendChild(media);
-        // Pass the inner <img> (or the element itself if it's a <video>) so
-        // enterGalleryImageFullscreen can read getBoundingClientRect on the
-        // actual rendered pixels, not the transparent <picture> wrapper.
-        const clickTarget = media.querySelector?.('img') || media;
-        sideImg.addEventListener('click', () => enterGalleryImageFullscreen(clickTarget));
-        info.appendChild(sideImg);
-      }
-    }
   } else {
     if (itemData.title) {
       const h2 = document.createElement('h2');
@@ -1925,27 +1873,6 @@ function buildDetailInfo(itemData, layout) {
       info.appendChild(h2);
     }
     appendDetailBody(info, itemData);
-
-    // Gallery strip — shows additional images for items that have them.
-    if (itemData.gallery && itemData.gallery.length > 0) {
-      const galleryEl = document.createElement('div');
-      galleryEl.className = 'detail-gallery';
-
-      itemData.gallery.forEach((extraSrc) => {
-        const media = createMediaElement(extraSrc, { alt: '', sizes: '15vw' });
-        if (!media) return;
-        const thumb = document.createElement('div');
-        thumb.className = 'gallery-thumb';
-        thumb.appendChild(media);
-        // Pass the relative path so swapDetailImage can rebuild the main
-        // media's full variant chain (can't just swap .src — <picture>
-        // <source> children override it, and <video> uses <source> too).
-        thumb.addEventListener('click', () => swapDetailImage(extraSrc, thumb));
-        galleryEl.appendChild(thumb);
-      });
-
-      info.appendChild(galleryEl);
-    }
   }
 
   // Position based on layout — also set height so overflow-y: auto works.

@@ -31,9 +31,11 @@ import { resolvePage } from '../config/portfolio.js';
 // ~14KB of CSS has no business in the render-blocking stylesheet every
 // visitor downloads. Vite extracts this into the PortfolioDeck chunk's CSS
 // and loads it alongside the dynamic import (same pattern as mobile.css).
+import '../article.css'; // shared .article-* markdown styles
 import './portfolio-deck.css';
 import { createMediaElement, createSpritesheetElement } from '../utils/media.js';
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
+import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
 import { deviceTier } from '../config/device.js';
 import { attachVideoControls } from './VideoControls.js';
@@ -237,17 +239,19 @@ function buildDocument(item) {
   }
   page.appendChild(header);
 
-  // ── Body: markdown page, else a gallery of extra stills ──
+  // ── Body: markdown page (with click-to-zoom embedded images) ──
   if (item.page) {
     const body = el('div', { class: 'article-body' });
     body.appendChild(parseMarkdown(item.page, { createMediaElement, iconMap: ICONS }));
-    page.appendChild(body);
-  } else if (item.gallery?.length) {
-    const body = el('div', { class: 'article-body' });
-    for (const src of item.gallery) {
-      const media = createMediaElement(src, { alt: item.title || '', className: 'article-block-image' });
-      if (media) body.appendChild(el('figure', { class: 'article-figure article-reveal' }, media));
-    }
+    // Embedded images are click-to-zoom, mirroring the desktop detail view.
+    // Bind the whole <figure> (floated images wrap text + a caption, so the bare
+    // <img> is an unreliable hit target). Video figures have no <img> → skipped.
+    body.querySelectorAll('.article-figure').forEach((fig) => {
+      const img = fig.querySelector('img');
+      if (!img) return;
+      fig.classList.add('zoomable');
+      fig.addEventListener('click', () => openImageLightbox(img));
+    });
     page.appendChild(body);
   }
 
@@ -262,7 +266,7 @@ function buildDocument(item) {
  */
 function buildCard(entry, indexLabel, onOpen) {
   const { item, kind } = entry;
-  const blurb = item.summary || item.description || '';
+  const blurb = item.description || '';
 
   const media = buildItemMedia(item, { className: 'deck-card-media-el' });
   const mediaBox = el('div', { class: 'deck-card-media' }, media || el('div', { class: 'deck-card-media-fallback' }));

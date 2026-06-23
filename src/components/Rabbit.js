@@ -294,6 +294,25 @@ export class Rabbit extends Sprite {
   }
 
   /**
+   * Hit-test: is the point inside the rabbit's rendered box?
+   * Padding adds a forgiving margin around the sprite edges.
+   * @param {number} clientX
+   * @param {number} clientY
+   * @param {number} padding - extra px added to each side
+   * @returns {boolean}
+   */
+  isPointOnRabbit(clientX, clientY, padding = RABBIT_CONFIG.clickRadius) {
+    if (!this.element) return false;
+    const r = this.element.getBoundingClientRect();
+    return (
+      clientX >= r.left - padding &&
+      clientX <= r.right + padding &&
+      clientY >= r.top - padding &&
+      clientY <= r.bottom + padding
+    );
+  }
+
+  /**
    * Re-reads the rendered rect and caches the bottom-center point.
    * Call whenever the rabbit settles (spawn/drop/jump end) or the
    * viewport resizes.
@@ -417,22 +436,25 @@ export class Rabbit extends Sprite {
       }
     };
 
-    // Click handler — calls onClick callback if set, otherwise glow boost
+    // Click handler — calls onClick callback if set, otherwise glow boost.
+    // Hit-test the rabbit's actual rendered box (not a radius from its feet):
+    // the sprite is ~128×256px, so a small bottom-center radius missed every
+    // click that landed on the visible body. Clicks are rare, so the
+    // getBoundingClientRect layout read here is cheap.
     this.clickHandler = (e) => {
-      if (this.isFrozen) return;
-      const { distance } = this.getDistanceToBottomCenter(e.clientX, e.clientY);
+      if (this.isFrozen || !this.element) return;
+      if (!this.isPointOnRabbit(e.clientX, e.clientY)) return;
 
-      if (distance < RABBIT_CONFIG.clickRadius) {
-        if (this.onClickCallback) {
-          this.onClickCallback();
-          return;
-        }
-        this.permanentGlowBonus = Math.min(
-          this.permanentGlowBonus + RABBIT_CONFIG.glowBoostPerClick,
-          RABBIT_CONFIG.maxPermanentGlow
-        );
-        this.updateGlow(distance);
+      if (this.onClickCallback) {
+        this.onClickCallback();
+        return;
       }
+      const { distance } = this.getDistanceToBottomCenter(e.clientX, e.clientY);
+      this.permanentGlowBonus = Math.min(
+        this.permanentGlowBonus + RABBIT_CONFIG.glowBoostPerClick,
+        RABBIT_CONFIG.maxPermanentGlow
+      );
+      this.updateGlow(distance);
     };
 
     this.addEventListener(document, 'mousemove', this.mouseHandler);

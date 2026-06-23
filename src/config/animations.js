@@ -41,7 +41,7 @@ export const RABBIT_CONFIG = Object.freeze({
   maxProximityGlow: 1,      // max glow multiplier from proximity (at distance 0)
   maxProximitySpread: 1,    // max spread multiplier from proximity (at distance 0)
   glowExponent: 1.5,          // >1 = accelerates near rabbit, <1 = decelerates
-  clickRadius: 50,          // px from bottom center to register click
+  clickRadius: 50,          // px padding around the rabbit's box for click hit-test
   glowBoostPerClick: 0,     // permanent glow added per click (0 = disabled, reserved for future use)
   maxPermanentGlow: 2.0,    // cap on permanent glow bonus
 

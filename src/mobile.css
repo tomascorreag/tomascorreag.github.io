@@ -106,7 +106,6 @@ html.mobile-mode {
  */
 #mobile-app .m-card-media,
 #mobile-app .m-skill-thumb,
-#mobile-app .m-gallery-thumb,
 #mobile-app .m-game-banner {
   position: relative;
   z-index: 51;
@@ -1019,39 +1018,27 @@ html.mobile-mode {
   color: rgba(230, 255, 230, 0.8);
 }
 
-.m-sheet-gallery {
+/* Markdown document body in the sheet — reuses the shared .article-* styles
+   (src/article.css). The sheet has no .article-page brightness boost, so reset
+   the figure filter that would otherwise dim images (mirrors desktop's
+   .detail-info override). Promote figures above the sheet scanline (z:50),
+   exactly like .m-sheet-media. */
+.m-sheet-body {
   display: flex;
-  gap: 8px;
-  margin-top: 14px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  padding: 4px 0;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
 }
-.m-sheet-gallery::-webkit-scrollbar { display: none; }
-.m-sheet-gallery { scrollbar-width: none; }
 
-.m-gallery-thumb {
-  flex: 0 0 auto;
-  width: 92px;
-  aspect-ratio: 4 / 3;
-  border: 1px solid var(--mg-line);
-  overflow: hidden;
-  cursor: pointer;
-  scroll-snap-align: start;
-  transition: border-color 160ms ease, opacity 160ms ease;
-  opacity: 0.7;
+.m-sheet-body .article-figure {
+  filter: none;
+  text-shadow: none;
 }
-.m-gallery-thumb.is-active {
-  border-color: var(--mg);
-  opacity: 1;
-}
-.m-gallery-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+
+.m-sheet-body .article-figure,
+.m-sheet-body .article-figure-row {
+  position: relative;
+  z-index: 51;
 }
 
 /* Swipe affordance strip — shows briefly when sheet opens */

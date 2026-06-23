@@ -118,6 +118,47 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
       // land inside one, and a left/right image starts a fresh group below.
       closeFloatGroup();
       const [, alt, src, align = 'center'] = match;
+
+      // Side-by-side row: 2+ CONSECUTIVE center image lines (no blank line and
+      // no caption between them) lay out next to each other. Floated (left/right)
+      // images are never grouped — they keep their text-wrap behaviour.
+      if (align === 'center') {
+        const run = [match];
+        let j = i + 1;
+        while (j < lines.length) {
+          const t = lines[j].trim();
+          if (t === '') break; // a blank line ends the run
+          const m = t.match(IMAGE_RE);
+          if (!m || (m[3] && m[3] !== 'center')) break;
+          run.push(m);
+          j++;
+        }
+        if (run.length >= 2) {
+          const row = document.createElement('div');
+          row.className = 'article-figure-row article-reveal';
+          for (const rm of run) {
+            const fig = document.createElement('figure');
+            fig.className = 'article-figure';
+            const cls = isVideoPath(rm[2]) ? 'article-block-video' : 'article-block-image';
+            const m = createMediaElement(rm[2], { alt: rm[1], className: cls });
+            if (m) fig.appendChild(m);
+            row.appendChild(fig);
+          }
+          container.appendChild(row);
+          i = j;
+          // An optional caption line applies to the whole row.
+          const capMatch = i < lines.length && lines[i].trim().match(CAPTION_RE);
+          if (capMatch) {
+            const cap = document.createElement('p');
+            cap.className = 'article-row-caption';
+            cap.textContent = `> ${capMatch[1]}`;
+            container.appendChild(cap);
+            i++;
+          }
+          continue;
+        }
+      }
+
       const figure = document.createElement('figure');
       figure.className = 'article-figure article-reveal';
       if (align === 'left' || align === 'right') {
