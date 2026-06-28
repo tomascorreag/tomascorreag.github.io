@@ -189,6 +189,15 @@ function revealAll(root) {
   root.querySelectorAll('.article-reveal').forEach((node) => node.classList.add('revealed'));
 }
 
+/**
+ * Renders an item's `date` (verbatim string from content.js) as a small
+ * metadata token. `className` lets the same token serve the compact card and
+ * the document head.
+ */
+function buildDateEl(date, className) {
+  return el('span', { class: className, text: date });
+}
+
 /** Builds the link-button row used in the document header (games carry links). */
 function buildHeaderLinks(links) {
   const wrap = el('div', { class: 'article-header-links' });
@@ -226,8 +235,14 @@ function buildDocument(item) {
     header.appendChild(bannerWrap);
   }
 
-  const titleRow = el('div', { class: 'article-title-row' }, [
+  // Title + date sit together on the left (date trails the title as a byline);
+  // links, when present, stay pinned right via the row's space-between.
+  const titleGroup = el('div', { class: 'article-title-group' }, [
     item.title && el('h1', { class: 'article-title', text: item.title }),
+    item.date && buildDateEl(item.date, 'article-dateline'),
+  ]);
+  const titleRow = el('div', { class: 'article-title-row' }, [
+    titleGroup,
     item.links?.length && buildHeaderLinks(item.links),
   ]);
   header.appendChild(titleRow);
@@ -290,7 +305,13 @@ function buildCard(entry, indexLabel, onOpen) {
     [
       mediaBox,
       el('div', { class: 'deck-card-body' }, [
-        el('span', { class: 'deck-card-kind', text: item.kindLabel || (kind === 'game' ? 'GAME' : '3D') }),
+        // Metadata line: kind chip + (optional) date sit together on the left as
+        // one cluster — both describe the work; the index, pinned right,
+        // describes the slide's slot. A hairline divider encodes that grouping.
+        el('div', { class: 'deck-card-meta' }, [
+          el('span', { class: 'deck-card-kind', text: item.kindLabel || (kind === 'game' ? 'GAME' : '3D') }),
+          item.date && buildDateEl(item.date, 'deck-card-date'),
+        ]),
         el('span', { class: 'deck-card-num', text: indexLabel }),
         el('h2', { class: 'deck-card-title crt-effects', text: item.title || 'Untitled' }),
         blurb && el('p', { class: 'deck-card-desc', html: applyInline(blurb) }),

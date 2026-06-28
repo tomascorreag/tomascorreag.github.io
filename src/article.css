@@ -190,6 +190,27 @@ div.article-banner {
   color: #d2e8d2;
 }
 
+/* Title + dateline group: the date trails the title on the same baseline as a
+ * byline. Links (when present) stay pinned right by the row's space-between. */
+.article-title-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+  min-width: 0;
+}
+
+/* The date itself — a document's "when". Monospaced metadata register (matches
+ * the deck card's date token), muted so it sits beside the title without
+ * competing. */
+.article-dateline {
+  font-size: clamp(0.62rem, 1.3vw, 0.74rem);
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  color: #6f8c6f;
+  white-space: nowrap;
+}
+
 .article-heading {
   font-size: clamp(0.9rem, 2.2vw, 1.2rem);
   font-weight: 600;

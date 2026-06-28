@@ -7,6 +7,10 @@
  *   - cols: how many grid columns this item spans (1–4)
  *   - rows: how many grid rows this item spans (1–4)
  *   - title: (optional) display name shown in detail view
+ *   - date: (optional) display string for when the piece was made — shown on
+ *       portfolio-deck cards/documents. A single year ('2024'), a closed range
+ *       ('2021–2026'), or an open one ('2026–present'). Verbatim string — use
+ *       an en dash (–) for ranges. Omit when the date is unknown.
  *   - description: (optional) text shown below image in detail view
  *   - detailLayout: (optional) override auto AR-based layout in detail view
  *       'info-left'  — image right, info panel left
@@ -245,6 +249,7 @@ export const GENERAL_CONTENT = {
  * Games section — each entry is a game or interactive artifact with a banner, description, and links.
  *   - src: thumbnail path (relative to assets/thumbnails/) — should be 2:1 aspect ratio
  *   - title: game name
+ *   - date: (optional) display string — see CATEGORIES doc above for format
  *   - description: short blurb
  *   - links: array of { label, url } shown as buttons below the description
  *   - page: (optional) markdown string for an article page (parsed by utils/markdown.js)
@@ -262,6 +267,7 @@ export const GAMES = [
     id: 'arbo',
     src: 'Games/ARBO/ARBO_thumb.jpg',
     title: 'ARBO: Arena Tactics',
+    date: '2021–2026',
     description: 'ARBO: Arena Tactics is a two-player tactically deep strategy video game, shipped on Steam in closed alpha, where I was the Technical Artist and co-lead developer.',
     links: [
       { label: 'Steam', icon: 'steam', url: 'https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/' },
@@ -334,6 +340,7 @@ I joined ReBlink early and stayed for five years because the project offered som
       background: '#94a8bf',
     },
     title: 'Páramo',
+    date: '2026–present',
     description: 'Páramo is a WIP environmental strategy game I\'m designing and developing entirely on my own, set on a threatened ecosystem in the Andes.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
@@ -406,6 +413,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
     // GAMES) would read "GAME" — wrong register for a memory artifact.
     kindLabel: 'ARTIFACT',
     title: 'Scars of Violence',
+    date: '2026',
     description: 'Scars of Violence is an interactive map of Colombia that I designed, built, and sourced all the data for, charting seventy years of the country\'s armed conflict.',
     links: [
       { label: 'Explore', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
@@ -469,6 +477,7 @@ Because the archive records real victims, the design carries non-negotiable cons
       background: 'transparent',
     },
     title: 'The Matrix',
+    date: '2024',
     description: 'The Matrix is a short, playable 2D platformer demo I built on my own in Unity, styled after the look of an old CRT television.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/the-matrix-vertical-slice/' },
@@ -710,7 +719,7 @@ I built it for my own personal and commercial projects, a reusable shader that t
   '3D Art': [
     {
       id: 'alt-realities', src: '3d-art/thumb1.mp4', alt: 'Forest clearing with a worker and floating debris', cols: 4, rows: 2,
-      title: 'Another Day at the Office',
+      title: 'Another Day at the Office', date: '2021',
       description: 'An early 3D scene I made in Blender for a 2021 community art challenge, with everything but the character\'s walk built by me.',
       page: `
 ## About the Piece
@@ -737,7 +746,7 @@ It's one of my early pieces, and much of what I learned about building a full sc
 `,
     },
     {
-      id: 'ardo', src: '3d-art/thumb2.png', alt: 'Character screaming as he burns in a nighttime wildfire', cols: 2, rows: 2, title: 'Ardo.',
+      id: 'ardo', src: '3d-art/thumb2.png', alt: 'Character screaming as he burns in a nighttime wildfire', cols: 2, rows: 2, title: 'Ardo.', date: '2024',
       description: 'A personal 3D piece I made entirely in Blender, picturing a man burning alive in a night-time fire.',
       page: `
 ## About the Piece
@@ -766,11 +775,11 @@ The **Eyes** are anatomically detailed and rigged, their pattern and detail gene
 
 ## Why I Made It
 
-I made it during a period of intense rage and despair, with one intent: to give that state a body, so it could exist somewhere outside of me. There's no story around it and no second meaning intended. It's what that period felt like from the inside, made as direct as the feeling was. Rage is loud, but despair is the part where the world around you doesn't react; by the time it was finished, the feeling had somewhere to live that wasn't me.
+I made it during a difficult period, with one intent: to translate that state into an image. There's no story around it and no second meaning intended, just the feeling made as direct as I could make it. The aim was to hold two things in one frame: the intensity of the moment and the quiet around it. Finishing the piece was a way of setting that down.
 `,
     },
     {
-      id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armour', cols: 2, rows: 4, title: 'Menpō (面頬)',
+      id: 'menpo', src: '3d-art/thumb3.jpeg', alt: 'Sculpted Japanese menpō face armour', cols: 2, rows: 4, title: 'Menpō (面頬)', date: '2021',
       description: 'A 3D modelling study I made end-to-end in Blender of a Japanese menpō, the half-face armour worn beneath a samurai helmet.',
       page: `
 ## About the Piece
@@ -795,7 +804,7 @@ The draw was the face itself: studying its anatomy and translating it into hard,
 `,
     },
     {
-      id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.png', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro',
+      id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.png', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro', date: '2022',
       description: 'A 3D piece I made end-to-end in Blender, rebuilding the cover painting of Burning Caravan\'s album *Ciudad Faro* as a three-dimensional scene.',
       page: `
 ## About the Piece
@@ -820,7 +829,7 @@ It's a tribute to Burning Caravan, whose music I love, and an exercise in transl
 `,
     },
     {
-      id: 'brain-farm', src: '3d-art/marsThumb.png', alt: 'Fantastical greenhouse on Mars powering a brain', cols: 4, rows: 2, title: 'Brain Farm',
+      id: 'brain-farm', src: '3d-art/marsThumb.png', alt: 'Fantastical greenhouse on Mars powering a brain', cols: 4, rows: 2, title: 'Brain Farm', date: '2021',
       description: 'A 3D piece I made end-to-end in Blender, picturing a fantastical greenhouse on Mars that powers a giant brain.',
       // Optional `page` Markdown drives the detail-view body (parsed by parseMarkdown).
       // Same syntax as a GAMES item's `page`: ## headings, paragraphs, --- dividers,
@@ -854,7 +863,7 @@ It's part of an ongoing personal exploration of brain-themed surrealism, a motif
 `,
     },
     {
-      id: 'ascension', src: '3d-art/ascensionThumb.png', alt: 'Abstract volumetric light and particles', cols: 2, rows: 2, title: 'Ascension V',
+      id: 'ascension', src: '3d-art/ascensionThumb.png', alt: 'Abstract volumetric light and particles', cols: 2, rows: 2, title: 'Ascension V', date: '2025',
       description: 'An abstract 3D piece I made end-to-end in Blender, drawn from *Ascension* by the artist Moebius.',
       page: `
 ## About the Piece
@@ -880,7 +889,7 @@ Moebius is a long-standing influence on my work, and this is an abstract study m
     {
       // hasAudio: the clip has a soundtrack — detail/doc views attach custom
       // video controls (play/pause/seek/mute) so visitors can unmute it.
-      id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí', hasAudio: true,
+      id: 'frenesi', src: '3d-art/Frenesi.webm', alt: 'Animated short film still', cols: 2, rows: 2, title: 'Frenesí', hasAudio: true, date: '2022',
       kindLabel: 'FILM', // deck-card chip — it's an awarded short film, not a "3D" still
 
       description: '*Frenesí* (2022) is a short animated film I directed, produced, and made entirely on my own (aside from voice acting), about drug use, gender, and sexuality in Colombia.',
@@ -917,7 +926,7 @@ Breaking a taboo is not the same as promoting what it hides. People are going to
 `,
     },
     {
-      id: 'bioshock', src: '3d-art/bioshockThumb.webm', alt: 'Recreated BioShock hallway', cols: 2, rows: 2, title: 'Bioshock Hallway',
+      id: 'bioshock', src: '3d-art/bioshockThumb.webm', alt: 'Recreated BioShock hallway', cols: 2, rows: 2, title: 'Bioshock Hallway', date: '2023',
       description: 'A 3D recreation of a corridor from the video game *BioShock*, built end-to-end in Blender.',
       page: `
 ## About the Piece
@@ -942,7 +951,7 @@ Built end-to-end in **Blender**:
 `,
     },
     {
-      id: 'rebel-chase', src: '3d-art/starWarsChaseThumb.webm', alt: 'X-Wing chasing a TIE Fighter', cols: 2, rows: 2, title: 'Rebel Dogfight',
+      id: 'rebel-chase', src: '3d-art/starWarsChaseThumb.webm', alt: 'X-Wing chasing a TIE Fighter', cols: 2, rows: 2, title: 'Rebel Dogfight', date: '2022',
       description: 'A Star Wars-inspired 3D scene I made in Blender, of an X-Wing chasing down a TIE Fighter.',
       page: `
 ## About the Piece

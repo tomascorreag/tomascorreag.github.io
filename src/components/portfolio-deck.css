@@ -269,6 +269,31 @@
   opacity: 1;
 }
 
+/* Kind chip + date as one left-aligned metadata cluster (the index stays
+ * pinned right in grid column 2). Own flex context so the date's divider can
+ * centre-align independent of the body grid's baseline. */
+.deck-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+/* Same scale/register as the kind chip, just quieter — reads as a sibling
+ * field, not a heading. The hairline rule on its left is the divider that
+ * groups it with the kind chip. */
+.deck-card-date {
+  font-size: clamp(0.5rem, 1vw, 0.65rem);
+  font-weight: 400;
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+  color: var(--text-primary);
+  opacity: 0.55;
+  padding-left: 0.6rem;
+  border-left: 1px solid color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+
+
 /* Glow comes from the shared .crt-effects rule (class added in JS). */
 .deck-card-title {
   grid-column: 1 / -1;
