@@ -377,6 +377,33 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+
+  /* ── Mosaic box geometry ────────────────────────────────────────────────
+   * Single source of truth for where the mosaic sits. Four consumers read
+   * these: .mosaic-grid, .mosaic-frame, .crt-scrollbar, .detail-nav — so the
+   * frame/scrollbar/nav track the grid without duplicating the constants.
+   *
+   * The values below are the AVAILABLE box (the area the mosaic may occupy).
+   * In thumbnail mode, layoutMosaic() in desktop.js overwrites top/bottom/
+   * width with px values so the box shrinks to the grid's real aspect ratio
+   * and the frame hugs it. Text modes (General/Games/article) clear the
+   * overrides and get the full box back. */
+  --mosaic-right: 2%;
+  --mosaic-top: 5%;
+  --mosaic-bottom: 5%;
+  --mosaic-width: 55%;
+
+  /* Column count is frozen so `cols`/`rows` in content.js mean the same thing
+   * on every display. 8 matches what a 1920px-wide screen used to auto-fill. */
+  --mosaic-cols: 8;
+  /* Cell edge length. Also overwritten by layoutMosaic(); the 120px here is
+   * the design baseline and the value used before JS runs. */
+  --mosaic-cell: 120px;
+  /* Gap scales WITH the cell (0.1 = the original 12px/120px ratio) so a
+   * half-size mosaic reads identically, not double-spaced. */
+  --mosaic-gap: calc(var(--mosaic-cell) * 0.1);
+  /* Chrome inset around the mosaic that the frame borders live in. */
+  --mosaic-frame-pad: 2rem;
 }
 
 /*
@@ -574,13 +601,18 @@
 .mosaic-frame {
   position: absolute;
   /* Wider than mosaic with margin clearance on all sides */
-  right: calc(2% - 2rem);
-  top: calc(5% - 2rem);
-  bottom: calc(5% - 2rem);
-  width: calc(55% + 4rem);
+  right: calc(var(--mosaic-right) - var(--mosaic-frame-pad));
+  top: calc(var(--mosaic-top) - var(--mosaic-frame-pad));
+  bottom: calc(var(--mosaic-bottom) - var(--mosaic-frame-pad));
+  width: calc(var(--mosaic-width) + var(--mosaic-frame-pad) * 2);
   background-color: var(--bg-primary);
   pointer-events: none;
   z-index: 1;
+  /* Geometry is JS-driven and changes when switching between the thumbnail
+   * mosaic and the text modes. Transitioning smooths that swap. These are
+   * layout properties (not composited), but it's one element for 320ms. */
+  transition: top 320ms var(--ease-smooth), bottom 320ms var(--ease-smooth),
+    width 320ms var(--ease-smooth);
 }
 
 /* Outer border (1px) — sweeps in from bottom-right to top-left.
@@ -644,20 +676,29 @@
 
 .mosaic-grid {
   position: absolute;
-  right: 2%;
-  top: 5%;
-  bottom: 5%;
-  width: 55%;
+  right: var(--mosaic-right);
+  top: var(--mosaic-top);
+  bottom: var(--mosaic-bottom);
+  width: var(--mosaic-width);
 
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  grid-auto-rows: 120px;
+  /* FIXED column count — this is what makes the layout identical at every
+   * display size. The old repeat(auto-fill, minmax(120px, 1fr)) let the
+   * browser choose the count from the available width, so a cols:4 item was
+   * half-width at 1920px and full-width at 1280px, and dense packing
+   * reshuffled the whole mosaic between machines.
+   * 1fr (not var(--mosaic-cell)) so sub-pixel rounding fills the box exactly. */
+  grid-template-columns: repeat(var(--mosaic-cols), 1fr);
+  grid-auto-rows: var(--mosaic-cell);
   grid-auto-flow: dense;
-  gap: 12px;
+  gap: var(--mosaic-gap);
   /* Push first row below the handle bar in .mosaic-frame.
    * Handle bar: top 13px + height 20px = 33px from frame top.
    * Frame sits 1.5rem above the grid, so handle bleeds calc(33px - 1.5rem) into grid.
-   * Add one grid gap (12px) of breathing room. */
+   * Add 12px of breathing room. Stays a FIXED px value (not scaled with the
+   * cell) because the handle bar it clears is fixed chrome. Kept in sync with
+   * MOSAIC_PAD_TOP in desktop.js, which needs the number to fit rows to the
+   * box height. */
   padding-top: calc(33px - 1.5rem + 12px);
 
   opacity: 0;
@@ -909,15 +950,15 @@
  * draggable. Synced to the scroll container in CrtScrollbar.js. */
 .crt-scrollbar {
   position: absolute;
-  /* frame right edge sits at calc(2% - 2rem); +8px tucks the bar just inside
-   * it with a thin margin from the border. */
-  right: calc(2% - 2rem + 8px);
+  /* frame right edge sits at the frame's own coordinate; +8px tucks the bar
+   * just inside it with a thin margin from the border. */
+  right: calc(var(--mosaic-right) - var(--mosaic-frame-pad) + 8px);
   /* Stretched toward the frame's inner corners, anchored to the frame's own
-   * coordinate (5% - 2rem) so the corner gaps stay constant across screen
-   * sizes. Top clears the tab-header bar (.mosaic-handle ends ~frame-top+33px);
-   * bottom sits near the corner, ~matching the right inset. */
-  top: calc(5% - 2rem + 42px);
-  bottom: calc(5% - 2rem + 10px);
+   * coordinates so the corner gaps stay constant across screen sizes. Top
+   * clears the tab-header bar (.mosaic-handle ends ~frame-top+33px); bottom
+   * sits near the corner, ~matching the right inset. */
+  top: calc(var(--mosaic-top) - var(--mosaic-frame-pad) + 42px);
+  bottom: calc(var(--mosaic-bottom) - var(--mosaic-frame-pad) + 10px);
   width: 14px;    /* ~90% of the previous 16px */
   z-index: 99;
   pointer-events: none;   /* track ignores input; thumb re-enables below */
@@ -1463,9 +1504,9 @@
  * Uses the same right/top/width as .mosaic-grid so it overlaps exactly. */
 .detail-nav {
   position: absolute;
-  right: 2%;
-  top: calc(5% + 12px);
-  width: 55%;
+  right: var(--mosaic-right);
+  top: calc(var(--mosaic-top) + 12px);
+  width: var(--mosaic-width);
   height: 2.5rem;
   z-index: 1;
   /* below .crt-overlay (100) so scanlines cover it, like the terminal */
@@ -1686,21 +1727,23 @@
     display: none;
   }
 
-  /* Mosaic: full width, takes the bottom ~58% of the screen */
+  /* Mosaic: full width, takes the bottom ~58% of the screen.
+   * layoutMosaic() bails out under this media query (same matchMedia string),
+   * so no JS px overrides fight these declarations. */
+  #crt-screen {
+    --mosaic-top: 42%;
+    --mosaic-bottom: 2%;
+    --mosaic-frame-pad: 1.5rem;
+  }
+
   .mosaic-grid {
     left: 2%;
-    right: 2%;
     width: auto;
-    top: 42%;
-    bottom: 2%;
   }
 
   .mosaic-frame {
     left: calc(2% - 1.5rem);
-    right: calc(2% - 1.5rem);
     width: auto;
-    top: calc(42% - 1.5rem);
-    bottom: calc(2% - 1.5rem);
   }
 }
 

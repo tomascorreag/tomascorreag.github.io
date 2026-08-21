@@ -539,6 +539,122 @@ const mosaicEl = document.getElementById('mosaic');
 let mosaicHasContent = false;
 let staggerTimeouts = [];
 
+/* ── Mosaic geometry ────────────────────────────────────────────────────────
+ * The mosaic used to be a `repeat(auto-fill, minmax(120px, 1fr))` grid with
+ * 120px rows. That meant the browser picked the column count from the viewport
+ * width, so the same `cols: 4` item was half-width on a 1920px display and
+ * full-width on a 1280px one, and dense packing reshuffled everything between
+ * machines. Cells also never scaled — only their count changed.
+ *
+ * Now the column count is FROZEN (MOSAIC_COLS) and the cell size is derived
+ * from the available box, contain-fit style: cell = min(width fit, height fit).
+ * The layout is therefore identical everywhere and simply renders smaller.
+ *
+ * Contain-fit means the mosaic usually can't fill its 55%×90% box (that box's
+ * aspect ratio changes with the display; the mosaic's doesn't). Rather than
+ * letterbox inside the border, we publish the mosaic's REAL box as CSS custom
+ * properties and let .mosaic-frame / .crt-scrollbar / .detail-nav read them —
+ * so the frame hugs the grid instead of floating around it. */
+
+const MOSAIC_COLS = 8;
+// Gap as a fraction of cell edge. 0.1 = the original 12px gap / 120px cell, so
+// the spacing shrinks with the cells instead of looking doubled when small.
+const MOSAIC_GAP_RATIO = 0.1;
+// Mirrors .mosaic-grid's padding-top: calc(33px - 1.5rem + 12px). Fixed px,
+// because the handle bar it clears is fixed chrome that doesn't scale.
+const MOSAIC_PAD_TOP = 33 - 24 + 12;
+// Same condition as the portrait block in style.css, which positions the
+// mosaic itself. Under it, JS must not fight the stylesheet.
+const mosaicPortrait = window.matchMedia('(max-aspect-ratio: 4/3)');
+
+const MOSAIC_GEOM_VARS = ['--mosaic-top', '--mosaic-bottom', '--mosaic-width', '--mosaic-cell'];
+
+// Row count of the current category. Depends only on the item list and the
+// (fixed) column count — NOT on the cell size — so it survives resizes and is
+// measured once per render instead of on every layout pass.
+let mosaicRows = 0;
+
+/** Drops the JS overrides so the stylesheet's available box applies again. */
+function clearMosaicGeometry() {
+  MOSAIC_GEOM_VARS.forEach(v => crtScreen.style.removeProperty(v));
+}
+
+/**
+ * Counts the grid's used row tracks. The resolved value of grid-template-rows
+ * lists implicit tracks too, which is the only way to learn how dense auto-flow
+ * actually packed the items — the browser does the Tetris, we just read it.
+ * Must be called with the thumbnail grid laid out.
+ */
+function measureMosaicRows() {
+  const tracks = getComputedStyle(mosaicEl).gridTemplateRows;
+  if (!tracks || tracks === 'none') return 0;
+  return tracks.trim().split(/\s+/).length;
+}
+
+/** True only for the thumbnail grid — the text modes want the full box. */
+function isThumbnailMosaic() {
+  return !mosaicEl.hidden
+    && !mosaicEl.classList.contains('general-mode')
+    && !mosaicEl.classList.contains('games-mode')
+    && !mosaicEl.classList.contains('article-mode');
+}
+
+/**
+ * Fits the frozen-layout mosaic into its available box and publishes the
+ * resulting geometry. Two forced reflows (clear → measure → write); callers
+ * should debounce, which is why the resize path goes through rAF.
+ */
+function layoutMosaic() {
+  if (!isThumbnailMosaic() || mosaicPortrait.matches || mosaicRows <= 0) {
+    clearMosaicGeometry();
+    return;
+  }
+
+  // Clearing first makes the element lay out at its AVAILABLE size, so we can
+  // read the box straight off the DOM instead of duplicating the 2%/5%/55%
+  // constants here. Whatever the stylesheet says is what we fit into.
+  clearMosaicGeometry();
+  const avail = mosaicEl.getBoundingClientRect();
+  const screen = crtScreen.getBoundingClientRect();
+  if (avail.width <= 0 || avail.height <= 0) return;
+
+  // Solve for cell edge on each axis, given gap = cell * ratio:
+  //   width:  cols*c + (cols-1)*ratio*c = availW
+  //   height: padTop + rows*c + (rows-1)*ratio*c = availH
+  const cols = MOSAIC_COLS;
+  const rows = mosaicRows;
+  const cellByWidth = avail.width / (cols + (cols - 1) * MOSAIC_GAP_RATIO);
+  const cellByHeight =
+    (avail.height - MOSAIC_PAD_TOP) / (rows + (rows - 1) * MOSAIC_GAP_RATIO);
+  const cell = Math.max(1, Math.min(cellByWidth, cellByHeight));
+
+  const gap = cell * MOSAIC_GAP_RATIO;
+  const width = cols * cell + (cols - 1) * gap;
+  const height = MOSAIC_PAD_TOP + rows * cell + (rows - 1) * gap;
+
+  // Right-anchored (the terminal owns the left side), vertically centred in
+  // whatever slack the available box has.
+  const top = avail.top - screen.top + Math.max(0, (avail.height - height) / 2);
+
+  crtScreen.style.setProperty('--mosaic-cell', `${cell}px`);
+  crtScreen.style.setProperty('--mosaic-width', `${width}px`);
+  crtScreen.style.setProperty('--mosaic-top', `${top}px`);
+  crtScreen.style.setProperty('--mosaic-bottom', `${Math.max(0, screen.height - top - height)}px`);
+}
+
+// Resize/orientation: coalesce to one layout pass per frame. Window resize
+// fires far faster than we need to recompute a static grid.
+let mosaicLayoutFrame = 0;
+function scheduleMosaicLayout() {
+  if (mosaicLayoutFrame) return;
+  mosaicLayoutFrame = requestAnimationFrame(() => {
+    mosaicLayoutFrame = 0;
+    layoutMosaic();
+  });
+}
+window.addEventListener('resize', scheduleMosaicLayout);
+mosaicPortrait.addEventListener('change', scheduleMosaicLayout);
+
 // Custom CRT scrollbar — mounted only in the scrolling views (article + games).
 // One instance at a time; mountScrollbar() tears down any previous one first.
 let crtScrollbar = null;
@@ -661,12 +777,13 @@ async function renderMosaic(category) {
       div.dataset.cols = item.cols;
       div.dataset.rows = item.rows;
 
-      // sizes hint: the mosaic container is ~55vw with ~7 tracks, so a card
-      // renders at roughly cols × 9vw — lets the browser pick the 480/960
-      // tier instead of full-size for grid cells.
+      // sizes hint — now exact rather than a guess, because the column count
+      // is fixed. Cell width tops out at 55vw / (8 + 7*0.1) = 55/8.7 ≈ 6.3vw
+      // (less when the height fit wins), so a card is at most cols × 6.3vw.
+      // Overstating this makes the browser pick a needlessly large srcset tier.
       const media = createMediaElement(item.src, {
         alt: item.alt,
-        sizes: `${Math.min((item.cols || 1) * 9, 55)}vw`,
+        sizes: `${Math.min((item.cols || 1) * 6.3, 55).toFixed(1)}vw`,
       });
       if (!media) continue; // skip items with unresolved thumbnails
 
@@ -701,6 +818,13 @@ async function renderMosaic(category) {
   }
 
   mosaicHasContent = true;
+
+  // Fit the frozen grid to the box before anything is visible. Order matters:
+  // measure the packed row count first (needs the items in the DOM), then size
+  // the cells, then applyDiagonalReveal() below reads the FINAL positions for
+  // its stagger delays. Doing it after the fade-in would show a resize pop.
+  mosaicRows = isGeneral ? 0 : measureMosaicRows();
+  layoutMosaic();
 
   // Fade in after a brief frame delay (lets browser paint the new items)
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
@@ -742,6 +866,10 @@ async function renderGames() {
   mosaicEl.innerHTML = '';
   mosaicEl.classList.remove('general-mode');
   mosaicEl.classList.add('games-mode');
+  // Text mode — release the thumbnail grid's contain-fit box so the panel
+  // (and the frame around it) expands back to the full available area.
+  mosaicRows = 0;
+  layoutMosaic();
 
   for (const game of GAMES) {
     const card = document.createElement('div');
@@ -838,6 +966,9 @@ async function openArticlePage(itemData, returnTo) {
   mosaicEl.classList.remove('general-mode', 'games-mode');
   mosaicEl.classList.add('article-mode');
   mosaicEl.scrollTop = 0;
+  // Text mode — see the games-mode note above.
+  mosaicRows = 0;
+  layoutMosaic();
 
   buildArticleNav();
 
@@ -2465,6 +2596,13 @@ function showMosaicFrame() {
  */
 function showMosaic() {
   mosaicEl.hidden = false;
+  // If renderMosaic() ran while the grid was still [hidden] (display: none),
+  // there were no layout boxes to measure — row count came back 0 and the fit
+  // was skipped. Now that it's laid out, redo it.
+  if (isThumbnailMosaic() && mosaicRows <= 0) {
+    mosaicRows = measureMosaicRows();
+    layoutMosaic();
+  }
 }
 
 // ============================================

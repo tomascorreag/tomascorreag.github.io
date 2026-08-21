@@ -261,19 +261,19 @@ export const GENERAL_CONTENT = {
  *   ![alt](src)         → <figure> image/video via createMediaElement
  *   *caption*           → <figcaption> (line after image only)
  *   [Label|icon](url)   → link button (consecutive lines group)
+ *
+ * Optional per-game field:
+ *   - deckPage: full markdown override used ONLY by PortfolioDeck (falls back
+ *     to `page`). Lets a curated deck show extra sections the main site omits.
  */
-export const GAMES = [
-  {
-    id: 'arbo',
-    src: 'Games/ARBO/ARBO_thumb.jpg',
-    title: 'ARBO: Arena Tactics',
-    date: '2021–2026',
-    description: 'ARBO: Arena Tactics is a two-player tactically deep strategy video game, shipped on Steam in closed alpha, where I was the Technical Artist and co-lead developer.',
-    links: [
-      { label: 'Steam', icon: 'steam', url: 'https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/' },
-      { label: 'Website', icon: 'website', url: 'https://arbo.xyz/' },
-    ],
-    page: `
+
+// ── ARBO page composition ──────────────────────────────────────────────────
+// The design post-mortem is deck-only: it appears in the UCL application deck
+// (?p=65f2, via `deckPage`) but NOT in the main site's ARBO detail view
+// (`page`). Both are composed from the same parts so the shared body never
+// drifts. Note this is still shipped in the public JS bundle (see
+// portfolio.js: gating is obscurity, not security).
+const ARBO_BODY = `
 ## About the Project
 
 In the near future, an alien species known as the **ARBO** arrives on Earth as humanity's guardians: they have come, they say, to warn us of the **Abyssals**, another alien race intent on enslaving the world. Racing to build an army of automata to defend itself, humanity instead gives rise to a wholly new form of artificial life: the **Syhm**. Then the ARBO's true intentions surface, and war breaks out between four factions: humans, Syhm, Abyssals, and ARBO.
@@ -324,9 +324,42 @@ I joined ReBlink early and stayed for five years because the project offered som
 ![ARBO Incendiary Flames VFX](Games/ARBO/flamethrower.jpg)
 *Incendiary Flames. Particle systems and post-processing on display.*
 
+---
+`;
+
+const ARBO_POSTMORTEM = `
+## The Design Post-Mortem
+
+When the project wound down in 2026, I wrote its design post-mortem: a structured account of what we built, what happened when players met it, and why. It draws on the design decision log, the shipped design document, patch history, a comparison against six design-adjacent games, and the written reflections of two colleagues who red-teamed the analysis. What follows is the short version of the design findings; financial detail and individual attributions stay internal.
+
+**The root finding.** We named four target aesthetics for the game (challenge, sensation, collection, discovery) and rigorously specified none of them. Below the four-word level, the design never committed to a direction sharp enough that anyone could ask *does this serve the direction?* and get a reproducible answer. Everything downstream sat on that: the ruleset's identity layer and its noise-heavy outcome layer spoke past each other, balance defaulted to subtraction because no identities had been named worth protecting, and onboarding, the surface through which most of the designed experience reaches a new player, was built in the final weeks before launch.
+
+**The pattern.** The design and engineering failures turned out to be siblings, not parent and child. In design, we shipped aesthetic targets without specifying them; in engineering, we adopted backbone technology without a bake-off; in production, no playable build reached an external community for the first three years. The shared root: the cost of gathering evidence was deferred past the point where it would have been load-bearing. Where the team paid that cost up front, the results were the project's preserved strengths.
+
+**What I took from it.** Three process rules: a project's foundation is a clear vision and a clear aesthetic direction, where *aesthetic* means the whole experience surface, not the visual layer; pay for expertise before committing to load-bearing decisions, or defer the commitment; gather evidence continuously from the start, and treat it as scope-revision input. A caveat the document itself opens with: I am not an academic in games design, and where it borrows terms from design theory they are used as lenses on one problem, not as authoritative theory. That lack of fluency turned out to be part of the finding, and it is the reason I am looking for the theory I did not have while making the game. It also changed what I make: *Páramo* was designed from its argument outward, with the rules specified before the art.
+
+---
+`;
+
+const ARBO_LINKS = `
 [Steam|steam](https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/)
 [Website|website](https://arbo.xyz/)
-`,
+`;
+
+export const GAMES = [
+  {
+    id: 'arbo',
+    src: 'Games/ARBO/ARBO_thumb.jpg',
+    title: 'ARBO: Arena Tactics',
+    date: '2021–2026',
+    description: 'ARBO: Arena Tactics is a two-player tactically deep strategy video game, shipped on Steam in closed alpha, where I was the Technical Artist and co-lead developer.',
+    links: [
+      { label: 'Steam', icon: 'steam', url: 'https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/' },
+      { label: 'Website', icon: 'website', url: 'https://arbo.xyz/' },
+    ],
+    // Main-site detail view: no post-mortem. Deck view (?p=65f2): with it.
+    page: ARBO_BODY + ARBO_LINKS,
+    deckPage: ARBO_BODY + ARBO_POSTMORTEM + ARBO_LINKS,
   },
   {
     id: 'paramo',
@@ -408,20 +441,27 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
   },
   {
     id: 'scars-of-violence',
-    src: 'artifacts/MapColombia_thumb.png',
+    src: 'artifacts/MemoryOfTheLand_thumb.png',
     // kindLabel: deck-card corner chip. Without it this entry (it lives in
     // GAMES) would read "GAME" — wrong register for a memory artifact.
     kindLabel: 'ARTIFACT',
-    title: 'Scars of Violence',
+    title: 'The Memory of the Land',
     date: '2026',
-    description: 'Scars of Violence is an interactive map of Colombia that I designed, built, and sourced all the data for, charting seventy years of the country\'s armed conflict.',
+    description: 'The Memory of the Land is an interactive map of Colombia with two views, Scars of Violence and Ashes of Death, that I designed, built, and sourced all the data for: seventy years of armed conflict, and a quarter-century of forest loss, on the same territory.',
     links: [
-      { label: 'Explore', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
+      { label: 'Scars of Violence', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
+      { label: 'Ashes of Death', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?section=deforestation&lang=en' },
     ],
     page: `
 ## About the Project
 
-An interactive, browser-based map of Colombia that shows the documented violence of the country\'s armed conflict (1958-present) as **wounds on the land that heal into permanent scars**. Every mark is drawn from the case-by-case record compiled by Colombia's **Centro Nacional de Memoria Histórica** (CNMH), the national body tasked with documenting the conflict.
+One map of Colombia, one timeline, two archives. **Scars of Violence** renders the documented violence of the armed conflict (1958-present) as wounds on the land. **Ashes of Death** renders the loss of the country's forests (2001-2025) as burnt ground. Both are drawn from public records, both are joined to the same municipalities, and both are read the same way: press play and watch the marks accumulate.
+
+---
+
+## Scars of Violence
+
+An interactive, browser-based map that shows the documented violence of the country\'s armed conflict (1958-present) as **wounds on the land that heal into permanent scars**. Every mark is drawn from the case-by-case record compiled by Colombia's **Centro Nacional de Memoria Histórica** (CNMH), the national body tasked with documenting the conflict.
 
 Time is the central dimension. As the timeline plays from 1958 to the present:
 
@@ -434,9 +474,22 @@ The wound-and-scar metaphor is the heart of the piece: violence is an injury to 
 
 ---
 
+## Ashes of Death
+
+![Ashes of Death: accumulated tree-cover loss with the agriculture overlay](artifacts/AshesOfDeath.png)
+*Ashes of Death at the end of the timeline: every hectare lost since 2001, still marked. Left panel: what the cleared land became; below: loss per year.*
+
+The second view asks the same question of the forest. A year-by-year raster of tree-cover loss (from the Hansen Global Forest Change dataset, 30 m resolution) plays from 2001 to 2025; cleared land stays marked, so the map darkens as the years pass. Clicking a municipality gives its per-year loss in hectares, counted from the native pixels and joined on the official municipal code, never on a name.
+
+Because loss alone says nothing about cause, the view layers what happened to the land afterwards: land-cover classes from CORINE, coca presence from the UN's SIMCI monitoring, cattle from the national agricultural agency, and whether the cleared ground sat inside a protected area or forest reserve. Drivers are ranked as estimates and labelled as such; official IDEAM deforestation figures are cited alongside, and the interface says plainly that satellite tree-cover loss and legal deforestation are not the same measure.
+
+The two views are meant to be read together. The conflict and the clearing of the forest are not the same story, but they happen on the same ground, and often in the same places.
+
+---
+
 ## My Role
 
-Solo project (2026). The concept, the design, the code, and all the data processing are mine. The underlying records come from the CNMH's published archive; turning that archive into a living, navigable map is my work.
+Solo project (2026). The concept, the design, the code, and all the data processing are mine: Python pipelines (pandas, geopandas, rasterio) that turn the source archives into map-ready data, and a Svelte, MapLibre and deck.gl front end that renders them. The underlying records come from public archives; turning them into a living, navigable map is my work.
 
 ---
 
@@ -460,9 +513,12 @@ Because the archive records real victims, the design carries non-negotiable cons
 - **Interpretation is labeled.** The wound metaphor is an authored reading, and the interface says so. The viewer can always reach the underlying record.
 - **Dignity.** The archive is published for memory, research, and education. The aesthetic aims for gravity, a dark cartographic register, not spectacle.
 
+The same rules hold for the forest: no hectare is estimated, drivers are ranked rather than given invented percentages, and every figure carries its source.
+
 ---
 
-[Explore the Map|website](https://tomascorreag.github.io/MapColombia/?lang=en)
+[Scars of Violence|website](https://tomascorreag.github.io/MapColombia/?lang=en)
+[Ashes of Death|website](https://tomascorreag.github.io/MapColombia/?section=deforestation&lang=en)
 `,
   },
   {

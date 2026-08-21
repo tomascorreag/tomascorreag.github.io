@@ -59,7 +59,10 @@ export const PORTFOLIO_PAGES = {
   // Shared at: https://tomascorreag.github.io/?p=65f2
   '65f2': {
     title: 'Tomás Correa — Selected Work',
-    intro: 'Curated for **UCL MA Digital Media: Production**\nSelect any piece to read more',
+    // Arc, in order: shipped commercial craft (with its post-mortem as a
+    // section of the ARBO document) → the solo work that came out of it
+    // (procedural argument, memory cartography, film) → art.
+    intro: 'Curated for **UCL MA Digital Media: Production**\nFour years of shipped production, the post-mortem that followed, and the solo work it led to. Select any piece to read more',
     items: ['arbo', 'paramo', 'scars-of-violence', 'frenesi', 'ardo'],
     outro: true,
   },

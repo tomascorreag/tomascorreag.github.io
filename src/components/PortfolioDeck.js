@@ -255,9 +255,13 @@ function buildDocument(item) {
   page.appendChild(header);
 
   // ── Body: markdown page (with click-to-zoom embedded images) ──
-  if (item.page) {
+  // `deckPage` is a deck-only override (e.g. ARBO's design post-mortem section,
+  // shown to application reviewers but not on the main site). Falls back to
+  // the regular `page`.
+  const pageMd = item.deckPage ?? item.page;
+  if (pageMd) {
     const body = el('div', { class: 'article-body' });
-    body.appendChild(parseMarkdown(item.page, { createMediaElement, iconMap: ICONS }));
+    body.appendChild(parseMarkdown(pageMd, { createMediaElement, iconMap: ICONS }));
     // Embedded images are click-to-zoom, mirroring the desktop detail view.
     // Bind the whole <figure> (floated images wrap text + a caption, so the bare
     // <img> is an unreliable hit target). Video figures have no <img> → skipped.

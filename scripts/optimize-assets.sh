@@ -758,7 +758,8 @@ if [[ "$GEN_MANIFEST" == "1" && -d "$THUMBS_DIR" && "$HAVE_FFPROBE" == "1" ]]; t
       done < <(find "$THUMBS_DIR" -type f -print0 | sort -z)
       echo
       echo "}"
-    } > "$MANIFEST"
+    } > "$MANIFEST.tmp"
+    mv -f "$MANIFEST.tmp" "$MANIFEST"
   fi
 fi
 
