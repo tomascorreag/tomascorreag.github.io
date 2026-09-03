@@ -66,6 +66,20 @@ export const PORTFOLIO_PAGES = {
     items: ['arbo', 'paramo', 'scars-of-violence', 'frenesi', 'ardo'],
     outro: true,
   },
+
+  // OceanX Science Impact Challenge (prompt 2: CTD / water-column data as
+  // navigable 3D structures) — evidence for the "team execution capacity"
+  // criterion. Shared at: https://tomascorreag.github.io/?p=0c3d
+  '0c3d': {
+    title: 'Tomás Correa — Selected Work',
+    // Arc, in order: the closest analogue to the challenge (a public archive
+    // turned into a navigable, time-driven map) → a simulation whose rules
+    // carry the argument → four years of shipped production and its
+    // post-mortem, i.e. the evidence that I finish things.
+    intro: 'Curated for the **OceanX Science Impact Challenge**\nTurning large, uncertain public datasets into things you can navigate — and shipping them. Select any piece to read more',
+    items: ['scars-of-violence', 'paramo', 'arbo'],
+    outro: true,
+  },
 };
 
 /**

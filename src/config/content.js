@@ -447,7 +447,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
     kindLabel: 'ARTIFACT',
     title: 'The Memory of the Land',
     date: '2026',
-    description: 'The Memory of the Land is an interactive map of Colombia with two views, Scars of Violence and Ashes of Death, that I designed, built, and sourced all the data for: seventy years of armed conflict, and a quarter-century of forest loss, on the same territory.',
+    description: 'The Memory of the Land is an interactive map of Colombia with two views, Scars of Violence and Ashes of Death, that I designed, built, and built the data pipelines for: seventy years of armed conflict, and a quarter-century of forest loss, on the same territory.',
     links: [
       { label: 'Scars of Violence', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
       { label: 'Ashes of Death', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?section=deforestation&lang=en' },
@@ -460,6 +460,9 @@ One map of Colombia, one timeline, two archives. **Scars of Violence** renders t
 ---
 
 ## Scars of Violence
+
+![Scars of Violence: the map at 2003, the conflict's peak](artifacts/ScarsOfViolence.png)
+*The map at 2003, the conflict's peak. Every documented event is a wound that spreads, fades, and scars the land permanently; the left panel filters by form of violence, the timeline plays the seven decades through.*
 
 An interactive, browser-based map that shows the documented violence of the country\'s armed conflict (1958-present) as **wounds on the land that heal into permanent scars**. Every mark is drawn from the case-by-case record compiled by Colombia's **Centro Nacional de Memoria Histórica** (CNMH), the national body tasked with documenting the conflict.
 
@@ -476,8 +479,8 @@ The wound-and-scar metaphor is the heart of the piece: violence is an injury to 
 
 ## Ashes of Death
 
-![Ashes of Death: accumulated tree-cover loss with the agriculture overlay](artifacts/AshesOfDeath.png)
-*Ashes of Death at the end of the timeline: every hectare lost since 2001, still marked. Left panel: what the cleared land became; below: loss per year.*
+![Ashes of Death: the Guaviare deforestation frontier at 2022](artifacts/AshesOfDeath.png)
+*The Guaviare frontier at 2022: every hectare lost since 2001 still marked, the freshest clearings burning brightest. Left panel: what the cleared land became; below: loss per year.*
 
 The second view asks the same question of the forest. A year-by-year raster of tree-cover loss (from the Hansen Global Forest Change dataset, 30 m resolution) plays from 2001 to 2025; cleared land stays marked, so the map darkens as the years pass. Clicking a municipality gives its per-year loss in hectares, counted from the native pixels and joined on the official municipal code, never on a name.
 
