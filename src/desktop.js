@@ -563,11 +563,15 @@ const MOSAIC_GAP_RATIO = 0.1;
 // Mirrors .mosaic-grid's padding-top: calc(33px - 1.5rem + 12px). Fixed px,
 // because the handle bar it clears is fixed chrome that doesn't scale.
 const MOSAIC_PAD_TOP = 33 - 24 + 12;
-// Same condition as the portrait block in style.css, which positions the
-// mosaic itself. Under it, JS must not fight the stylesheet.
+// Same condition as the portrait block in style.css. There the box spans the
+// full width, so the fitted grid is centred (JS overrides --mosaic-right)
+// rather than right-anchored against the terminal.
 const mosaicPortrait = window.matchMedia('(max-aspect-ratio: 4/3)');
 
-const MOSAIC_GEOM_VARS = ['--mosaic-top', '--mosaic-bottom', '--mosaic-width', '--mosaic-cell'];
+const MOSAIC_GEOM_VARS = ['--mosaic-top', '--mosaic-bottom', '--mosaic-right', '--mosaic-width', '--mosaic-cell'];
+// The vars live on <html> (see the :root block in style.css): #mosaic sits
+// OUTSIDE #crt-screen, so anything set on #crt-screen never reaches it.
+const mosaicGeomHost = document.documentElement;
 
 // Row count of the current category. Depends only on the item list and the
 // (fixed) column count — NOT on the cell size — so it survives resizes and is
@@ -576,7 +580,7 @@ let mosaicRows = 0;
 
 /** Drops the JS overrides so the stylesheet's available box applies again. */
 function clearMosaicGeometry() {
-  MOSAIC_GEOM_VARS.forEach(v => crtScreen.style.removeProperty(v));
+  MOSAIC_GEOM_VARS.forEach(v => mosaicGeomHost.style.removeProperty(v));
 }
 
 /**
@@ -605,7 +609,7 @@ function isThumbnailMosaic() {
  * should debounce, which is why the resize path goes through rAF.
  */
 function layoutMosaic() {
-  if (!isThumbnailMosaic() || mosaicPortrait.matches || mosaicRows <= 0) {
+  if (!isThumbnailMosaic() || mosaicRows <= 0) {
     clearMosaicGeometry();
     return;
   }
@@ -632,14 +636,19 @@ function layoutMosaic() {
   const width = cols * cell + (cols - 1) * gap;
   const height = MOSAIC_PAD_TOP + rows * cell + (rows - 1) * gap;
 
-  // Right-anchored (the terminal owns the left side), vertically centred in
-  // whatever slack the available box has.
+  // Vertically centred in whatever slack the available box has. Landscape:
+  // right-anchored (the terminal owns the left side). Portrait: the box is
+  // the full width, so centre horizontally too.
   const top = avail.top - screen.top + Math.max(0, (avail.height - height) / 2);
 
-  crtScreen.style.setProperty('--mosaic-cell', `${cell}px`);
-  crtScreen.style.setProperty('--mosaic-width', `${width}px`);
-  crtScreen.style.setProperty('--mosaic-top', `${top}px`);
-  crtScreen.style.setProperty('--mosaic-bottom', `${Math.max(0, screen.height - top - height)}px`);
+  mosaicGeomHost.style.setProperty('--mosaic-cell', `${cell}px`);
+  mosaicGeomHost.style.setProperty('--mosaic-width', `${width}px`);
+  mosaicGeomHost.style.setProperty('--mosaic-top', `${top}px`);
+  mosaicGeomHost.style.setProperty('--mosaic-bottom', `${Math.max(0, screen.height - top - height)}px`);
+  if (mosaicPortrait.matches) {
+    const right = screen.right - avail.right + Math.max(0, (avail.width - width) / 2);
+    mosaicGeomHost.style.setProperty('--mosaic-right', `${right}px`);
+  }
 }
 
 // Resize/orientation: coalesce to one layout pass per frame. Window resize

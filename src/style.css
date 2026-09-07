@@ -41,11 +41,12 @@
   /* Terminal padding */
   padding: 2rem;
 
-  /* Base terminal font */
+  /* Base terminal font — shared with the nav via --ui-font, which the
+   * left-column layout math in the :root geometry block depends on. */
   font-family: 'Martian Mono', monospace;
   font-weight: 200;
   font-style: normal;
-  font-size: clamp(1.25rem, 1.667vw, 2rem);
+  font-size: var(--ui-font);
 
   /* Subtle glow on all text - uses era-specific glow */
   text-shadow: 0 0 10px var(--glow-color);
@@ -377,21 +378,54 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
 
-  /* ── Mosaic box geometry ────────────────────────────────────────────────
-   * Single source of truth for where the mosaic sits. Four consumers read
-   * these: .mosaic-grid, .mosaic-frame, .crt-scrollbar, .detail-nav — so the
-   * frame/scrollbar/nav track the grid without duplicating the constants.
-   *
-   * The values below are the AVAILABLE box (the area the mosaic may occupy).
-   * In thumbnail mode, layoutMosaic() in desktop.js overwrites top/bottom/
-   * width with px values so the box shrinks to the grid's real aspect ratio
-   * and the frame hugs it. Text modes (General/Games/article) clear the
-   * overrides and get the full box back. */
-  --mosaic-right: 2%;
-  --mosaic-top: 5%;
-  --mosaic-bottom: 5%;
-  --mosaic-width: 55%;
+/* ── Mosaic box geometry ──────────────────────────────────────────────────
+ * Single source of truth for where the mosaic sits. Four consumers read
+ * these: .mosaic-grid, .mosaic-frame, .crt-scrollbar, .detail-nav — so the
+ * frame/scrollbar/nav track the grid without duplicating the constants.
+ *
+ * Declared on :root, NOT on #crt-screen: #mosaic is a sibling of #crt-screen
+ * in index.html (kept outside so it stacks above .crt-overlay), and custom
+ * properties only inherit downward. Scoped to #crt-screen, every var() on
+ * .mosaic-grid was invalid → top/width fell back to `auto` and the grid
+ * rendered at its static position: one full viewport below the fold.
+ * layoutMosaic() in desktop.js writes its overrides to <html> for the same
+ * reason.
+ *
+ * The values below are the AVAILABLE box (the area the mosaic may occupy).
+ * In thumbnail mode, layoutMosaic() overwrites top/bottom/width with px
+ * values so the box shrinks to the grid's real aspect ratio and the frame
+ * hugs it. Text modes (General/Games/article) clear the overrides and get
+ * the full box back. */
+:root {
+  /* ── Left column: terminal text + nav menu ──────────────────────────────
+   * Both use the same font size, and Martian Mono's advance width is
+   * exactly 0.7em at every weight (measured), so text widths are known in
+   * CSS without JS. The terminal's longest line is "> Technical Artist"
+   * (18 chars) at left: 2rem; the nav's longest item is "> General" /
+   * "> 3D Tech" (9 chars) with 0.4em side padding inside 2rem menu padding.
+   * The nav used to sit at a fixed 23% — below ~1200px wide the font hits
+   * its 1.25rem floor, the text stops shrinking with the viewport, and the
+   * opaque nav covered the end of the terminal line. */
+  --ui-font: clamp(1.25rem, 1.667vw, 2rem);
+  --ui-ch: calc(var(--ui-font) * 0.7);
+  --nav-left: max(23%, calc(2rem + 18 * var(--ui-ch) + 0.75rem));
+  --nav-right: calc(var(--nav-left) + 4rem + 9 * var(--ui-ch) + 0.8 * var(--ui-font));
+
+  /* Margins are floored at the frame pad (+4px so the outer border stays
+   * on-screen): the frame extends --mosaic-frame-pad past the box, and
+   * 2% of a 1366px-wide screen (27px) or 5% of a 600px-tall one (30px) is
+   * less than 2rem — the border was clipping off the viewport edge. */
+  --mosaic-margin-min: calc(var(--mosaic-frame-pad) + 4px);
+  --mosaic-right: max(2%, var(--mosaic-margin-min));
+  --mosaic-top: max(5%, var(--mosaic-margin-min));
+  --mosaic-bottom: max(5%, var(--mosaic-margin-min));
+  /* 55% of the screen, unless that would put the frame's left border over
+   * the nav — then whatever is left between the nav and the right margin.
+   * At 1920 the cap is slack (grid stays 55%); at 1366 it trims ~20px;
+   * at 911 (a 1366 laptop at 150% zoom) it's what keeps the layout legible. */
+  --mosaic-width: min(55%, calc(100% - var(--mosaic-right) - var(--nav-right) - var(--mosaic-frame-pad) - 1.5rem));
 
   /* Column count is frozen so `cols`/`rows` in content.js mean the same thing
    * on every display. 8 matches what a 1920px-wide screen used to auto-fill. */
@@ -530,7 +564,10 @@
 
 .nav-menu {
   position: absolute;
-  left: 23%;
+  /* 23% of the screen, floored past the end of the terminal's longest line
+   * (see --nav-left in the :root geometry block). The nav's background is
+   * opaque, so any overlap hides the terminal text. */
+  left: var(--nav-left);
   bottom: 36.5%;
 
   display: flex;
@@ -539,7 +576,7 @@
   font-family: 'Martian Mono', monospace;
   font-weight: 200;
   font-style: normal;
-  font-size: clamp(1.25rem, 1.667vw, 2rem);
+  font-size: var(--ui-font);
   color: var(--text-primary);
   background-color: var(--bg-primary);
   gap: 0.5em;
@@ -1727,23 +1764,21 @@
     display: none;
   }
 
-  /* Mosaic: full width, takes the bottom ~58% of the screen.
-   * layoutMosaic() bails out under this media query (same matchMedia string),
-   * so no JS px overrides fight these declarations. */
-  #crt-screen {
-    --mosaic-top: 42%;
-    --mosaic-bottom: 2%;
+  /* Mosaic: full width, takes the bottom ~58% of the screen. Still right +
+   * width geometry (no `left`), so the same consumers work unchanged:
+   * right + width + 2*right = 100%. layoutMosaic() fits the thumbnail grid
+   * into this box exactly as in landscape, but also overrides --mosaic-right
+   * so the (narrower) fitted grid is centred instead of right-anchored.
+   * :root, not #crt-screen — see the geometry block above #crt-screen. */
+  :root {
     --mosaic-frame-pad: 1.5rem;
-  }
-
-  .mosaic-grid {
-    left: 2%;
-    width: auto;
-  }
-
-  .mosaic-frame {
-    left: calc(2% - 1.5rem);
-    width: auto;
+    --mosaic-right: max(2%, var(--mosaic-margin-min));
+    /* 42%, floored below the nav row (top 30% + one line + 2×1rem padding)
+     * plus the frame pad — on a squat 4:3 window (821×616 is the smallest
+     * that still routes to desktop) 42% lands inside the nav. */
+    --mosaic-top: max(42%, calc(30% + 2 * var(--ui-font) + 2rem + var(--mosaic-frame-pad) + 0.5rem));
+    --mosaic-bottom: max(2%, var(--mosaic-margin-min));
+    --mosaic-width: calc(100% - 2 * var(--mosaic-right));
   }
 }
 
