@@ -56,6 +56,18 @@ export class SplatViewer {
     this.renderer.setSize(width, height);
     container.appendChild(this.renderer.domElement);
 
+    // Gesture shield. OrbitControls owns drags on the canvas but never stops
+    // propagation, so an orbit would also reach the parents' swipe handlers
+    // (mobile sheet: touch events; deck: pointer events — separate streams,
+    // both need blocking). Listeners die with the canvas in destroy().
+    // NOT pointerup: OrbitControls ends drags via a pointerup listener on
+    // ownerDocument (bubble phase) — stopping it here would freeze orbits.
+    // The deck's pointerup is harmless on its own; it bails without a start.
+    const stop = (e) => e.stopPropagation();
+    for (const type of ['pointerdown', 'touchstart', 'touchend']) {
+      this.renderer.domElement.addEventListener(type, stop, { passive: true });
+    }
+
     // --- Scene ---
     this.scene = new THREE.Scene();
 

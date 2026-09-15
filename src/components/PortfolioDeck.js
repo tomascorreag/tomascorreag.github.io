@@ -560,16 +560,22 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   window.addEventListener('keydown', onKey);
 
   // ── Touch / pointer swipe between cards (disabled while a doc is open) ──
-  let swipeX = null;
+  let swipeX = null, swipeY = 0;
   function onPointerDown(e) {
     if (docOpen || e.pointerType === 'mouse') return; // mouse uses arrows/dots
-    swipeX = e.clientX;
+    swipeX = e.clientX; swipeY = e.clientY;
   }
   function onPointerUp(e) {
     if (swipeX == null) return;
     const dx = e.clientX - swipeX;
+    const dy = e.clientY - swipeY;
     swipeX = null;
-    if (Math.abs(dx) > 50) goTo(index + (dx < 0 ? 1 : -1));
+    if (Math.abs(dx) <= 50) return;
+    // Off-axis guard (same ratio as mobile attachSwipe). touch-action: pan-y
+    // makes the browser claim most vertical drags via pointercancel, but a
+    // diagonal it doesn't claim shouldn't flip cards either.
+    if (Math.abs(dy) > Math.abs(dx) * 0.6) return;
+    goTo(index + (dx < 0 ? 1 : -1));
   }
   viewport.addEventListener('pointerdown', onPointerDown);
   viewport.addEventListener('pointerup', onPointerUp);

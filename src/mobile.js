@@ -911,6 +911,9 @@ function destroySplatViewer(viewer) {
 function attachSwipe(el, { onHorizontal, threshold = 48, offAxis = 0.6 } = {}) {
   let startX = 0, startY = 0, active = false;
   el.addEventListener('touchstart', (e) => {
+    // A second finger means pinch/zoom, not a swipe — cancel for the rest of
+    // this gesture (touchstart fires per finger, so this catches it).
+    if (e.touches.length > 1) { active = false; return; }
     const t = e.touches[0]; if (!t) return;
     startX = t.clientX; startY = t.clientY; active = true;
   }, { passive: true });

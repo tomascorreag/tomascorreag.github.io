@@ -115,8 +115,12 @@ export function attachVideoControls(video, container, opts = {}) {
 
   // One shield for every parent click behavior: the detail view's
   // click-to-fullscreen, tap-to-toggle on the container, deck/mobile swipe.
+  // Pointer and touch are separate event streams — stopping pointerdown does
+  // NOT stop touchstart. The mobile sheet's swipe is touch-based, so without
+  // the touch shield a seek-bar scrub reads as a swipe and changes item.
   const onBarClick = (e) => e.stopPropagation();
   const onBarPointerDown = (e) => e.stopPropagation();
+  const onBarTouch = (e) => e.stopPropagation();
 
   const onPlayClick = () => { video.paused ? video.play() : video.pause(); };
   const onMuteClick = () => { video.muted = !video.muted; };
@@ -148,6 +152,8 @@ export function attachVideoControls(video, container, opts = {}) {
 
   bar.addEventListener('click', onBarClick);
   bar.addEventListener('pointerdown', onBarPointerDown);
+  bar.addEventListener('touchstart', onBarTouch, { passive: true });
+  bar.addEventListener('touchend', onBarTouch, { passive: true });
   playBtn.addEventListener('click', onPlayClick);
   muteBtn.addEventListener('click', onMuteClick);
   seek.addEventListener('input', onSeekInput);
