@@ -148,7 +148,11 @@
 }
 
 /* Each slide is narrower than the viewport; inactive ones shrink + dim to the
-   "just their edges, smaller and less opaque" peek state. */
+   "just their edges, smaller and less opaque" peek state.
+   Dimming is opacity only. The old saturate()/brightness() filter needed an
+   extra GPU pass per slide, and on a cold shader cache (first visit) its first
+   use froze a transition for ~250 ms in Chrome. 0.3 ≈ the old 0.34 opacity ×
+   0.85 brightness. */
 .deck-slide {
   flex: 0 0 var(--slide-w);
   height: 100%;
@@ -158,18 +162,15 @@
   padding: clamp(1rem, 2.5vw, 2rem) clamp(0.4rem, 1vw, 0.9rem);
   box-sizing: border-box;
   transform: scale(0.82);
-  opacity: 0.34;
-  filter: saturate(0.65) brightness(0.85);
+  opacity: 0.3;
   transition:
     transform 560ms var(--ease-smooth),
-    opacity 560ms ease,
-    filter 560ms ease;
+    opacity 560ms ease;
 }
 
 .deck-slide.is-active {
   transform: scale(1);
   opacity: 1;
-  filter: none;
 }
 
 .deck.no-anim .deck-slide {

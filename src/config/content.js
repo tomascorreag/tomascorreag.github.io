@@ -281,7 +281,7 @@ const ARBO_BODY = `
 
 In the near future, an alien species known as the **ARBO** arrives on Earth as humanity's guardians: they have come, they say, to warn us of the **Abyssals**, another alien race intent on enslaving the world. Racing to build an army of automata to defend itself, humanity instead gives rise to a wholly new form of artificial life: the **Syhm**. Then the ARBO's true intentions surface, and war breaks out between four factions: humans, Syhm, Abyssals, and ARBO.
 
-Two players each command a small team of heroes and face off on a grid-based battlefield. Before every match you build your own deck of cards, so each game blends careful tactics with strategic deck-building. The goal is simple: outthink your opponent, control the ground, and knock out their team.
+Two players each command a small team of heroes and face off on a hex-grid battlefield. Before every match you build your own deck of cards, so each game blends careful tactics with strategic deck-building. The goal is simple: outthink your opponent, control the ground, and knock out their team.
 
 - **Four hero classes**, each with a distinct way of playing
 - **Cards you unlock and collect**, then build into your own decks, with dynamic and varied card mechanics where the card energy pool doubles as health, so every action is a trade-off between attacking and staying alive
@@ -292,20 +292,22 @@ Two players each command a small team of heroes and face off on a grid-based bat
 
 ## My Role
 
-I entered the project as a 3D artist working on the game art. Eventually I moved into development and became the Technical Artist and one of two core developers at **ReBlink**, the Canadian studio where ARBO was built, across five years on a small multidisciplinary team (2021-2026). I was responsible for:
+I entered the project as a 3D artist working on game art. Eventually I moved into development and became the Technical Artist and one of two core developers at **ReBlink**, the Canadian studio where ARBO was built across five years on a small multidisciplinary team (2021-2026). I was responsible for:
 
-- **The real-time visual pipeline**: the system that turns the game's art into what you see on screen, frame by frame
+- **The real-time visual pipeline**: the system that turns the game's 2D and 3D art into what you see on screen.
 - **Liaison** between engineering, Art, and Game Design departments.
-- **All visual effects**: explosions, impacts, energy, and everything that moves and glows in combat
-- The **entire game logic, interface and overall feel of using the game** (co-developed)
+- **All shading and visual effects**: dynamic materials, explosions, impacts, energy.
+- The **game logic, interface and overall feel of using the game** (co-developed)
 - The **multiplayer game backend**, infrastructure to support online multiplayer games (co-developed)
 - **Custom tools inside Unity** that let the rest of the team build and tune content without writing code
+
+I also wrote the post-mortem for the project.
 
 ---
 
 ## Why I Joined
 
-I joined ReBlink early and stayed for five years because the project offered something rare: complete ownership of a commercial game's visual identity, end to end. Every character, effect, and arena (how it looked, how it moved, how it felt to play) passed through my hands, and I built the core systems of the game, spanning from backend to UX. That work sits exactly on the line between art and engineering, which is where I do my best work. Shipping it on Steam, with a small team, after four years of building it together, is the professional achievement I'm proudest of.
+I joined ReBlink early and stayed for five years because the project offered something rare: ownership of a commercial game's visual identity, end to end. Every character, effect, and environment (how it looked, how it moved, how it felt to play) passed through my hands, and I built the core systems of the game, spanning from backend to UX. That work sits exactly on the line between art and engineering, which is where I do my best work. Shipping the alpha on Steam after four years of building it with a small team, then developing it for a further year, is the professional achievement I'm proudest of.
 
 ---
 
@@ -321,7 +323,7 @@ I joined ReBlink early and stayed for five years because the project offered som
 - **Editor tooling** that lets designers author and tune content without writing code
 - **Fully data-driven content**: classes, protocols, operations, and arena setups defined in JSON profiles, so balance and content iteration never touches engine code
 - **Deep C# combat logic**: a hex-tile based map system with pathfinding and line-of-sight, a deep status-effect system that affected everything from movement to chance-to-hit, and many other complex systems.
-- **Two-tier networking**: Photon Fusion and Colyseus for matchmaking, game lobbies, and in-game multiplayer
+- **Networking**: backend systems for matchmaking, game lobbies, and in-game multiplayer
 - **Server-driven AI opponents**: an LLM-based AI opponent with a reasoning agent powering the Prompt-Battler mode
 
 ![ARBO Incendiary Flames VFX](Games/ARBO/flamethrower.jpg)
@@ -333,13 +335,17 @@ I joined ReBlink early and stayed for five years because the project offered som
 const ARBO_POSTMORTEM = `
 ## The Design Post-Mortem
 
-When the project wound down in 2026, I wrote its design post-mortem: a structured account of what we built, what happened when players met it, and why. It draws on the design decision log, the shipped design document, patch history, a comparison against six design-adjacent games, and the written reflections of two colleagues who red-teamed the analysis. What follows is the short version of the design findings; financial detail and individual attributions stay internal.
+When the project wound down in 2026, I wrote its design post-mortem: a structured account of what we built, what happened when players interacted with it, and why. It draws on the design decision logs, development logs, shipped design documents, a comparison against six design-adjacent games, and the reflections of two colleagues.
 
-**The root finding.** We named four target aesthetics for the game (challenge, sensation, collection, discovery) and rigorously specified none of them. Below the four-word level, the design never committed to a direction sharp enough that anyone could ask *does this serve the direction?* and get a reproducible answer. Everything downstream sat on that: the ruleset's identity layer and its noise-heavy outcome layer spoke past each other, balance defaulted to subtraction because no identities had been named worth protecting, and onboarding, the surface through which most of the designed experience reaches a new player, was built in the final weeks before launch.
+**The root finding.** We named target aesthetics for the game without rigorously specifying them. Beyond naming them, the design never committed to a direction sharp enough that anyone on the team could effectively ask *does this serve the direction?* Everything downstream sat on that.
 
-**The pattern.** The design and engineering failures turned out to be siblings, not parent and child. In design, we shipped aesthetic targets without specifying them; in engineering, we adopted backbone technology without a bake-off; in production, no playable build reached an external community for the first three years. The shared root: the cost of gathering evidence was deferred past the point where it would have been load-bearing. Where the team paid that cost up front, the results were the project's preserved strengths.
+**The pattern.** The design and engineering failures turned out to have similar root causes. In design, we shipped aesthetic targets without specifying them; in engineering, we adopted backbone technology without a deep cost-benefit analysis; in production, no playable build reached an external community before committing significant resources. The shared root: the cost of gathering evidence was deferred past the point where it would have been load-bearing.
 
-**What I took from it.** Three process rules: a project's foundation is a clear vision and a clear aesthetic direction, where *aesthetic* means the whole experience surface, not the visual layer; pay for expertise before committing to load-bearing decisions, or defer the commitment; gather evidence continuously from the start, and treat it as scope-revision input. A caveat the document itself opens with: I am not an academic in games design, and where it borrows terms from design theory they are used as lenses on one problem, not as authoritative theory. That lack of fluency turned out to be part of the finding, and it is the reason I am looking for the theory I did not have while making the game. It also changed what I make: *Páramo* was designed from its argument outward, with the rules specified before the art.
+**What I took from it.** 
+1. A project's foundation is a clear vision and a clear aesthetic direction, where *aesthetic* means the whole experience surface, not the visual layer
+2. Don't over-commit without the evidence or proven expertise for a decision. Gather evidence continuously from the start, and treat it as scope-revision input. 
+
+A caveat the document itself opens with: I am not an academic in games design. That lack of design fluency in the team turned out to be part of the finding, and it is the reason I am looking for the theory I did not have while making the game.
 
 ---
 `;
@@ -384,16 +390,20 @@ export const GAMES = [
     page: `
 ## About the Project
 
-A mix of sandbox and environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high mountain ecosystem that acts as a water factory for millions of beings downstream. A glacial lake sits at the summit. If it dies, everything below it dies with it.
+A mix of sandbox and environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high mountain ecosystem that acts as a water factory for millions of beings downstream. A glacial lake sits at the summit and it, along with its surrounding ecosystem, must be protected.
+
+The implementation remains a work in progress, with the intended design as follows.
 
 Threats climb the mountain from below:
 
-- **Extractive:** illegal miners, licensed mining operations, and land speculators
-- **Biological:** invasive grasses creeping uphill and stray cattle trampling the soil
-- **Human:** careless tourists, campers who start fires, and subsistence farmers with no other options
-- **Environmental:** drought, wildfire, erosion, and a steadily worsening climate you can never beat
+- **Extractive:** illegal miners, licensed mining operations, land speculators, and hunters.
+- **Biological:** invasive grasses creeping uphill, stray cattle trampling the soil.
+- **Human:** careless tourists, campers who start fires, and subsistence farmers with no other options.
+- **Environmental:** drought, wildfire, erosion, and a steadily worsening climate you can never beat.
 
 Three things keep a run going. **Water** comes from the ecosystem itself, **funding** from grants and eco-tourism, and **community support** decides whether the people who live nearby are your allies or your adversaries.
+
+The intended aesthetic experience for the player is one of insufficiency, of feeling an abundance in opportunity being trampled by social forces beyond their control. This includes asymmetric imbalances such as environmental timescales vs. industrial timescales and local environmental projects vs global climate change. The rules and procedures of the game aim to express this rhetoric to the player.
 
 ![Páramo isometric tile system](Games/Paramo/Large.jpg)
 *Isometric tile grid with elevation, vegetation, and terrain variety.*
@@ -404,13 +414,15 @@ Three things keep a run going. **Water** comes from the ecosystem itself, **fund
 
 Solo project (2026-present). The design, the code, the pixel art, and the writing are all mine, built in Godot 4 with isometric pixel art.
 
+I have consulted with guardians and inhabitants of real páramos in Colombia, seeking guidance both on the technical aspects of the game design and on the message they want to send. In the future I want to work more closely with them, on projects we create together from the start.
+
 ---
 
-## Why I Made It
+## Why I'm Making It
 
-I wanted to make an argument through play rather than through a script, a game whose *rules* make the case, not its dialogue. The idea (game designers call it procedural rhetoric) is that if you strip away all the words and the way the game plays still convinces you of something, then the argument is built into the system itself.
+I wanted to make an argument through play rather than only through audiovisuals, a game whose *rules* make the case, not just its dialogue. The idea (Bogost's procedural rhetoric) is that if you strip away all the words and visuals and the way the game plays still convinces you of something, then the argument is built into the system itself.
 
-The core claim I'm building toward: conservation is uneven, depends on the people who live there, and is partly a fight you can't fully win. No amount of skill turns you into a savior.
+The core claim I'm building toward is that conservation is uneven, depends on all of us, and is partly a fight you can't fully win.
 
 The rules carry the smaller arguments:
 
@@ -419,7 +431,7 @@ The rules carry the smaller arguments:
 - **Walling the mountain off doesn't work.** Locking people out instead of working with them destroys your support and multiplies the threats.
 - **The legal threats are as bad, or worse, as the illegal ones.** Licensed mining can't be physically stopped, and even the legal route to fight it can lose.
 - **Climate is a ceiling, not an enemy.** There's no way to beat it, only to adapt.
-- **The land remembers.** Damage is partly permanent, and the end screen shows you what was lost, not a score.
+- **The land remembers.** Damage is partly permanent and the páramo can only lose; the question is how much you slow the loss. The end screen shows what was lost, not a score.
 
 ![Páramo mountain at dusk](Games/Paramo/Small.jpg)
 *The mountain at dusk: stream, vegetation gradients, and atmospheric fog.*
@@ -457,7 +469,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
     page: `
 ## About the Project
 
-One map of Colombia, one timeline, two archives. **Scars of Violence** renders the documented violence of the armed conflict (1958-present) as wounds on the land. **Ashes of Death** renders the loss of the country's forests (2001-2025) as burnt ground. Both are drawn from public records, both are joined to the same municipalities, and both are read the same way: press play and watch the marks accumulate.
+**Scars of Violence** renders the documented violence of the armed conflict in Colombia (1958-present) as wounds on the map of the land. **Ashes of Death** renders the loss of the country's forests (2001-2025) as burnt ground. Both are drawn from public records and can be read the same way: through an interactive map in space and time.
 
 ---
 
@@ -471,11 +483,11 @@ An interactive, browser-based map that shows the documented violence of the coun
 Time is the central dimension. As the timeline plays from 1958 to the present:
 
 - Each documented event appears on its exact date, as a wound at the place it happened. Its size reflects the number of victims.
-- The wound glows while fresh, then fades over roughly three years, leaving a **permanent scar** that never disappears. By the end the map is not empty, it is covered in seven decades of accumulated marks.
+- The wound glows while fresh, then fades over roughly three years, leaving a **permanent scar** that never disappears. By the end the map is covered in seven decades of accumulated marks.
 - Blood-like tendrils spread from each wound across the surrounding land, denser where there were more victims, settling into thin, dark, permanent traces.
 - Clicking a wound or scar opens the record behind it: what happened, when, where, and who the victims were, with its source citation.
 
-The wound-and-scar metaphor is the heart of the piece: violence is an injury to a territory and its people, not a series of isolated incidents, and its marks persist. A massacre in 1997 is still visible in 2026, because it still persists in the people's collective and individual memory.
+The wound-and-scar metaphor is the heart of the piece: violence is an injury to a territory and its people with a persistent mark. A massacre in 1997 is still visible in 2026, because it still persists in the people's collective and individual memory.
 
 ---
 
@@ -494,31 +506,33 @@ The two views are meant to be read together. The conflict and the clearing of th
 
 ## My Role
 
-Solo project (2026). The concept, the design, the code, and all the data processing are mine: Python pipelines (pandas, geopandas, rasterio) that turn the source archives into map-ready data, and a Svelte, MapLibre and deck.gl front end that renders them. The underlying records come from public archives; turning them into a living, navigable map is my work.
+Solo project (2026). The concept, the design, the code, and all the data processing are mine: Python pipelines (pandas, geopandas, rasterio) that turn the source archives into map-ready data, along with a front end that renders them. The underlying records come from public archives, such as CNMH; turning them into a living, navigable map is my work.
 
 ---
 
 ## Why I Made It
 
-**Rutas del Conflicto** (rutasdelconflicto.com) is the direct inspiration. Their navigable, place-by-place archive of the conflict's massacres showed me that memory work could take the form of a map rather than a linear narrative. This piece keeps their core gesture (geography as the way into the conflict) while experimenting with a more visceral visual register: animation, accumulation, the wound-and-scar metaphor, to test whether the territory's marking can be *felt* as well as consulted. It is an homage and an experiment on top of their idea, not a correction of it.
+**Rutas del Conflicto** (rutasdelconflicto.com) is the direct inspiration. Their navigable, place-by-place archive of the conflict's massacres showed me that memory work could take the form of a map rather than a linear narrative. This piece keeps their core gesture (geography as the way into the conflict) while experimenting with a more visceral visual register: animation, accumulation, the wound-and-scar metaphor, to test whether the territory's marking can be *felt* as well as consulted. It is an homage and an experiment on top of their idea rather than a correction of it.
 
 Something Rutas does especially well is the rigorous verification and narrative breakdown behind each event: a documented account of what happened, to whom, and how. That detail is what humanises the record and gives it emotional weight, more than any coordinate or victim count can. I couldn't find reliable breakdowns like that for most of the acts shown here, so for now most marks carry only their structured record. I'm writing those narratives in for some of the events, and raising that narrative impact little by little.
 
-The conflict's toll is usually communicated as aggregate numbers, and aggregates anaesthetise. The hypothesis is that a spatial-temporal rendering can do what a table cannot: convey that the violence had a *shape*: that it concentrated in specific regions, moved across the country in waves, and left wounds that are both spatial and temporal, and still visible decades later.
+The conflict's toll is usually communicated as anaesthetised aggregate numbers. The hypothesis is that a spatial-temporal rendering can do what a table cannot by conveying that the violence had a *shape* and a *lasting effect*.
 
-The second motivation is the **CNMH** itself. Its patient, rigorous, case-by-case documentation of the conflict in SIEVCAC is one of the most important memory undertakings in the country, and it deserves to be seen by more than researchers who can parse a CSV. This project puts interactive data visualisation at the service of an archive that already exists, rather than making a new claim about the conflict.
+The second motivation is the **CNMH** itself. Its patient, rigorous, case-by-case documentation of the conflict in SIEVCAC is one of the most important memory undertakings in the country, and it deserves to be seen by everyone in and outside the country. This project puts interactive data visualisation at the service of an archive that already exists, rather than making a new claim about the conflict.
 
 ---
 
 ## Commitments
 
-Because the archive records real victims, the design carries non-negotiable constraints:
+Because the archive records real victims, the design carries certain constraints:
 
-- **Fidelity over drama.** Every mark corresponds to a documented case with a citation back to its source record. Missing values stay missing and are disclosed; the emotional force must come from the truth of the data, not embellishment of it. No coordinate, date, or victim count is ever estimated, interpolated, or fabricated.
+- **Fidelity over drama.** Every mark corresponds to a documented case with a citation back to its source record. Missing values stay visually missing and are disclosed; the emotional force must come from the truth of the data, not embellishment of it. No coordinate, date, or victim count is ever estimated, interpolated, or fabricated.
 - **Interpretation is labeled.** The wound metaphor is an authored reading, and the interface says so. The viewer can always reach the underlying record.
 - **Dignity.** The archive is published for memory, research, and education. The aesthetic aims for gravity, a dark cartographic register, not spectacle.
 
 The same rules hold for the forest: no hectare is estimated, drivers are ranked rather than given invented percentages, and every figure carries its source.
+
+I've also made the entire repository public with an open-source license, to contribute to the communal work of visualizing our collective memory.
 
 ---
 
@@ -1033,7 +1047,7 @@ Made in **Blender** in 2022. The X-Wing model was sourced online; everything els
 
 ## Why I Made It
 
-I wanted to push myself on motion, framing, and timing. Animating a fast, readable dogfight is a different problem from a still image, and this was the piece where I went after it.
+I wanted to push myself on motion, framing, and timing. I was inspired by existing beautiful work by ILM on similar spaceship dogfights.
 `,
     },
   ],

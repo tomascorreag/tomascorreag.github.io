@@ -66,7 +66,9 @@
   position: relative;
   width: 100%;
   overflow: hidden;
-  filter: brightness(calc(1 / (1 + 0.85 * var(--crt-glow-brightness, 1))));
+  /* Exact inverse of the .article-page boost (1 + 0.4·glow), same as
+   * .article-figure. Any other factor leaves the banner net-dimmed. */
+  filter: brightness(calc(1 / (1 + 0.4 * var(--crt-glow-brightness, 1))));
 }
 
 .article-banner-wrap::after {

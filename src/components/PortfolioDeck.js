@@ -37,7 +37,7 @@ import { createMediaElement, createSpritesheetElement } from '../utils/media.js'
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
-import { deviceTier, prefersReducedMotion } from '../config/device.js';
+import { deviceTier, prefersReducedMotion, getSaveData } from '../config/device.js';
 import { attachVideoControls } from './VideoControls.js';
 
 const reduceMotion = prefersReducedMotion() || deviceTier === 'low';
@@ -76,15 +76,20 @@ function el(tag, opts = {}, children = []) {
  * thumbnails, splat thumbnails) goes through createMediaElement. Returns null
  * if neither is available, so callers can render a fallback.
  */
-function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true } = {}) {
+function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true, sizes, video } = {}) {
   if (item.type === 'spritesheet' && item.spritesheet) {
     return createSpritesheetElement(item.spritesheet, { className, alt, responsive: true });
   }
   if (item.src) {
-    return createMediaElement(item.src, { className, alt, lazy });
+    return createMediaElement(item.src, { className, alt, lazy, sizes, video });
   }
   return null;
 }
+
+// Card media is at most one slot wide: --slide-w is 50% on desktop, 88% on
+// narrow/touch screens (see portfolio-deck.css). Without this the default
+// '100vw' fetches and decodes twice the pixels the card can show.
+const CARD_SIZES = '(max-width: 820px) 88vw, (hover: none) and (pointer: coarse) 88vw, 50vw';
 
 /**
  * Sizes a media box to its image's exact width so the card frame hugs it (no
@@ -172,6 +177,16 @@ function applyMediaAspect(box, item, mediaEl) {
 
   const img = mediaEl.tagName === 'IMG' ? mediaEl : mediaEl.querySelector?.('img');
   const video = mediaEl.tagName === 'VIDEO' ? mediaEl : mediaEl.querySelector?.('video');
+  // createMediaElement copies the manifest dimensions into width/height
+  // attributes. Using them now means the aspect is known before any bytes
+  // arrive, so no load event later forces a re-layout (possibly mid-slide).
+  const known = img || video;
+  const aw = Number(known?.getAttribute('width'));
+  const ah = Number(known?.getAttribute('height'));
+  if (aw && ah) {
+    set(aw, ah);
+    return;
+  }
   if (img) {
     if (img.complete && img.naturalWidth) set(img.naturalWidth, img.naturalHeight);
     else img.addEventListener('load', () => set(img.naturalWidth, img.naturalHeight), { once: true });
@@ -285,7 +300,17 @@ function buildCard(entry, indexLabel, onOpen) {
   const { item, kind } = entry;
   const blurb = item.description || '';
 
-  const media = buildItemMedia(item, { className: 'deck-card-media-el' });
+  // Eager: the deck has ~5 cards, and a lazy image only starts loading once
+  // its slide slides into view, so it would decode mid-transition.
+  // autoplay:false keeps card videos out of the shared offscreen manager, which
+  // would play any video that peeks into the viewport (neighbours included).
+  // The deck plays only the centred card's video (syncSlideVideos).
+  const media = buildItemMedia(item, {
+    className: 'deck-card-media-el',
+    lazy: false,
+    sizes: CARD_SIZES,
+    video: { autoplay: false },
+  });
   const mediaBox = el('div', { class: 'deck-card-media' }, media || el('div', { class: 'deck-card-media-fallback' }));
   applyMediaAspect(mediaBox, item, media);
 
@@ -471,24 +496,44 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     syncSlideVideos();
   }
 
-  // Only the centred card's video should decode/loop. Fully-offscreen slides
-  // are paused by the shared media manager already, but neighbours peek at
-  // the viewport edges and count as visible — sync them here. Clearing
-  // `autoplay` matters as much as pause(): a video whose data arrives later
-  // would otherwise start itself on a non-current slide.
-  function syncSlideVideos() {
+  // Only the centred card's video plays. Card videos are built without
+  // autoplay and outside the shared media manager, so the deck is their only
+  // owner. Others pause right away; the centred one starts once the slide has
+  // settled, because starting playback (first decode, first GPU upload) during
+  // the slide drops frames. On a cold GPU cache, measured in Chrome, it froze
+  // one transition for ~200 ms.
+  const SLIDE_MS = 560; // keep in sync with .deck-track / .deck-slide transitions
+  const saveData = getSaveData();
+  let playTimer = null;
+  function syncSlideVideos({ immediate = false } = {}) {
+    clearTimeout(playTimer);
+    playTimer = null;
+    let current = null;
     slideEls.forEach((s, i) => {
-      s.querySelectorAll('video').forEach((v) => {
-        if (i === index) {
-          v.autoplay = true;
-          if (v.paused) v.play().catch(() => {});
-        } else {
-          v.autoplay = false;
-          if (!v.paused) v.pause();
-        }
-      });
+      for (const v of s.querySelectorAll('video')) {
+        if (i === index) current = v;
+        else if (!v.paused) v.pause();
+      }
     });
+    // Data saver: no autoplay (createMediaElement's rule); docOpen / hidden tab:
+    // nobody can see the card.
+    if (!current || saveData || docOpen || document.hidden) return;
+    const start = () => { if (current.paused) current.play().catch(() => {}); };
+    if (immediate || reduceMotion) start();
+    else playTimer = setTimeout(start, SLIDE_MS);
   }
+
+  function pauseSlideVideos() {
+    clearTimeout(playTimer);
+    playTimer = null;
+    track.querySelectorAll('video').forEach((v) => v.pause());
+  }
+
+  const onVisibility = () => {
+    if (document.hidden) pauseSlideVideos();
+    else syncSlideVideos({ immediate: true });
+  };
+  document.addEventListener('visibilitychange', onVisibility);
 
   // A card click means one of two things: tapping the already-centred card
   // opens its document; tapping a half-visible neighbour just slides to it.
@@ -525,6 +570,9 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
     docOpen = true;
+    // The opaque overlay covers the card; Frenesí's doc banner is the same
+    // file, so leaving the card playing meant two decodes of one video.
+    pauseSlideVideos();
   }
 
   function closeDoc() {
@@ -543,6 +591,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
     docOpen = false;
+    syncSlideVideos({ immediate: true });
   }
 
   // ── Keyboard ──
@@ -613,7 +662,9 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     destroy() {
       clearTimeout(wipeTimer);
       clearTimeout(relayoutTimer);
+      pauseSlideVideos();
       docControls?.destroy();
+      document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
       deck.remove();
