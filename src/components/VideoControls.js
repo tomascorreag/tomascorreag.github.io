@@ -122,7 +122,10 @@ export function attachVideoControls(video, container, opts = {}) {
   const onBarPointerDown = (e) => e.stopPropagation();
   const onBarTouch = (e) => e.stopPropagation();
 
-  const onPlayClick = () => { video.paused ? video.play() : video.pause(); };
+  const onPlayClick = () => {
+    if (video.paused) video.play().catch(() => { /* autoplay policy / aborted load */ });
+    else video.pause();
+  };
   const onMuteClick = () => { video.muted = !video.muted; };
   const onSeekInput = () => {
     video.currentTime = Number(seek.value);

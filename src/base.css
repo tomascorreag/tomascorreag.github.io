@@ -71,6 +71,16 @@
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.42, 0, 1, 1);
+
+  /* Global stacking layers (page-level, not local stacking contexts).
+     mobile.css keeps its own literal values. */
+  --z-below-scanlines: 99;   /* CV panel, CRT scrollbar */
+  --z-crt-overlay: 100;      /* scanlines + vignette */
+  --z-above-scanlines: 1000; /* mosaic grid (thumbnail/games/article modes) */
+  --z-masthead: 1001;        /* detail nav while landscape doc scrolls */
+  --z-deck: 1500;            /* portfolio deck + not-found panel */
+  --z-lightbox: 2000;        /* image lightbox backdrop */
+  --z-lightbox-image: 2001;  /* image lightbox overlay */
 }
 
 /* Era: Terminal (default) - green phosphor monitor aesthetic */
@@ -258,10 +268,19 @@ body {
   border-color: color-mix(in srgb, var(--text-primary) 50%, transparent);
 }
 
-/* Touch: fatter hit targets (44px-ish total with the bar padding) */
+/* Keyboard focus ring (the 50% border above is too faint on its own). */
+.vc-btn:focus-visible,
+.vc-seek:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* Touch: 44px minimum hit targets */
 @media (hover: none) {
   .vc-btn {
     padding: 0.55rem;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -322,6 +341,25 @@ body {
   border-radius: 0;
   background: var(--text-primary);
   box-shadow: 0 0 6px var(--text-primary);
+}
+
+/* Touch: 44px-tall hit area and a 20px thumb. The track stays 2px (it is
+   sized separately above), so only the thumb grows visibly. */
+@media (hover: none) {
+  .vc-seek {
+    height: 44px;
+  }
+
+  .vc-seek::-webkit-slider-thumb {
+    width: 20px;
+    height: 20px;
+    margin-top: -9px; /* (2px track - 20px thumb) / 2 */
+  }
+
+  .vc-seek::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
 }
 
 /* ── Mobile branch ──────────────────────────────────────────────────────────

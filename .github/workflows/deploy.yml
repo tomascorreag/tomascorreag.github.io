@@ -22,6 +22,13 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    # Files that never reach dist/: skip the build + 54 MB redeploy.
+    # (A push touching only these won't deploy; use workflow_dispatch if needed.)
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'scripts/**'
+      - 'assets-src/**'
   workflow_dispatch:
 
 permissions:
@@ -36,18 +43,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # The committed .npmrc pins `script-shell` to a Windows git-bash path for
-    # local dev (see .npmrc header). Override it here so CI uses the Linux
-    # shell — npm honours NPM_CONFIG_* env vars over .npmrc.
-    env:
-      NPM_CONFIG_SCRIPT_SHELL: /bin/bash
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

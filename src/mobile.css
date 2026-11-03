@@ -133,6 +133,9 @@ html.mobile-mode {
   align-items: center;
   padding: calc(14vh + var(--safe-t)) var(--gutter)
            calc(6vh + var(--safe-b));
+  /* svh: stable under the iOS toolbar; the vh line above is the fallback */
+  padding: calc(14svh + var(--safe-t)) var(--gutter)
+           calc(6svh + var(--safe-b));
   /* Protect the bottom from being smaller than the rabbit's natural block */
   overflow: hidden;
   transition: opacity 280ms ease;
@@ -452,8 +455,9 @@ html.mobile-mode {
 
 /* Edge-fade strips: fixed over the scroll area's top and bottom, fading
  * from the page background to transparent so content appears to slip under
- * the header / tab bar. Positioned on .m-shell's grid via the same insets
- * as .m-content; pointer-events: none keeps scrolling untouched. */
+ * the header / tab bar. position: sticky inside the .m-content scroller
+ * keeps them pinned to its edges; pointer-events: none keeps scrolling
+ * untouched. */
 .m-content::before,
 .m-content::after {
   content: '';
@@ -486,14 +490,16 @@ html.mobile-mode {
   border-radius: 3px;
 }
 
-/* Staggered fade-in for top-level children after a tab swap */
+/* Staggered fade-in for top-level children after a tab swap.
+ * `backwards` (not `forwards`): the hidden start state covers the stagger
+ * delay, and once the animation ends nothing stays applied. A finished
+ * `forwards` opacity/transform animation keeps a stacking context alive,
+ * which would trap the media z-index opt-out under the scanlines. */
 .m-content > .m-fade {
-  opacity: 0;
-  transform: translateY(6px);
-  animation: m-fade-in 360ms var(--ease) forwards;
+  animation: m-fade-in 360ms var(--ease) backwards;
 }
 @keyframes m-fade-in {
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; transform: translateY(6px); }
 }
 
 
@@ -598,6 +604,12 @@ html.mobile-mode {
 .m-skill-thumbs { scrollbar-width: none; }
 
 .m-skill-thumb {
+  /* <button> reset */
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
   flex: 0 0 auto;
   width: 104px;
   aspect-ratio: 4 / 3;
@@ -613,6 +625,9 @@ html.mobile-mode {
   transform: scale(0.97);
   border-color: var(--mg);
 }
+/* Taps land on the button, never on an inner Save-Data tap-to-play video */
+.m-skill-thumb > * { pointer-events: none; }
+.m-skill-thumb picture { display: block; height: 100%; }
 .m-skill-thumb img,
 .m-skill-thumb video {
   width: 100%;
@@ -697,6 +712,7 @@ html.mobile-mode {
 }
 
 .m-card {
+  position: relative;            /* anchors the stretched .m-card-hit button */
   display: block;
   width: 100%;
   border: 1px solid var(--mg-line);
@@ -705,20 +721,41 @@ html.mobile-mode {
   text-align: left;
   overflow: hidden;
   /*
-   * content-visibility: auto lets the browser skip rendering for cards off-
-   * screen — big win when the feed is long.  contain-intrinsic-size gives
-   * the browser a reasonable placeholder so scroll height is stable.
-   * Trade-off: Firefox (as of 2026) does not render these for find-in-page,
-   * so Ctrl/Cmd+F misses off-screen cards. Acceptable here — feed is
-   * short and item titles are never long-form text.
+   * No content-visibility here: it turns on paint containment, which makes
+   * the card its own stacking context, so the media's z-index: 51 opt-out
+   * (top of file) could no longer lift it above the #mobile-app::after
+   * scanlines (z 50). Feeds are short and images lazy-load, so skipping
+   * offscreen rendering wasn't worth it.
    */
-  content-visibility: auto;
-  contain-intrinsic-size: 320px;
   transition: transform 160ms ease, border-color 160ms ease;
 }
 .m-card:active {
   transform: scale(0.99);
   border-color: var(--mg-dim);
+}
+
+/* Full-card tap target (stretched button). Sits above the media (z 51). */
+.m-card-hit {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  inset: 0;
+  z-index: 52;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+/* Inset ring: an outset one would be clipped by the card's overflow:hidden */
+.m-card-hit:focus-visible {
+  outline: 2px solid var(--mg);
+  outline-offset: -2px;
+}
+/* Links inside the description stay tappable above the stretched button */
+.m-card-desc a {
+  position: relative;
+  z-index: 53;
 }
 
 .m-card-media {
@@ -797,8 +834,7 @@ html.mobile-mode {
   border: 1px solid var(--mg-line);
   background: var(--bg-raised);
   overflow: hidden;
-  content-visibility: auto;
-  contain-intrinsic-size: 360px;
+  /* No content-visibility: see .m-card (it would put the banner under the scanlines) */
 }
 
 .m-game-banner {
@@ -972,11 +1008,20 @@ html.mobile-mode {
   overflow: hidden;
 }
 
+/* The parent only has max-height, so max-height:100% on the media resolved
+   to nothing and the width/height attrs became the CSS size. Clamp on the
+   media itself instead (mirrors .m-card-media). <picture> is made a
+   full-width block so the img's width:100% has a definite base. */
+.m-sheet-media > picture {
+  display: block;
+  width: 100%;
+}
 .m-sheet-media img,
 .m-sheet-media video {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: auto;
+  max-height: 65svh;
   object-fit: contain;
 }
 

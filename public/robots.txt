@@ -3,3 +3,5 @@
 # The main site itself stays indexable.
 User-agent: *
 Disallow: /*?p=
+
+Sitemap: https://tomascorreag.github.io/sitemap.xml

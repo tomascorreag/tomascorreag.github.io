@@ -10,7 +10,10 @@
  * Context-specific tweaks stay with their view:
  *   · style.css   → .detail-info / .mosaic-grid.article-mode overrides
  *   · mobile.css  → .m-sheet-body overrides (e.g. figure filter reset)
- *   · portfolio-deck.css → .deck-doc.article-page constraints + the lightbox
+ *   · portfolio-deck.css → .deck-doc.article-page constraints
+ *
+ * The image lightbox rules live here too: openImageLightbox() is called from
+ * the deck and the mobile sheet, and mobile never loads portfolio-deck.css.
  * ────────────────────────────────────────────────────────────────────────── */
 
 .article-page {
@@ -466,5 +469,52 @@ div.article-banner {
 
   .article-banner-wrap::after {
     animation: none;
+  }
+}
+
+/* ── Image lightbox (src/utils/imageLightbox.js) ──
+   Embedded document images are click-to-zoom. The overlay is appended to
+   <body> (outside .deck), so it needs a z-index above .deck (1500). It mirrors
+   the desktop .gallery-fs-* FLIP timing for a consistent feel. */
+.article-figure.zoomable,
+.article-figure.zoomable img {
+  cursor: zoom-in;
+}
+
+.img-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-lightbox);
+  background: rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transition: opacity 300ms ease;
+  cursor: zoom-out;
+}
+
+.img-lightbox-overlay {
+  position: fixed;
+  z-index: var(--z-lightbox-image);
+  overflow: hidden;
+  cursor: zoom-out;
+  transition:
+    left 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    width 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    height 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.img-lightbox-overlay img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Reduced motion: near-instant zoom. Not `none` — the JS cleanup listens for
+   transitionend (it also has a timeout fallback). */
+@media (prefers-reduced-motion: reduce) {
+  .img-lightbox-backdrop,
+  .img-lightbox-overlay {
+    transition-duration: 0.01ms;
   }
 }

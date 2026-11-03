@@ -19,10 +19,10 @@ import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
-import { deviceTier, getSaveData, getNetworkType } from './config/device.js';
-import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveThumbnail, resolveSplat, variantsFor } from './config/content.js';
+import { deviceTier, getSaveData, prefersReducedMotion } from './config/device.js';
+import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement, pauseManagedVideos, resumeManagedVideos } from './utils/media.js';
+import { createMediaElement, createSpritesheetElement, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
@@ -32,6 +32,8 @@ import { createCrtScrollbar } from './components/CrtScrollbar.js';
  * or null if particles are disabled for this tier.
  */
 function getParticleConfig() {
+  // Reduced motion takes the no-particle path (instant swaps).
+  if (prefersReducedMotion()) return null;
   const tierOverrides = PARTICLE_CONFIG.tiers?.[deviceTier];
   // If the tier explicitly disables particles, return null
   if (tierOverrides && tierOverrides.enabled === false) return null;
@@ -138,8 +140,11 @@ injectCRTVariables();
 // Get CRT container for spawning elements inside it
 const crtScreen = document.getElementById('crt-screen');
 
-// Start glow noise — subtle random dips in glow intensity
-startGlowNoise();
+// True when the full set of decorative animations should run: not low tier
+// and no OS reduced-motion request.
+function fullMotion() {
+  return deviceTier !== 'low' && !prefersReducedMotion();
+}
 
 // Alias for cleaner code
 const config = TYPING_CONFIG;
@@ -433,7 +438,8 @@ function getRandomDelay(base, varianceAmount) {
 }
 
 function sleep(ms) {
-  if (skipTyping) return Promise.resolve();
+  // Reduced motion = permanent skip: text appears at once, no typing cadence.
+  if (skipTyping || prefersReducedMotion()) return Promise.resolve();
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -465,49 +471,38 @@ function preloadImage(src) {
  * so we never compete with critical resources like the rabbit spritesheet.
  */
 function preloadThumbnails() {
-  // Respect explicit and implicit data constraints. saveData is the user
-  // saying "don't burn my data" — skip speculative work entirely. On slow
-  // networks or weak devices, still warm the (small, tiered) images but
-  // never prefetch full video files the visitor may never watch.
+  // saveData is the user saying "don't burn my data" — skip speculative work
+  // entirely. Otherwise warm only the (small, tiered) images. Videos are never
+  // prefetched: byte sizes aren't known at runtime, several are 6-8 MB, and
+  // the network-type signal is missing on Safari/Firefox. The grid's
+  // <video preload="metadata"> streams them when a category actually opens.
   if (getSaveData()) return;
-  const net = getNetworkType();
-  const preloadVideos = deviceTier !== 'low' && (net === null || net === '4g');
 
-  const allItems = Object.values(CATEGORIES).flat();
-  if (allItems.length === 0) return;
+  // Pick the preferred variant so preload matches what the browser will
+  // actually render. variantsFor lists modern formats first (avif) with the
+  // original as fallback — source[0] is ~universal on modern devices.
+  const images = Object.values(CATEGORIES).flat()
+    .map((item) => variantsFor(item.src))
+    .filter((variants) => variants?.kind === 'image');
+  if (images.length === 0) return;
 
   const startPreload = () => {
-    allItems.forEach((item, i) => {
+    images.forEach((variants, i) => {
       // Stagger each fetch by 200ms to avoid a bandwidth stampede
       setTimeout(() => {
-        // Pick the preferred variant URL so preload matches what the browser
-        // will actually render. variantsFor lists modern formats first
-        // (avif, webm) with the original as fallback — the browser should
-        // pick source[0] if supported, and that's ~universal on modern devices.
-        const variants = variantsFor(item.src);
-        if (!variants) return;
-
-        if (variants.kind === 'video') {
-          if (!preloadVideos) return;
-          const url = variants.sources[0]?.url;
-          if (!url) return;
-          // For video: a low-priority fetch pulls it into browser's HTTP cache.
-          fetch(url, { priority: 'low' }).catch(() => {});
-        } else {
-          // Image srcsets carry several width tiers — warm the ~960w one
-          // (what a mosaic card actually renders) rather than the full-size
-          // candidate. Format: "url1 480w, url2 960w, url3 1920w".
-          const srcset = variants.sources[0]?.srcset || variants.fallback.url;
-          const candidates = srcset.split(',').map((c) => {
-            const [url, desc] = c.trim().split(/\s+/);
-            return { url, w: parseInt(desc, 10) || Infinity };
-          });
-          const pick = candidates.find((c) => c.w >= 960) || candidates[candidates.length - 1];
-          // For images: creating an Image() triggers a standard fetch.
-          // Once loaded, the browser serves it from cache on next request.
-          const img = new Image();
-          img.src = pick.url;
-        }
+        // Image srcsets carry several width tiers — warm the ~960w one
+        // (what a mosaic card actually renders) rather than the full-size
+        // candidate. Format: "url1 480w, url2 960w, url3 1920w".
+        const srcset = variants.sources[0]?.srcset || variants.fallback.url;
+        const candidates = srcset.split(',').map((c) => {
+          const [url, desc] = c.trim().split(/\s+/);
+          return { url, w: parseInt(desc, 10) || Infinity };
+        });
+        const pick = candidates.find((c) => c.w >= 960) || candidates[candidates.length - 1];
+        // Creating an Image() triggers a standard fetch; the browser then
+        // serves it from cache on the next request.
+        const img = new Image();
+        img.src = pick.url;
       }, i * 200);
     });
   };
@@ -538,6 +533,37 @@ function preloadThumbnails() {
 const mosaicEl = document.getElementById('mosaic');
 let mosaicHasContent = false;
 let staggerTimeouts = [];
+
+// Bumped by every view render. An overlapping nav click starts a newer render;
+// the older one checks this after each await and bails.
+let renderGen = 0;
+
+/**
+ * Fades the mosaic out and resolves when ITS opacity transition ends. Child
+ * transitions (hover, filters) bubble transitionend too, so filter by target
+ * and property. The timeout covers display:none / no-transition cases.
+ */
+function fadeOutMosaic() {
+  mosaicEl.classList.remove('visible');
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(fallback);
+      mosaicEl.removeEventListener('transitionend', onEnd);
+      resolve();
+    };
+    const onEnd = (e) => {
+      if (e.target === mosaicEl && e.propertyName === 'opacity') done();
+    };
+    const fallback = setTimeout(done, MOSAIC_CONFIG.fadeDuration + 50);
+    mosaicEl.addEventListener('transitionend', onEnd);
+  });
+}
+
+/** Empties the mosaic, unloading its videos first so they stop downloading. */
+function clearMosaic() {
+  releaseMedia(mosaicEl);
+  mosaicEl.innerHTML = '';
+}
 
 /* ── Mosaic geometry ────────────────────────────────────────────────────────
  * The mosaic used to be a `repeat(auto-fill, minmax(120px, 1fr))` grid with
@@ -696,6 +722,7 @@ let navReady = false;              // true after intro finishes & nav/mosaic vis
 let focusZone = null;              // 'nav' | 'mosaic' | null
 let navFocusIndex = -1;
 let mosaicFocusIndex = -1;
+let detailOpenedByKeyboard = false; // last detail opened via Enter/Space → restore focus on close
 let currentCategoryItems = [];     // content data array for current mosaic
 
 /**
@@ -745,6 +772,7 @@ function applyDiagonalReveal(containerEl) {
 async function renderMosaic(category) {
   const items = CATEGORIES[category];
   if (!items) return;
+  const gen = ++renderGen;
 
   // Leaving any scrolling view — the thumbnail grid / General don't use it.
   unmountScrollbar();
@@ -756,19 +784,16 @@ async function renderMosaic(category) {
   currentCategoryItems = items;
 
   // If mosaic already has content, fade out first.
-  // Listen to transitionend so we don't need to hardcode a duration that
-  // must stay in sync with the CSS value. Fallback timeout prevents hanging
-  // if the element is hidden/display:none and the transition never fires.
   if (mosaicHasContent) {
-    mosaicEl.classList.remove('visible');
-    await new Promise(r => {
-      const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
-      mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
-    });
+    await fadeOutMosaic();
+    if (gen !== renderGen) return;
+    // A cell can still be opened (e.g. by keyboard) during the fade; close
+    // it before the grid it lives in is cleared.
+    if (activeDetail) closeDetail(true);
   }
 
   // Clear and rebuild
-  mosaicEl.innerHTML = '';
+  clearMosaic();
 
   // General section renders text content instead of a thumbnail grid.
   // We reuse the same container but swap the layout mode via a CSS class.
@@ -779,10 +804,13 @@ async function renderMosaic(category) {
   if (isGeneral) {
     renderGeneralContent();
   } else {
-    const willReveal = deviceTier !== 'low';
-    for (const item of items) {
+    const willReveal = fullMotion();
+    for (const [index, item] of items.entries()) {
       const div = document.createElement('div');
       div.className = 'mosaic-item' + (willReveal ? ' reveal' : '');
+      // Index into `items`: DOM position diverges from it when an item with
+      // a missing thumbnail is skipped below.
+      div.dataset.index = index;
       div.dataset.cols = item.cols;
       div.dataset.rows = item.rows;
 
@@ -795,17 +823,34 @@ async function renderMosaic(category) {
         sizes: `${Math.min((item.cols || 1) * 6.3, 55).toFixed(1)}vw`,
       });
       if (!media) continue; // skip items with unresolved thumbnails
+      // Videos wait for their tile's reveal (timed below, once the diagonal
+      // delays are known); placeholder delay until then.
+      if (willReveal && media.tagName === 'VIDEO') deferManagedVideo(media, 60000);
 
       div.appendChild(media);
+
+      // Focus/name/activation target. A stretched overlay <button> rather than
+      // making the cell itself a <button>: the open cell becomes the detail
+      // view and gets the splat canvas + video control bar (buttons, range
+      // input) appended, which is invalid inside a <button>. See .mosaic-hit.
+      const hit = document.createElement('button');
+      hit.type = 'button';
+      hit.className = 'mosaic-hit';
+      hit.setAttribute('aria-label', item.title || item.alt || `${category} ${index + 1}`);
+      div.appendChild(hit);
+
       mosaicEl.appendChild(div);
 
       // Click → open the FLIP detail view. Mosaic items render their `page`
       // markdown inside the detail panel (buildDetailInfo), so they must NOT
       // route to openArticlePage — that's the Games full-page article view
       // (banner + crossfade), which skips the thumbnail FLIP entirely.
-      div.addEventListener('click', () => {
+      div.addEventListener('click', (e) => {
         if (activeDetail) return;
         clearFocus();
+        // detail === 0: activated by Enter/Space on .mosaic-hit (or .click()),
+        // so closing the detail should hand focus back to this cell.
+        detailOpenedByKeyboard = e.detail === 0;
         openDetail(div, item);
       });
 
@@ -837,14 +882,23 @@ async function renderMosaic(category) {
 
   // Fade in after a brief frame delay (lets browser paint the new items)
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
+  if (gen !== renderGen) return;
   mosaicEl.classList.add('visible');
 
   // Per-item diagonal reveal — thumbs cascade in top-left → bottom-right.
   // Items were born with .reveal (opacity 0 + offset); this computes their
   // positional delays and triggers the transition to .revealed. Skipped for
-  // General (has its own stagger-reveal) and low tier (perf).
-  if (!isGeneral && deviceTier !== 'low') {
+  // General (has its own stagger-reveal), low tier (perf) and reduced motion —
+  // those items were built without .reveal, so this is a no-op for them.
+  if (!isGeneral) {
     applyDiagonalReveal(mosaicEl);
+    // Each video starts as its own tile begins to fade in, so they play while
+    // appearing but start one by one instead of all at once (+32 ms: the
+    // reveal flips on after a double rAF).
+    for (const video of mosaicEl.querySelectorAll('.mosaic-item.reveal video')) {
+      const delay = parseFloat(video.closest('.mosaic-item').style.transitionDelay) || 0;
+      deferManagedVideo(video, delay + 32);
+    }
   }
 
   // Trigger staggered reveal for General section on mid/high tier.
@@ -852,7 +906,8 @@ async function renderMosaic(category) {
   // parent fade begins — the multiplied opacities create a natural reveal.
   staggerTimeouts.forEach(clearTimeout);
   staggerTimeouts = [];
-  if (isGeneral && deviceTier !== 'low') {
+  // Targets only exist when renderGeneralContent marked them (fullMotion).
+  if (isGeneral) {
     const targets = [...mosaicEl.querySelectorAll('.stagger-reveal')];
     staggerTimeouts = targets.map((el, i) =>
       setTimeout(() => el.classList.add('visible'), i * 200)
@@ -861,18 +916,19 @@ async function renderMosaic(category) {
 }
 
 async function renderGames() {
+  const gen = ++renderGen;
   if (activeDetail) closeDetail(true);
   currentCategoryItems = [];
 
   if (mosaicHasContent) {
-    mosaicEl.classList.remove('visible');
-    await new Promise(r => {
-      const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
-      mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
-    });
+    await fadeOutMosaic();
+    if (gen !== renderGen) return;
+    // A cell can still be opened (e.g. by keyboard) during the fade; close
+    // it before the grid it lives in is cleared.
+    if (activeDetail) closeDetail(true);
   }
 
-  mosaicEl.innerHTML = '';
+  clearMosaic();
   mosaicEl.classList.remove('general-mode');
   mosaicEl.classList.add('games-mode');
   // Text mode — release the thumbnail grid's contain-fit box so the panel
@@ -940,6 +996,7 @@ async function renderGames() {
 
   mosaicHasContent = true;
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
+  if (gen !== renderGen) return;
   mosaicEl.classList.add('visible');
   mountScrollbar();
 }
@@ -958,20 +1015,21 @@ async function renderGames() {
  */
 async function openArticlePage(itemData, returnTo) {
   if (activeArticle) return;
+  const gen = ++renderGen;
   if (activeDetail) closeDetail(true);
 
   activeArticle = { data: itemData, returnTo, observer: null };
   currentCategoryItems = [];
 
   if (mosaicHasContent) {
-    mosaicEl.classList.remove('visible');
-    await new Promise(r => {
-      const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
-      mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
-    });
+    await fadeOutMosaic();
+    if (gen !== renderGen) return;
+    // A cell can still be opened (e.g. by keyboard) during the fade; close
+    // it before the grid it lives in is cleared.
+    if (activeDetail) closeDetail(true);
   }
 
-  mosaicEl.innerHTML = '';
+  clearMosaic();
   mosaicEl.classList.remove('general-mode', 'games-mode');
   mosaicEl.classList.add('article-mode');
   mosaicEl.scrollTop = 0;
@@ -999,6 +1057,7 @@ async function openArticlePage(itemData, returnTo) {
 
   mosaicHasContent = true;
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
+  if (gen !== renderGen) return;
   mosaicEl.classList.add('visible');
   mountScrollbar();
 }
@@ -1143,13 +1202,12 @@ async function closeArticlePage() {
   crtScreen.querySelector('.detail-nav')?.remove();
 
   // Fade out article
-  mosaicEl.classList.remove('visible');
-  await new Promise(r => {
-    const fallback = setTimeout(r, MOSAIC_CONFIG.fadeDuration + 50);
-    mosaicEl.addEventListener('transitionend', () => { clearTimeout(fallback); r(); }, { once: true });
-  });
+  const gen = ++renderGen;
+  await fadeOutMosaic();
+  // A nav click during the fade already tore the article down and owns the view.
+  if (gen !== renderGen) return;
 
-  mosaicEl.innerHTML = '';
+  clearMosaic();
   mosaicEl.classList.remove('article-mode');
   activeArticle = null;
 
@@ -1333,7 +1391,8 @@ function renderGeneralContent() {
         });
 
         item.addEventListener('click', () => {
-          navigator.clipboard.writeText(c.copyText).catch(() => {});
+          // clipboard is undefined on insecure origins (e.g. LAN dev over http).
+          navigator.clipboard?.writeText(c.copyText).catch(() => {});
           if (typeInterval) { clearInterval(typeInterval); typeInterval = null; }
           if (copiedTimeout) { clearTimeout(copiedTimeout); }
           typeout.classList.remove('typing');
@@ -1371,9 +1430,9 @@ function renderGeneralContent() {
     wrapper.appendChild(contactRow);
   }
 
-  // Stagger reveal on mid/high tier — mark each top-level block.
-  // JS triggers .visible on each sequentially after the mosaic fades in.
-  if (deviceTier !== 'low') {
+  // Stagger reveal on mid/high tier without reduced motion — mark each
+  // top-level block. JS triggers .visible on each after the mosaic fades in.
+  if (fullMotion()) {
     const staggerTargets = [gcName, gcTitle, gcSubtitle, summary, divider1, skillsSection, divider2, toolsRow];
     if (divider3) staggerTargets.push(divider3);
     if (contactRow) staggerTargets.push(contactRow);
@@ -1675,15 +1734,21 @@ function exitDetailFullscreen() {
     // Restore main detail image opacity (fades in while overlay retreats)
     if (activeDetail) activeDetail.el.style.opacity = '';
 
-    // After animation: remove overlay, restore info + arrows
+    // After animation: remove overlay, restore info + arrows. Runs once
+    // (transitionend and the timeout both call it), and leaves info/arrows
+    // alone if fullscreen was re-entered in the meantime.
+    let cleanedUp = false;
     const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
       overlay.remove();
+      if (detailFullscreen) return;
       const info = mosaicEl.querySelector('.detail-info');
       if (info) { info.classList.add('visible'); info.style.pointerEvents = ''; }
       const arrows = crtScreen.querySelector('.detail-nav-arrows');
       if (arrows) arrows.classList.remove('hidden');
     };
-    overlay.addEventListener('transitionend', cleanup, { once: true });
+    overlay.addEventListener('transitionend', (e) => { if (e.target === overlay) cleanup(); });
     setTimeout(cleanup, 350);
     return;
   }
@@ -1709,9 +1774,19 @@ function exitDetailFullscreen() {
 
   detailFullscreen = false;
 
-  // Remove transition class once the CSS animation completes (fallback: 350ms)
-  const cleanup = () => itemEl.classList.remove('detail-transitioning');
-  itemEl.addEventListener('transitionend', cleanup, { once: true });
+  // Remove transition class once the CSS animation completes (fallback: 350ms).
+  // Once only, own transitions only, and not if fullscreen was re-entered
+  // (that re-adds the class for its own animation).
+  let cleanedUp = false;
+  const onEnd = (e) => { if (e.target === itemEl) cleanup(); };
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    itemEl.removeEventListener('transitionend', onEnd);
+    const mainFsReentered = detailFullscreen && activeDetail?.el === itemEl && !activeDetail._galleryOverlay;
+    if (!mainFsReentered) itemEl.classList.remove('detail-transitioning');
+  };
+  itemEl.addEventListener('transitionend', onEnd);
   setTimeout(cleanup, 350);
 }
 
@@ -1817,7 +1892,8 @@ function openDetail(itemEl, itemData) {
     { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
     { transform: 'none', transformOrigin: 'top left' },
   ], {
-    duration: 400,
+    // WAAPI ignores the CSS reduced-motion block; 0 still fires onfinish.
+    duration: prefersReducedMotion() ? 0 : 400,
     easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
     fill: 'none',
   });
@@ -1870,6 +1946,8 @@ function buildDetailNav(itemData, layout) {
   backBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (detailFullscreen) exitDetailFullscreen();
+    // detail === 0: Enter/Space on the focused button — return focus to the cell.
+    else if (e.detail === 0) closeDetailFromKeyboard(true);
     else closeDetail();
   });
 
@@ -1918,14 +1996,15 @@ function updateDetailNavButtons() {
   const nav = crtScreen.querySelector('.detail-nav');
   if (!nav) return;
 
-  const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item')];
+  // Same list navigateDetail walks: placeholder excluded.
+  const mosaicItems = [...mosaicEl.querySelectorAll('.mosaic-item:not(.mosaic-placeholder)')];
   const currentIdx = activeDetail ? mosaicItems.indexOf(activeDetail.el) : -1;
 
   const prevBtn = nav.querySelector('.detail-nav-prev');
   const nextBtn = nav.querySelector('.detail-nav-next');
 
   if (prevBtn) prevBtn.disabled = currentIdx <= 0;
-  if (nextBtn) nextBtn.disabled = currentIdx >= currentCategoryItems.length - 1;
+  if (nextBtn) nextBtn.disabled = currentIdx < 0 || currentIdx >= mosaicItems.length - 1;
 }
 
 /**
@@ -2128,6 +2207,10 @@ function closeDetail(instant = false) {
   activeDetail.videoControls?.destroy();
 
   activeDetail = null;
+  // Closing mid-navigateDetail: that call bails after its await (session
+  // check), so undo its fade here or the tile stays at opacity 0.
+  itemEl.classList.remove('detail-fading');
+  isNavigating = false;
 
   // Remove detail info + nav bar, restore grid pointer events
   const info = mosaicEl.querySelector('.detail-info');
@@ -2139,7 +2222,15 @@ function closeDetail(instant = false) {
   mosaicEl.classList.remove('detail-mode', 'detail-scroll');
   mosaicEl.scrollTop = 0;
 
-  // Mosaic videos paused on openDetail come back with the grid.
+  // Mosaic videos paused on openDetail come back with the grid. Animated
+  // close: restart them one by one as the siblings fade back in (from 150 ms,
+  // below) rather than all at once at the start of the close.
+  if (!instant) {
+    let i = 0;
+    for (const video of mosaicEl.querySelectorAll('.mosaic-item video')) {
+      if (!itemEl.contains(video)) deferManagedVideo(video, 150 + 60 * i++);
+    }
+  }
   resumeManagedVideos();
 
   // Cancel any in-progress animation
@@ -2200,7 +2291,7 @@ function closeDetail(instant = false) {
     { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
     { transform: 'none', transformOrigin: 'top left' },
   ], {
-    duration: 400,
+    duration: prefersReducedMotion() ? 0 : 400,
     easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
     fill: 'none',
   });
@@ -2224,20 +2315,77 @@ function closeDetail(instant = false) {
  * Like moving a selection cursor in a console game UI — only one element
  * is focused at a time across all zones.
  */
-function setFocus(zone, index) {
+function setFocus(zone, index, { moveFocus = true } = {}) {
   clearFocus();
   focusZone = zone;
 
+  // The .focused cursor and real DOM focus move together, so Tab continues
+  // from wherever the arrows left off and screen readers announce the item.
+  // preventScroll: the grid is fit to its box, nothing should scroll anyway.
+  let target = null;
   if (zone === 'nav') {
     const navItems = document.querySelectorAll('#nav-menu .nav-item');
     navFocusIndex = Math.max(0, Math.min(index, navItems.length - 1));
-    navItems[navFocusIndex]?.classList.add('focused');
+    const el = navItems[navFocusIndex];
+    el?.classList.add('focused');
+    target = el;
   } else if (zone === 'mosaic') {
     const items = mosaicEl.querySelectorAll('.mosaic-item');
     mosaicFocusIndex = Math.max(0, Math.min(index, items.length - 1));
-    items[mosaicFocusIndex]?.classList.add('focused');
+    const el = items[mosaicFocusIndex];
+    el?.classList.add('focused');
+    target = el?.querySelector('.mosaic-hit');
+  }
+  if (moveFocus && target && document.activeElement !== target) {
+    target.focus({ preventScroll: true });
   }
 }
+
+/**
+ * Real focus → .focused. Tab (or a screen reader) landing on a nav button or
+ * a cell's overlay button moves the arrow-key cursor there too. Gated on
+ * :focus-visible so a mouse click (which focuses the button in Chromium but
+ * doesn't match :focus-visible) doesn't paint the keyboard cursor.
+ */
+// Safari < 15.4 throws on the :focus-visible selector; treat all focus as
+// keyboard focus there.
+function matchesFocusVisible(el) {
+  try { return el.matches(':focus-visible'); } catch { return true; }
+}
+
+document.addEventListener('focusin', (e) => {
+  if (!navReady) return;
+  const t = e.target;
+  if (!(t instanceof Element) || !matchesFocusVisible(t)) return;
+
+  const navItem = t.closest('#nav-menu .nav-item');
+  if (navItem) {
+    if (navItem.classList.contains('focused')) return; // setFocus already did it
+    const idx = [...document.querySelectorAll('#nav-menu .nav-item')].indexOf(navItem);
+    if (idx >= 0) setFocus('nav', idx, { moveFocus: false });
+    return;
+  }
+
+  const cell = t.classList.contains('mosaic-hit') ? t.closest('.mosaic-item') : null;
+  if (cell) {
+    if (cell.classList.contains('focused')) return;
+    const idx = [...mosaicEl.querySelectorAll('.mosaic-item')].indexOf(cell);
+    if (idx >= 0) setFocus('mosaic', idx, { moveFocus: false });
+  }
+});
+
+/**
+ * Focus leaving the nav/grid for some other control (General links, detail
+ * nav buttons...) drops the .focused cursor so there's one indicator, not two.
+ * relatedTarget null (window blur, element hidden/removed) keeps it, matching
+ * the old behaviour where only clicks cleared it.
+ */
+document.addEventListener('focusout', (e) => {
+  const next = e.relatedTarget;
+  if (!focusZone || !(next instanceof Element)) return;
+  if (next.closest('#nav-menu .nav-item') || next.classList.contains('mosaic-hit')) return;
+  clearFocus();
+});
 
 /** Removes .focused from everything, resets zone tracking. */
 function clearFocus() {
@@ -2261,11 +2409,22 @@ async function switchToAndOpenDetail(category, itemIndex) {
   if (!navItem) return;
 
   await selectNavItem(navItem);
+  // Another nav click may have replaced the view during the render.
+  if (currentCategoryItems !== CATEGORIES[category] || activeDetail) return;
 
-  const mosaicItems = mosaicEl.querySelectorAll('.mosaic-item');
-  const targetEl = mosaicItems[itemIndex];
+  const targetEl = mosaicEl.querySelector(`.mosaic-item[data-index="${itemIndex}"]`);
   const targetData = CATEGORIES[category]?.[itemIndex];
-  if (targetEl && targetData) openDetail(targetEl, targetData);
+  if (targetEl && targetData) {
+    detailOpenedByKeyboard = false; // opened from General, not from this cell
+    openDetail(targetEl, targetData);
+  }
+}
+
+/** Toggles a nav item's .selected look and its aria-current together. */
+function markNavSelected(navItem, selected) {
+  navItem.classList.toggle('selected', selected);
+  if (selected) navItem.setAttribute('aria-current', 'page');
+  else navItem.removeAttribute('aria-current');
 }
 
 /**
@@ -2292,8 +2451,8 @@ function selectNavItem(navItem) {
     activeArticle = null;
   }
 
-  current?.classList.remove('selected');
-  navItem.classList.add('selected');
+  if (current) markNavSelected(current, false);
+  markNavSelected(navItem, true);
   mosaicFocusIndex = -1; // mosaic content is changing, reset its focus
 
   const label = navItem.dataset.label;
@@ -2396,11 +2555,15 @@ async function navigateDetail(direction) {
   const nextIdx = currentIdx + direction;
 
   // Bounds check
-  if (nextIdx < 0 || nextIdx >= currentCategoryItems.length) { isNavigating = false; return; }
+  if (currentIdx < 0 || nextIdx < 0 || nextIdx >= mosaicItems.length) { isNavigating = false; return; }
 
   const nextEl = mosaicItems[nextIdx];
-  const nextData = currentCategoryItems[nextIdx];
+  // data-index, not DOM position: items with missing thumbnails are skipped in the DOM.
+  const nextData = currentCategoryItems[Number(nextEl?.dataset.index)];
   if (!nextEl || !nextData) { isNavigating = false; return; }
+
+  // closeDetail() can run during the fade-out await (Escape/back/nav click).
+  const startSession = activeDetail.sessionId;
 
   try {
     // Reset fullscreen before navigating — restore targetRect so we
@@ -2448,6 +2611,7 @@ async function navigateDetail(direction) {
     // Wait for the fade-out to finish before swapping
     const FADE_MS = 250;
     await new Promise(r => setTimeout(r, FADE_MS));
+    if (activeDetail?.sessionId !== startSession) return;
 
     // Clean up current item — add fading-out BEFORE removing detail-active so
     // it returns to grid flow at opacity:0, never flashing its grid position.
@@ -2514,8 +2678,31 @@ async function navigateDetail(direction) {
     // Update prev/next disabled states for new position
     updateDetailNavButtons();
   } finally {
-    isNavigating = false;
+    // closeDetail already reset the flag if this detail was closed mid-await;
+    // a newer navigation in a reopened detail may own it now.
+    if (!activeDetail || activeDetail.sessionId === startSession) isNavigating = false;
   }
+}
+
+/**
+ * Closes the detail view from the keyboard and hands focus back to the cell
+ * that was open (its overlay button is display:none while open, so focus would
+ * otherwise drop to <body>). Escape keeps the old rule: restore only when the
+ * keyboard was in play (opened via Enter/Space, or arrow-navigated, which sets
+ * mosaicFocusIndex). `force` is for the back button, whose own focus is about
+ * to be destroyed.
+ */
+function closeDetailFromKeyboard(force = false) {
+  if (!activeDetail) return;
+  const openEl = activeDetail.el;
+  const restore = force || detailOpenedByKeyboard || mosaicFocusIndex >= 0;
+  closeDetail();
+  detailOpenedByKeyboard = false;
+  if (!restore) return;
+  // Placeholder is already gone (closeDetail removes it synchronously), so
+  // this index matches what setFocus walks.
+  const idx = [...mosaicEl.querySelectorAll('.mosaic-item')].indexOf(openEl);
+  if (idx >= 0) setFocus('mosaic', idx);
 }
 
 // ---- Master keydown handler ----
@@ -2540,9 +2727,7 @@ document.addEventListener('keydown', (e) => {
       if (detailFullscreen) {
         exitDetailFullscreen();
       } else {
-        closeDetail();
-        // Restore mosaic focus to the item that was open
-        if (mosaicFocusIndex >= 0) setFocus('mosaic', mosaicFocusIndex);
+        closeDetailFromKeyboard();
       }
       return;
     }
@@ -2562,6 +2747,14 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Enter/Space on a nav or cell button: let the native button activation
+  // fire its click handler. Handling it here too would run the action twice
+  // (or, with preventDefault, suppress the native click and diverge from it).
+  if ((key === 'Enter' || key === ' ') && e.target.closest?.('#nav-menu .nav-item, .mosaic-hit')) {
+    return;
+  }
+
+  // Fallback when the .focused cursor exists but real focus is elsewhere.
   if (key === 'Enter' && focusZone) {
     e.preventDefault();
     activateFocused();
@@ -2585,7 +2778,7 @@ function showMosaicFrame() {
 
   crtScreen.appendChild(frame);
 
-  if (deviceTier === 'low') {
+  if (!fullMotion()) {
     // Add visible before first paint — browser skips the transition entirely
     frame.classList.add('visible');
   } else {
@@ -2642,7 +2835,8 @@ const username = rawName
 // ============================================
 
 const terminalElement = document.getElementById('terminal');
-const terminal = new Terminal(terminalElement);
+// Created in main() — `?p=` deck visits never boot the terminal.
+let terminal = null;
 
 // Build name for sequence (defaults to "Neo")
 const wakeUpText = username ? `Wake up, ${username}...` : 'Wake up...';
@@ -2699,8 +2893,9 @@ async function startRabbitTransition() {
         source: {
           rect: rabbitRect,
           image: spriteImage,
-          frame: RABBIT_CONFIG.frames.idle,
-          flipped: rabbit.lastDirection === -1,
+          // The pose on screen at click time (may be mid-jump), not idle
+          frame: rabbitRect.frame,
+          flipped: rabbitRect.flipped,
         },
         target: { rect: cursorTargetRect },
         container: crtScreen,
@@ -2744,6 +2939,7 @@ async function startRabbitTransition() {
 
     // Reveal the nav menu (already in DOM, just hidden)
     navMenu.hidden = false;
+    navMenu.setAttribute('aria-label', 'Sections');
 
     // Type menu items bottom to top — Art first, General last (ends selected)
     const menuItems = ['3D Tech', '3D Art', 'Games', 'General'];
@@ -2753,13 +2949,19 @@ async function startRabbitTransition() {
 
     for (const label of menuItems) {
       // Deselect previous item
-      if (prevItem) prevItem.classList.remove('selected');
+      if (prevItem) markNavSelected(prevItem, false);
 
       await sleep(100);
 
-      const item = document.createElement('div');
-      item.className = 'nav-item selected';  // selected while typing
+      // Real <button> so Tab reaches it and Enter/Space activate it. The
+      // aria-label gives a stable name while the visible "> Label" is still
+      // being typed (and keeps the decorative prompt/cursor out of it).
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'nav-item';
       item.dataset.label = label;
+      item.setAttribute('aria-label', label);
+      markNavSelected(item, true);  // selected while typing
       navMenu.prepend(item);  // prepend so each new item appears above the previous
 
       // Build structure: <span class="nav-prompt">> </span><span class="nav-label">Label</span>
@@ -2813,7 +3015,10 @@ async function startRabbitTransition() {
       const clicked = e.target.closest('.nav-item');
       if (!clicked) return;
 
-      clearFocus(); // mouse click resets keyboard focus
+      // Mouse click resets the keyboard cursor. Enter/Space on the focused
+      // button also arrives here as a click (detail === 0) — keep the cursor
+      // on it then, since real focus stays put.
+      if (e.detail !== 0) clearFocus();
       selectNavItem(clicked);
     });
 
@@ -2834,6 +3039,9 @@ async function startRabbitTransition() {
 
 // Run sequence, then spawn rabbit
 async function main() {
+  terminal = new Terminal(terminalElement);
+  // Subtle random dips in glow intensity (skipped under reduced motion).
+  startGlowNoise();
   try {
     // Preload rabbit spritesheet before starting
     const spritesheet = await preloadImage(rabbitSpritesheetUrl);
@@ -2844,7 +3052,10 @@ async function main() {
     const prewarmConfig = getParticleConfig();
     if (prewarmConfig) {
       try {
-        prewarmSampleCache(spritesheet, Object.values(RABBIT_CONFIG.frames), prewarmConfig);
+        // Every frame, not just the named ones: a click mid-jump morphs from
+        // whichever frame is showing.
+        const allFrames = Array.from({ length: RABBIT_CONFIG.frameCount }, (_, i) => -i * RABBIT_CONFIG.width);
+        prewarmSampleCache(spritesheet, allFrames, prewarmConfig);
       } catch (e) {
         console.warn('[ParticleMorph] Cache prewarm failed (will sample on first morph):', e);
       }

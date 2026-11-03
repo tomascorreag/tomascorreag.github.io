@@ -86,9 +86,8 @@ export class ParticleMorph {
       const targetCells = this.generateCells(target);
       this.generateParticles(source, target, sourceCells, targetCells);
 
-      // Size canvas to a tight bbox around the particles — the CSS filter then
-      // only processes that small region instead of the entire viewport
-      this.computeCanvasBounds();
+      // The canvas follows the particle cloud (see fitCanvasToParticles), so
+      // the CSS filter only processes the cloud's area, not the whole path.
       this.createCanvas(container);
 
       // Kick off the animation loop
@@ -168,57 +167,63 @@ export class ParticleMorph {
   // ──────────────────────────────────────────────
 
   /**
-   * Computes a tight bounding box around all particle source and target
-   * positions, with padding for turbulence drift and the glow filter bleed.
-   *
-   * Must be called after generateParticles(). Stores:
-   *   this.canvasLeft, this.canvasTop  — viewport offset of canvas origin
-   *   this.canvasWidth, this.canvasHeight — canvas pixel dimensions
-   *
-   * Why: CSS filter cost scales with canvas area. Shrinking the canvas from
-   * fullscreen (~1.5M px) to the actual particle region (~30-100K px) gives
-   * a ~15-50x reduction in filter work with identical visual output.
-   */
-  computeCanvasBounds() {
-    // Extra space on each side: 80px covers the 30px glow spread + ~50px of
-    // turbulence drift (noiseAmplitude × drift frames, generously rounded up)
-    const PADDING = 80;
-
-    if (!this.particles.length) {
-      // No particles — fall back to a minimal 1x1 canvas so createCanvas() is safe
-      this.canvasLeft = 0; this.canvasTop = 0;
-      this.canvasWidth = 1; this.canvasHeight = 1;
-      return;
-    }
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of this.particles) {
-      minX = Math.min(minX, p.sourceX, p.targetX);
-      minY = Math.min(minY, p.sourceY, p.targetY);
-      maxX = Math.max(maxX, p.sourceX + p.size, p.targetX + p.size);
-      maxY = Math.max(maxY, p.sourceY + p.size, p.targetY + p.size);
-    }
-
-    this.canvasLeft = Math.max(0, minX - PADDING);
-    this.canvasTop  = Math.max(0, minY - PADDING);
-    this.canvasWidth  = Math.min(window.innerWidth,  maxX + PADDING) - this.canvasLeft;
-    this.canvasHeight = Math.min(window.innerHeight, maxY + PADDING) - this.canvasTop;
-  }
-
-  /**
-   * Creates a fixed canvas sized to the particle bounding box.
-   * Must be called after computeCanvasBounds().
+   * Creates the fixed overlay canvas and fits it to the particles' start
+   * positions. Must be called after generateParticles().
    */
   createCanvas(container) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'particle-canvas crt-effects';
-    this.canvas.width  = this.canvasWidth;
-    this.canvas.height = this.canvasHeight;
-    // Override the CSS top:0; left:0 defaults to position over the bbox
-    this.canvas.style.left = `${this.canvasLeft}px`;
-    this.canvas.style.top  = `${this.canvasTop}px`;
+    this.canvas.width = 1;
+    this.canvas.height = 1;
+    this.canvasLeft = 0;
+    this.canvasTop = 0;
     container.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
+    this.fitCanvasToParticles();
+  }
+
+  /**
+   * Moves (and if needed resizes) the canvas to cover the particles' CURRENT
+   * positions plus padding. Called every frame before drawing.
+   *
+   * Why: the CSS filter on the canvas (blur, brightness, five drop-shadows)
+   * costs per pixel of canvas area, ×4 on 2× screens. A canvas spanning
+   * source → target grew with the distance the rabbit was from the cursor
+   * (~1150×480 CSS px for a far rabbit) and dropped frames; the cloud itself
+   * stays roughly sprite-sized wherever it is.
+   *
+   * Moving uses a transform (no layout). Resizing reallocates the canvas, so
+   * it only happens when the cloud outgrows it (rounded up to 64 px steps)
+   * or shrinks below a quarter of its area.
+   */
+  fitCanvasToParticles() {
+    // 80 px covers the 30 px glow drop-shadow's blur bleed on each side
+    const PADDING = 80;
+    const STEP = 64;
+    if (!this.canvas || !this.particles.length) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of this.particles) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x + p.size > maxX) maxX = p.x + p.size;
+      if (p.y + p.size > maxY) maxY = p.y + p.size;
+    }
+
+    const needW = Math.ceil((maxX - minX + 2 * PADDING) / STEP) * STEP;
+    const needH = Math.ceil((maxY - minY + 2 * PADDING) / STEP) * STEP;
+    const { width, height } = this.canvas;
+    if (needW > width || needH > height || needW * needH * 4 < width * height) {
+      // Setting width/height clears the canvas and resets context state;
+      // render() redraws everything and sets fillStyle each frame anyway.
+      this.canvas.width = needW;
+      this.canvas.height = needH;
+    }
+
+    // Centre the cloud in the canvas; whole pixels keep particles crisp.
+    this.canvasLeft = Math.round((minX + maxX - this.canvas.width) / 2);
+    this.canvasTop = Math.round((minY + maxY - this.canvas.height) / 2);
+    this.canvas.style.transform = `translate(${this.canvasLeft}px, ${this.canvasTop}px)`;
   }
 
   /**
@@ -594,6 +599,8 @@ export class ParticleMorph {
     const ctx = this.ctx;
     const color = this.morphColor || this.config.color;
 
+    // Follow the cloud first: canvasLeft/Top below are this frame's origin
+    this.fitCanvasToParticles();
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
     // Set color once — all particles share the same color

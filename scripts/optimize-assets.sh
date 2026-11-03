@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 # optimize-assets.sh
 #
-# Walks src/assets/ and generates web-optimized variants for images and videos.
+# Generates web-optimized variants for images and videos.
 # Idempotent: skips any output that is newer than its source.
 #
+# Image masters (lossless png/jpg) live in assets-src/, which Vite never
+# deploys. Every image output is written to the same relative path under
+# src/assets/. Masters are never modified.
+#
 # What it does, in order, per asset:
-#   1. Images (png/jpg/jpeg):
-#      a. Strips unused alpha channels (in place, lossless intent).
-#      b. Downscales sources whose longest side exceeds MAX_IMG_DIM (in place —
-#         originals live in git history; the site never displays beyond ~1920px).
-#      c. Generates full-size .webp / .avif siblings.
-#      d. Generates responsive width tiers (foo-480w.webp, foo-960w.avif, ...)
-#         for sources wider than each tier. variantsFor() in content.js picks
+#   1. Images (masters in MASTERS_DIR):
+#      a. Generates full-size .webp / .avif (capped at MAX_IMG_DIM).
+#      b. Generates responsive width tiers (foo-480w.webp, foo-960w.avif, ...)
+#         for masters wider than each tier. variantsFor() in content.js picks
 #         these up and builds srcset strings from them.
+#      c. Generates the <img src> JPEG fallback via scripts/make-fallbacks.py
+#         (transparent masters are flattened onto the site background; their
+#         WebP keeps transparency). Only browsers without WebP/AVIF fetch it.
 #   2. Videos (mp4/mov/m4v/webm):
 #      a. Detects bloated "master" files (bitrate or resolution over caps) and
 #         re-encodes them in place AFTER deriving the webm from the master —
@@ -33,58 +37,70 @@
 # resolveThumbnail() as background-images where <picture> variants can't apply.
 #
 # Requirements:
-#   - ffmpeg + ffprobe on PATH (Windows: `winget install ffmpeg`)
-#     Must include libvpx-vp9, libaom-av1, libx264. Standard builds ship these.
+#   - ffmpeg + ffprobe on PATH (macOS: `brew install ffmpeg`)
+#     Videos need libx264, libvpx-vp9, libopus; images only use it to scale.
+#   - cwebp + avifenc for image encodes (macOS: `brew install webp libavif`)
+#   - python3 with Pillow, for image fallbacks (`python3 -m pip install pillow`)
 #
 # Usage:
 #   bash scripts/optimize-assets.sh                # defaults to src/assets
-#   bash scripts/optimize-assets.sh path/to/dir    # other root
+#   bash scripts/optimize-assets.sh path/to/dir    # other output root
+#
+# Adding an image: put the lossless master in assets-src/thumbnails/..., run
+# this script, and reference it from content.js with a .jpg extension
+# (the fallback name; .jpeg masters keep .jpeg).
 #
 # Env vars (all optional):
+#   MASTERS_DIR=assets-src Where image masters live (mirrors src/assets)
 #   GEN_FALLBACKS=0        Skip MP4 fallbacks for videos (smaller repo)
+#   GEN_POSTERS=0          Skip <name>-poster.jpg first-frame video posters
+#   GEN_IMG_FALLBACKS=0    Skip JPEG <img> fallbacks for images
 #   GEN_AVIF=0             Skip AVIF for images (slow encode — see note)
 #   GEN_TIERS=0            Skip responsive width tiers
-#   RESIZE_SOURCES=0       Don't downscale oversized sources in place
-#   STRIP_UNUSED_ALPHA=0   Don't modify PNGs whose alpha channel is fully opaque
 #   GEN_MANIFEST=0         Skip writing asset-dims.json
 #   DRY_RUN=1              Print what would run, do nothing
 #   FORCE=1                Re-encode even if output is newer than input
 #
 # Quality / size knobs (override via env):
 #   WEBP_Q=82              WebP quality 0-100
-#   AVIF_CRF=30            AVIF CRF — lower = better, 28-34 is web-appropriate
+#   AVIF_Q=60              AVIF colour quality 0-100 (avifenc -q)
+#   AVIF_QA=90             AVIF alpha quality 0-100 (avifenc --qalpha)
 #   VP9_CRF=32             WebM/VP9 CRF — lower = better, 30-35 typical
 #   MP4_CRF=23             H.264 CRF — 18-24 typical
-#   MAX_IMG_DIM=1920       Longest image side kept when resizing sources
-#   TIER_WIDTHS="480 960"  Responsive tier widths (srcset)
+#   MAX_IMG_DIM=1920       Longest side of full-size image outputs
+#   TIER_WIDTHS="480 960 1440"  Responsive tier widths (srcset)
 #   VID_MAX_W=1920         Video width cap
 #   VID_MAX_H=1080         Video height cap
 #   MP4_MAX_KBPS=8000      Source mp4 above this bitrate = master needing re-encode
 #
-# Note on AVIF + alpha: this ffmpeg's libaom-av1 rejects yuva420p (verified:
-# "Incompatible pixel format ... auto-selecting yuv420p"), silently flattening
-# transparency. Transparent sources therefore skip AVIF; their WebP (which
-# handles alpha correctly) is the best served format. Proper fix would be
-# avifenc (libavif), not installed.
+# AVIF inversion guard: an AVIF tier that comes out larger than its WebP
+# sibling is deleted and gets a `<name>-<w>w.avif.skip` marker (AVIF browsers
+# then pick the next AVIF candidate). The whole AVIF set is deleted, with a
+# `<name>.avif.skip` marker, if the full-size AVIF is the larger one, or if
+# no AVIF tiers would be left while WebP tiers exist — an AVIF srcset with
+# only the full-size file would make phones download it instead of a small
+# WebP tier. Delete a marker to retry.
 
 set -euo pipefail
 
 ASSETS_DIR="${1:-src/assets}"
+MASTERS_DIR="${MASTERS_DIR:-assets-src}"
 GEN_FALLBACKS="${GEN_FALLBACKS:-1}"
+GEN_POSTERS="${GEN_POSTERS:-1}"
+GEN_IMG_FALLBACKS="${GEN_IMG_FALLBACKS:-1}"
 GEN_AVIF="${GEN_AVIF:-1}"
 GEN_TIERS="${GEN_TIERS:-1}"
-RESIZE_SOURCES="${RESIZE_SOURCES:-1}"
-STRIP_UNUSED_ALPHA="${STRIP_UNUSED_ALPHA:-1}"
 GEN_MANIFEST="${GEN_MANIFEST:-1}"
 DRY_RUN="${DRY_RUN:-0}"
 FORCE="${FORCE:-0}"
 
 WEBP_Q="${WEBP_Q:-82}"
-AVIF_CRF="${AVIF_CRF:-30}"
+AVIF_Q="${AVIF_Q:-60}"     # avifenc colour quality 0-100
+AVIF_QA="${AVIF_QA:-90}"   # avifenc alpha-plane quality (transparent masters)
 VP9_CRF="${VP9_CRF:-32}"
 MP4_CRF="${MP4_CRF:-23}"
 MAX_IMG_DIM="${MAX_IMG_DIM:-1920}"
-TIER_WIDTHS="${TIER_WIDTHS:-480 960}"
+TIER_WIDTHS="${TIER_WIDTHS:-480 960 1440}"
 VID_MAX_W="${VID_MAX_W:-1920}"
 VID_MAX_H="${VID_MAX_H:-1080}"
 # Threshold is deliberately generous: a dense 1080p clip can legitimately
@@ -112,8 +128,23 @@ if command -v ffprobe >/dev/null 2>&1; then
   HAVE_FFPROBE=1
 fi
 
+if [[ -d "$MASTERS_DIR" ]]; then
+  for tool in cwebp avifenc; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "ERROR: $tool not found (macOS: brew install webp libavif)." >&2
+      exit 1
+    fi
+  done
+fi
+
 if [[ ! -d "$ASSETS_DIR" ]]; then
   echo "ERROR: asset directory not found: $ASSETS_DIR" >&2
+  exit 1
+fi
+
+if [[ "$GEN_IMG_FALLBACKS" == "1" ]] && ! python3 -c 'import PIL' >/dev/null 2>&1; then
+  echo "ERROR: python3 with Pillow is required for image fallbacks." >&2
+  echo "  python3 -m pip install pillow      (or set GEN_IMG_FALLBACKS=0)" >&2
   exit 1
 fi
 
@@ -121,7 +152,6 @@ fi
 
 IMG_CONVERTED=0
 VID_CONVERTED=0
-RESIZED=0
 SKIPPED=0
 FAILED=0
 
@@ -190,19 +220,24 @@ run_img_ff() {
 
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
+# ffprobe 9+ also prints each stream inside a "stream_groups" section, so the
+# same line can appear twice (and with blank lines between). Keep the first
+# non-empty line.
+first_line() { awk 'NF { print; exit }'; }
+
 # Read "WIDTHxHEIGHT" of the first video stream. Empty string on failure.
 get_dims() {
   local src="$1"
   [[ "$HAVE_FFPROBE" != "1" ]] && { printf ''; return; }
-  ffprobe -v error -select_streams v:0 \
-    -show_entries stream=width,height -of csv=s=x:p=0 "$src" 2>/dev/null || true
+  { ffprobe -v error -select_streams v:0 \
+    -show_entries stream=width,height -of csv=s=x:p=0 "$src" 2>/dev/null || true; } | first_line
 }
 
 # Container-level bitrate in kbps (integer). Empty string on failure.
 get_kbps() {
   local src="$1" bps
   [[ "$HAVE_FFPROBE" != "1" ]] && { printf ''; return; }
-  bps="$(ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "$src" 2>/dev/null || true)"
+  bps="$({ ffprobe -v error -show_entries format=bit_rate -of csv=p=0 "$src" 2>/dev/null || true; } | first_line)"
   [[ -z "$bps" || "$bps" == "N/A" ]] && { printf ''; return; }
   printf '%s' $((bps / 1000))
 }
@@ -211,8 +246,8 @@ get_kbps() {
 get_pix_fmt() {
   local src="$1"
   [[ "$HAVE_FFPROBE" != "1" ]] && { printf ''; return; }
-  ffprobe -v error -select_streams v:0 \
-    -show_entries stream=pix_fmt -of csv=p=0 "$src" 2>/dev/null || true
+  { ffprobe -v error -select_streams v:0 \
+    -show_entries stream=pix_fmt -of csv=p=0 "$src" 2>/dev/null || true; } | first_line
 }
 
 # Whether a pix_fmt string carries an alpha plane. Heuristic: contains 'a',
@@ -230,9 +265,7 @@ pix_fmt_has_alpha() {
 #   opaque      = no alpha channel, OR alpha channel is all-fully-opaque
 #   unknown     = detection failed (e.g. ffprobe missing, decode error)
 #
-# Why it matters:
-#   - AVIF via ffmpeg+libaom silently drops alpha → must skip AVIF for transparent.
-#   - A PNG with an unused alpha plane wastes bytes → we can strip it losslessly.
+# Why it matters: opaque masters are encoded from RGB (no wasted alpha plane).
 classify_transparency() {
   local src="$1"
   if [[ "$HAVE_FFPROBE" != "1" ]]; then
@@ -268,182 +301,150 @@ classify_transparency() {
   fi
 }
 
-# Strip the alpha channel from a PNG in place, preserving bit depth.
-# 8-bit rgba → rgb24, 16-bit rgba64* → rgb48be. Atomic via temp+mv.
-# Caller should only invoke when alpha is known-unused (classify=opaque but
-# source pix_fmt carries alpha).
-strip_alpha_png() {
-  local src="$1"
-  local pix_fmt out_fmt
-  pix_fmt="$(get_pix_fmt "$src")"
-  # 16-bit RGBA formats in ffmpeg are named rgba64be/rgba64le. Any '64' in the
-  # pix_fmt reliably signals 16-bit-per-channel for the formats we handle here.
-  case "$pix_fmt" in
-    *64*) out_fmt="rgb48be" ;;
-    *)    out_fmt="rgb24" ;;
-  esac
-  if [[ "$DRY_RUN" == "1" ]]; then
-    echo "    [dry-run] strip alpha: $src ($pix_fmt -> $out_fmt)"
-    return 0
-  fi
-  local tmp="${src}.stripalpha.tmp.png"
-  if ffmpeg -nostdin -y -loglevel error -hide_banner \
-      -i "$src" -pix_fmt "$out_fmt" "$tmp"; then
-    mv "$tmp" "$src"
-    return 0
-  else
-    rm -f "$tmp"
-    return 1
-  fi
-}
-
-# Downscale an image source in place so its longest side is MAX_IMG_DIM.
-# Also normalizes web-pointless 16-bit channels down to 8-bit (the fallback
-# <img> never benefits from 16-bit and it doubles every PNG's size).
-# Atomic via temp+mv. Caller must verify it's actually oversized first.
-resize_image_in_place() {
-  local src="$1" has_alpha="$2"
-  local ext tmp out_fmt
-  ext="$(lower "${src##*.}")"
-  tmp="${src}.resize.tmp.${ext}"
-  if [[ "$has_alpha" == "transparent" ]]; then
-    out_fmt="rgba"
-  else
-    out_fmt="rgb24"
-  fi
-  if [[ "$DRY_RUN" == "1" ]]; then
-    echo "    [dry-run] resize in place: $src (cap ${MAX_IMG_DIM}px, $out_fmt)"
-    return 0
-  fi
-  # min(iw,CAP)/min(ih,CAP) box + force_original_aspect_ratio=decrease can
-  # only shrink: the box never exceeds the source in either axis, so smaller
-  # images pass through untouched (but we never get here for those anyway).
-  local args=(-i "$src"
-    -vf "scale='min(iw,${MAX_IMG_DIM})':'min(ih,${MAX_IMG_DIM})':force_original_aspect_ratio=decrease:flags=lanczos"
-    -pix_fmt "$out_fmt")
-  # JPEG re-encode quality: 2 ≈ libjpeg q92, visually lossless for our use.
-  [[ "$ext" == "jpg" || "$ext" == "jpeg" ]] && args+=(-q:v 2)
-  if run_ff "${args[@]}" "$tmp"; then
-    mv "$tmp" "$src"
-    return 0
-  else
-    rm -f "$tmp"
-    return 1
-  fi
-}
-
 # ---- converters ----
 
-# encode_webp SRC DST [WIDTH] — WIDTH empty = keep source size
-encode_webp() {
-  local src="$1" dst="$2" width="${3:-}"
-  local args=()
-  [[ -n "$width" ]] && args+=(-vf "scale=${width}:-2:flags=lanczos")
-  run_img_ff "$src" "$dst" "${args[@]}" -quality "$WEBP_Q" -compression_level 6
+# Scale filter for an image output. WIDTH empty = full size, capped so the
+# longest side is at most MAX_IMG_DIM (only ever shrinks; 16-bit masters are
+# brought down to 8-bit by the encoders' pix_fmt). Always returns a filter, so
+# callers never expand an empty array (bash 3.2 + set -u errors on that).
+img_scale_filter() {
+  local width="${1:-}"
+  if [[ -n "$width" ]]; then
+    printf 'scale=%s:-2:flags=lanczos' "$width"
+  else
+    printf "scale='min(iw,%s)':'min(ih,%s)':force_original_aspect_ratio=decrease:flags=lanczos" \
+      "$MAX_IMG_DIM" "$MAX_IMG_DIM"
+  fi
 }
 
-# encode_avif SRC DST [WIDTH]
-encode_avif() {
-  local src="$1" dst="$2" width="${3:-}"
-  local args=()
-  [[ -n "$width" ]] && args+=(-vf "scale=${width}:-2:flags=lanczos")
-  # libaom-av1 with -still-picture for AVIF stills.
-  # cpu-used 6 is a reasonable speed/quality tradeoff (0=slowest/best, 8=fastest).
-  run_img_ff "$src" "$dst" "${args[@]}" \
-    -c:v libaom-av1 -crf "$AVIF_CRF" -b:v 0 \
-    -still-picture 1 -cpu-used 6 \
-    -pix_fmt yuv420p
+# Image encodes: ffmpeg only scales (to a temp 8-bit PNG); the reference
+# encoders do the compression. cwebp (libwebp) and avifenc (libavif) keep
+# alpha, and don't depend on how ffmpeg was built (Homebrew's ffmpeg ships
+# without libwebp/libaom).
+#
+# Pixel format comes from the caller's `img_pix_fmt` (rgb24 or rgba), set
+# once per master in convert_image (bash locals are visible to callees).
+
+# encode_image KIND SRC DST [WIDTH] — KIND webp|avif; WIDTH empty = full size (capped)
+encode_image() {
+  local kind="$1" src="$2" dst="$3" width="${4:-}"
+  local fmt="${img_pix_fmt:-rgba}"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "    [dry-run] ffmpeg $(img_scale_filter "$width") -> $fmt png -> $kind $dst"
+    return 0
+  fi
+  local tmp="${dst}.tmp.png" ok=0
+  if run_img_ff "$src" "$tmp" -vf "$(img_scale_filter "$width")" -pix_fmt "$fmt"; then
+    if [[ "$kind" == "webp" ]]; then
+      cwebp -quiet -q "$WEBP_Q" -m 6 "$tmp" -o "$dst" && ok=1
+    else
+      avifenc -q "$AVIF_Q" --qalpha "$AVIF_QA" -s 4 "$tmp" "$dst" >/dev/null && ok=1
+    fi
+  fi
+  rm -f "$tmp"
+  [[ "$ok" == "1" ]] && return 0
+  echo "    FAILED: $src -> $dst ($kind)" >&2
+  rm -f "$dst"
+  FAILED=$((FAILED + 1))
+  return 1
 }
 
+encode_webp() { encode_image webp "$@"; }
+encode_avif() { encode_image avif "$@"; }
+
+# check_avif_inversion BASE — see "AVIF inversion guard" in the header.
+avif_larger_than_webp() {
+  local a="$1" w="${1%.avif}.webp"
+  [[ -f "$a" && -f "$w" ]] && (( $(file_size "$a") > $(file_size "$w") ))
+}
+
+check_avif_inversion() {
+  local base="$1" a drop_all=0 keep_tiers=0 webp_tiers=0
+  local inverted=()
+  avif_larger_than_webp "$base.avif" && drop_all=1
+  for a in "$base"-*w.avif; do
+    [[ -f "$a" ]] || continue
+    if avif_larger_than_webp "$a"; then
+      inverted+=("$a")
+    else
+      keep_tiers=$((keep_tiers + 1))
+    fi
+  done
+  for a in "$base"-*w.webp; do
+    [[ -f "$a" ]] && webp_tiers=$((webp_tiers + 1))
+  done
+  (( keep_tiers == 0 && webp_tiers > 0 && ${#inverted[@]} > 0 )) && drop_all=1
+
+  if [[ "$drop_all" == "1" ]]; then
+    echo "  IMG  ${base#"$ASSETS_DIR"/}  (AVIF larger than WebP — deleting all AVIFs, marker: ${base##*/}.avif.skip)"
+    if [[ "$DRY_RUN" == "1" ]]; then
+      echo "    [dry-run] rm $base.avif $base-*w.avif && touch $base.avif.skip"
+    else
+      rm -f "$base.avif" "$base"-*w.avif
+      touch "$base.avif.skip"
+    fi
+    return 0
+  fi
+  # ${arr[@]+...}: bash 3.2 + set -u errors on expanding an empty array.
+  for a in ${inverted[@]+"${inverted[@]}"}; do
+    echo "  IMG  ${a#"$ASSETS_DIR"/}  (larger than its WebP — deleting, marker: ${a##*/}.skip)"
+    if [[ "$DRY_RUN" == "1" ]]; then
+      echo "    [dry-run] rm $a && touch $a.skip"
+    else
+      rm -f "$a"
+      touch "$a.skip"
+    fi
+  done
+}
+
+# convert_image MASTER — MASTER is a file under MASTERS_DIR; outputs go to
+# the same relative path under ASSETS_DIR. The master is only read.
 convert_image() {
   local src="$1"
-  local base="${src%.*}"
+  local rel="${src#"$MASTERS_DIR"/}"
+  local base="$ASSETS_DIR/${rel%.*}"
   local webp="${base}.webp"
   local avif="${base}.avif"
 
-  # Don't recompress something that is already webp/avif back into itself.
-  local ext
-  ext="$(lower "${src##*.}")"
-
-  # Spritesheets etc.: leave the source alone, generate nothing.
+  # Spritesheets etc.: generate nothing.
   if is_skipped_path "$src"; then
     return 0
   fi
 
-  # Classify once (ffmpeg decode is expensive, and we need the answer several
-  # times: alpha-strip, resize pix_fmt, and the AVIF-skip decision).
-  local alpha_class="opaque"
-  if [[ "$ext" == "png" || "$ext" == "jpg" || "$ext" == "jpeg" ]]; then
-    alpha_class="$(classify_transparency "$src")"
-  fi
+  [[ "$DRY_RUN" == "1" ]] || mkdir -p "$(dirname "$base")"
 
-  # Strip fully-opaque alpha channels on PNG sources. Saves ~5-15% on disk
-  # and removes the AVIF-skip penalty for PNGs that only had alpha out of
-  # habit. Gated by STRIP_UNUSED_ALPHA (default on). Modifies source in place.
-  if [[ "$STRIP_UNUSED_ALPHA" == "1" && "$ext" == "png" && "$alpha_class" == "opaque" ]]; then
-    local src_pix_fmt
-    src_pix_fmt="$(get_pix_fmt "$src")"
-    if pix_fmt_has_alpha "$src_pix_fmt"; then
-      echo "  ALPHA  $src  (unused alpha — stripping)"
-      if ! strip_alpha_png "$src"; then
-        echo "    FAILED to strip alpha: $src" >&2
-        FAILED=$((FAILED + 1))
-      fi
-    fi
-  fi
+  # Classify once (ffmpeg decode is expensive). Opaque masters encode from
+  # RGB; transparent (or undetectable) ones keep their alpha plane.
+  local alpha_class img_pix_fmt=rgba
+  alpha_class="$(classify_transparency "$src")"
+  [[ "$alpha_class" == "opaque" ]] && img_pix_fmt=rgb24
 
-  # Downscale oversized sources in place. The site never displays an image
-  # beyond ~1920px; a 4096px source quadruples decode time and fallback bytes
-  # for zero visible gain. Originals are recoverable from git history.
-  # Also re-encodes 16-bit-per-channel sources down to 8-bit even when the
-  # dimensions are fine — the web stack renders 8-bit, so the extra depth
-  # doubles the fallback's size for literally invisible gain.
-  # Naturally idempotent: once within the cap and 8-bit, both checks skip.
-  local dims src_w src_h deep_color=0
+  # Tier decisions use the width of the full-size output (master capped at
+  # MAX_IMG_DIM, aspect preserved).
+  local dims src_w src_h
   dims="$(get_dims "$src")"
   src_w="${dims%x*}"; src_h="${dims#*x}"
-  case "$(get_pix_fmt "$src")" in
-    *48*|*64*|*16*) deep_color=1 ;;
-  esac
-  if [[ "$RESIZE_SOURCES" == "1" && -n "$dims" && "$dims" == *x* ]]; then
-    if (( src_w > MAX_IMG_DIM || src_h > MAX_IMG_DIM )) || [[ "$deep_color" == "1" ]]; then
-      echo "  SIZE  $src  (${dims} $([[ "$deep_color" == "1" ]] && echo '16-bit ')-> cap ${MAX_IMG_DIM}px, 8-bit)"
-      if resize_image_in_place "$src" "$alpha_class"; then
-        RESIZED=$((RESIZED + 1))
-        # Re-read dims for the tier decisions below.
-        dims="$(get_dims "$src")"
-        src_w="${dims%x*}"; src_h="${dims#*x}"
-      else
-        echo "    FAILED to resize: $src" >&2
-        FAILED=$((FAILED + 1))
-      fi
-    fi
-  fi
-
-  if [[ "$ext" != "webp" ]]; then
-    if needs_update "$src" "$webp"; then
-      echo "  IMG  $src  ->  ${webp##*/}"
-      if encode_webp "$src" "$webp"; then
-        IMG_CONVERTED=$((IMG_CONVERTED + 1))
-      fi
+  if [[ -n "$dims" && "$dims" == *x* ]] && (( src_w > MAX_IMG_DIM || src_h > MAX_IMG_DIM )); then
+    if (( src_w >= src_h )); then
+      src_w="$MAX_IMG_DIM"
     else
-      SKIPPED=$((SKIPPED + 1))
+      src_w=$(( src_w * MAX_IMG_DIM / src_h ))
     fi
   fi
 
+  if needs_update "$src" "$webp"; then
+    echo "  IMG  $src  ->  ${webp#"$ASSETS_DIR"/}"
+    if encode_webp "$src" "$webp"; then
+      IMG_CONVERTED=$((IMG_CONVERTED + 1))
+    fi
+  else
+    SKIPPED=$((SKIPPED + 1))
+  fi
+
+  # AVIF (avifenc keeps alpha, so transparent masters get one too).
   local do_avif=0
-  if [[ "$GEN_AVIF" == "1" && "$ext" != "avif" ]]; then
-    # Skip AVIF when the source has real transparency. ffmpeg+libaom silently
-    # drops alpha and emits a single-stream yuv420p AVIF, producing a black
-    # background where transparency should be. WebP handles alpha correctly
-    # and is served before the fallback, so skipping is functionally fine.
-    # Unknown alpha class (detection failed) also skips — safer than risking
-    # a black-bg output. Proper fix would be avifenc (libavif).
-    if [[ "$alpha_class" == "transparent" ]]; then
-      echo "  IMG  $src  ->  (skipped AVIF: source has transparency)"
-      SKIPPED=$((SKIPPED + 1))
-    elif [[ "$alpha_class" == "unknown" ]]; then
-      echo "  IMG  $src  ->  (skipped AVIF: alpha detection failed)"
+  if [[ "$GEN_AVIF" == "1" ]]; then
+    if [[ -f "${base}.avif.skip" ]]; then
       SKIPPED=$((SKIPPED + 1))
     else
       do_avif=1
@@ -478,8 +479,10 @@ convert_image() {
         else
           SKIPPED=$((SKIPPED + 1))
         fi
-        if [[ "$do_avif" == "1" ]]; then
-          local tier_avif="${base}-${tier}w.avif"
+        local tier_avif="${base}-${tier}w.avif"
+        if [[ "$do_avif" == "1" && -f "${tier_avif}.skip" ]]; then
+          SKIPPED=$((SKIPPED + 1))
+        elif [[ "$do_avif" == "1" ]]; then
           if needs_update "$src" "$tier_avif"; then
             echo "  IMG  $src  ->  ${tier_avif##*/}"
             if encode_avif "$src" "$tier_avif" "$tier"; then
@@ -492,6 +495,9 @@ convert_image() {
       fi
     done
   fi
+
+  [[ "$do_avif" == "1" ]] && check_avif_inversion "$base"
+  return 0
 }
 
 # Shared scale filter for all video encodes: fit inside VID_MAX_W x VID_MAX_H,
@@ -524,7 +530,8 @@ encode_mp4() {
     "$dst"
 }
 
-file_size() { stat -c %s "$1" 2>/dev/null || echo 0; }
+# BSD stat (macOS) uses -f %z; GNU stat (Linux, git-bash) uses -c %s.
+file_size() { stat -f %z "$1" 2>/dev/null || stat -c %s "$1" 2>/dev/null || echo 0; }
 
 convert_video() {
   local src="$1"
@@ -600,6 +607,7 @@ convert_video() {
       fi
     fi
     check_webm_inversion "$base"
+    ensure_poster "$base"
     return 0
   fi
 
@@ -638,6 +646,29 @@ convert_video() {
   fi
 
   check_webm_inversion "$base"
+  ensure_poster "$base"
+}
+
+# ensure_poster BASE — <name>-poster.jpg: the video's first frame, ≤960px
+# wide. content.js variantsFor() picks it up as the <video poster>. First
+# frame (not a "best" frame) so the swap to playback doesn't jump.
+ensure_poster() {
+  local base="$1" poster="$1-poster.jpg" src=""
+  [[ "$GEN_POSTERS" == "1" ]] || return 0
+  local f
+  for f in "$base.mp4" "$base.webm" "$base.mov" "$base.m4v"; do
+    [[ -f "$f" ]] && { src="$f"; break; }
+  done
+  [[ -n "$src" ]] || return 0
+  needs_update "$src" "$poster" || { SKIPPED=$((SKIPPED + 1)); return 0; }
+  echo "  VID  $src  ->  ${poster##*/}"
+  if run_ff -i "$src" -frames:v 1 -vf "scale='min(iw,960)':-2:flags=lanczos" -q:v 4 "$poster"; then
+    VID_CONVERTED=$((VID_CONVERTED + 1))
+  else
+    echo "    FAILED: poster for $src" >&2
+    rm -f "$poster"
+    FAILED=$((FAILED + 1))
+  fi
 }
 
 # If a webm ended up larger than its mp4 sibling, delete it and leave a
@@ -671,8 +702,8 @@ check_webm_inversion() {
 
 # ---- main walk ----
 
-echo "Scanning: $ASSETS_DIR"
-echo "  fallbacks=$GEN_FALLBACKS  avif=$GEN_AVIF  tiers=$GEN_TIERS  resize=$RESIZE_SOURCES  strip_alpha=$STRIP_UNUSED_ALPHA  dry_run=$DRY_RUN  force=$FORCE"
+echo "Image masters: $MASTERS_DIR    outputs + videos: $ASSETS_DIR"
+echo "  video_fallbacks=$GEN_FALLBACKS  img_fallbacks=$GEN_IMG_FALLBACKS  avif=$GEN_AVIF  tiers=$GEN_TIERS  dry_run=$DRY_RUN  force=$FORCE"
 echo
 
 # For a video pair (foo.mp4 + foo.webm), return 0 if $1 is the "source" —
@@ -698,29 +729,44 @@ is_video_source() {
 # extensions).
 is_tier_file() {
   case "$1" in
-    *-480w.*|*-960w.*|*-1920w.*) return 0 ;;
+    *-480w.*|*-960w.*|*-1440w.*|*-1920w.*) return 0 ;;
     *) return 1 ;;
   esac
 }
 
 # -print0 / read -d '' handles spaces and weird filenames safely.
+
+# Images: masters only. Everything image-shaped under ASSETS_DIR is an output
+# (or a spritesheet served as-is) and is never fed back in.
+if [[ -d "$MASTERS_DIR" ]]; then
+  while IFS= read -r -d '' file; do
+    is_tier_file "$file" && continue
+    case "$(lower "${file##*.}")" in
+      png|jpg|jpeg) convert_image "$file" ;;
+    esac
+  done < <(find "$MASTERS_DIR" -type f -print0)
+
+  if [[ "$GEN_IMG_FALLBACKS" == "1" ]]; then
+    echo
+    if ! python3 "$(dirname "$0")/make-fallbacks.py" "$MASTERS_DIR" "$ASSETS_DIR"; then
+      echo "    FAILED: image fallbacks" >&2
+      FAILED=$((FAILED + 1))
+    fi
+  fi
+else
+  echo "  (no masters dir at $MASTERS_DIR — skipping images)"
+fi
+
+# Videos: still live in ASSETS_DIR. mp4/mov/m4v are always candidates. webm
+# may be either a user-supplied original or something we generated; resolve
+# via mtime.
 while IFS= read -r -d '' file; do
-  is_tier_file "$file" && continue
-  ext="$(lower "${file##*.}")"
-  case "$ext" in
-    # Image sources: only raster originals. webp/avif are outputs, never
-    # inputs — feeding them back in would re-encode lossy->lossy on every run.
-    png|jpg|jpeg)
-      convert_image "$file"
-      ;;
-    # Video sources: mp4/mov/m4v are always candidates. webm may be either
-    # a user-supplied original or something we generated; resolve via mtime.
+  case "$(lower "${file##*.}")" in
     mp4|mov|m4v|webm)
       if is_video_source "$file"; then
         convert_video "$file"
       fi
       ;;
-    *) ;;  # ignore: fonts, splats, already-derived webp/avif, .skip markers, etc.
   esac
 done < <(find "$ASSETS_DIR" -type f -print0)
 
@@ -766,7 +812,6 @@ fi
 echo
 echo "Done."
 echo "  images converted: $IMG_CONVERTED"
-echo "  sources resized:  $RESIZED"
 echo "  videos converted: $VID_CONVERTED"
 echo "  up-to-date:       $SKIPPED"
 echo "  failed:           $FAILED"

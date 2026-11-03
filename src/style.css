@@ -190,14 +190,6 @@
   opacity: 0;
 }
 
-/* First jump triggers glow color transition green → white.
- * Transition lives here (not on .rabbit) so it only activates during
- * the first jump — prevents unwanted transition on DOM insertion. */
-.rabbit.color-fade {
-  --rabbit-glow-color: #ffffff;
-  transition: --rabbit-glow-color 1.1s ease-out;
-}
-
 /* After first jump, lock glow to white */
 .rabbit.color-revealed {
   --rabbit-glow-color: #ffffff;
@@ -247,12 +239,15 @@
 @keyframes rabbit-spawn-drop {
 
   /*
-   * Start position is set by JS via inline style
-   * End at bottom of viewport (100vh - visual height)
-   * Visual height = 64px * 4 scale = 256px
+   * Compositor-only fall: animates the individual `translate` property (it
+   * stacks on top of `transform`, so the flipped/unflipped scale and the jump
+   * offset are untouched). Rabbit.js sets --rabbit-drop-dy to
+   * innerHeight - visual height - current top before adding the class, then
+   * on animationend writes the landing `top` and removes the class + variable
+   * in one task, so the translate and the new top swap in the same frame.
    */
   to {
-    top: calc(100vh - 256px);
+    translate: 0 var(--rabbit-drop-dy, 0px);
   }
 }
 
@@ -265,13 +260,6 @@
 
 .rabbit.jumping::after {
   animation: rabbit-jump-overlay 1.0s steps(15) forwards;
-}
-
-/* First jump: fade from green to original colors */
-.rabbit.jumping.color-fade::after {
-  animation:
-    rabbit-jump-overlay 1.0s steps(15) forwards,
-    rabbit-color-fade 1.0s ease-out forwards;
 }
 
 @keyframes rabbit-jump-sprite {
@@ -294,16 +282,6 @@
     -webkit-mask-position: -512px 0;
     mask-position: -512px 0;
     /* Frame 17 */
-  }
-}
-
-@keyframes rabbit-color-fade {
-  from {
-    opacity: 1;
-  }
-
-  to {
-    opacity: 0;
   }
 }
 
@@ -449,7 +427,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 100;
+  z-index: var(--z-crt-overlay);
 
   /* Scanlines - alternating transparent/dark bands */
   /* Pattern: [spacing gap] [size dark line] repeating */
@@ -487,15 +465,13 @@
  * opaque vs. transparent geometry in a game renderer.
  */
 
-/* --- Text CRT: terminal + nav-menu + detail-nav + mosaic-frame + deck chrome --- */
+/* --- Text CRT: terminal + nav-menu + detail-nav + mosaic-frame ---
+ * Deck headings use a copy of this rule in portfolio-deck.css (the deck also
+ * runs on mobile, which doesn't load this file). Keep the two in sync. */
 .terminal.crt-effects,
 .nav-menu.crt-effects,
 .detail-nav.crt-effects,
-.mosaic-frame.crt-effects,
-.deck-title.crt-effects,
-.deck-counter.crt-effects,
-.deck-card-title.crt-effects,
-.deck-outro-title.crt-effects {
+.mosaic-frame.crt-effects {
   filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
   text-shadow:
     /* RGB split — red left, blue right */
@@ -740,8 +716,8 @@
 
   opacity: 0;
   transition: opacity 300ms ease;
-  z-index: 1000;
-  /* above .crt-overlay (1000) so scanlines don't cover images */
+  z-index: var(--z-above-scanlines);
+  /* above .crt-overlay (100) so scanlines don't cover images */
 }
 
 .mosaic-grid.visible {
@@ -844,7 +820,7 @@
   justify-content: flex-start;
   overflow-y: auto;
   padding: calc(2rem + 20px) 2rem 2rem 2rem;
-  z-index: 99;
+  z-index: var(--z-below-scanlines);
   /* Drop below .crt-overlay (100) so global scanlines cover the CV */
 }
 
@@ -853,7 +829,7 @@
   display: block;
   overflow-y: auto;
   padding: calc(2rem + 20px) 2rem 2rem 2rem;
-  z-index: 1000;
+  z-index: var(--z-above-scanlines);
   /* above .crt-overlay (100) so the cards/thumbnails render on top of the
      scanlines, like the regular thumbnail mosaic */
   scrollbar-width: thin;
@@ -960,7 +936,7 @@
   display: block;
   overflow-y: auto;
   padding: calc(3.5rem + 20px) 2rem 2rem 2rem;
-  z-index: 1000;
+  z-index: var(--z-above-scanlines);
   /* above .crt-overlay so images render clean, like mosaic thumbnails */
   pointer-events: none;
   /* let clicks pass through to .detail-nav underneath */
@@ -997,7 +973,7 @@
   top: calc(var(--mosaic-top) - var(--mosaic-frame-pad) + 42px);
   bottom: calc(var(--mosaic-bottom) - var(--mosaic-frame-pad) + 10px);
   width: 14px;    /* ~90% of the previous 16px */
-  z-index: 99;
+  z-index: var(--z-below-scanlines);
   pointer-events: none;   /* track ignores input; thumb re-enables below */
   opacity: 0;
   transition: opacity 300ms ease;
@@ -1309,20 +1285,16 @@
 
 /* "Copied!" confirmation state */
 .general-contact-typeout.copied {
-  color: var(--glow-color);
+  /* solid colour for contrast at this size; the glow stays in the filter */
+  color: var(--text-primary);
   filter: drop-shadow(0 0 4px var(--glow-color));
 }
 
 /* Blinking cursor after the text while typing */
 .general-contact-typeout.typing::after {
   content: '█';
-  animation: blink-cursor 600ms step-end infinite;
-}
-
-@keyframes blink-cursor {
-  50% {
-    opacity: 0;
-  }
+  /* same keyframes as the terminal .cursor, just faster */
+  animation: blink 600ms step-end infinite;
 }
 
 /* ============================================
@@ -1411,6 +1383,9 @@
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--text-primary) transparent;
+  /* Narrower panel gets a smaller consistent figure height (overrides the
+   * --md-figure-h default from the base .article-figure img/video rule). */
+  --md-figure-h: clamp(190px, 32vh, 360px);
 }
 
 .detail-info.visible {
@@ -1447,7 +1422,8 @@
 }
 
 .mosaic-grid.detail-scroll::-webkit-scrollbar-thumb {
-  background: var(--mg-line);
+  /* --mg-line only exists in mobile.css; this is the desktop equivalent */
+  background: color-mix(in srgb, var(--text-primary) 40%, transparent);
   border-radius: 3px;
   box-shadow: 0 0 4px var(--glow-color);
 }
@@ -1524,12 +1500,6 @@
   cursor: zoom-in;
 }
 
-/* Narrower detail panel gets a smaller consistent height (overrides the
- * --md-figure-h default from the base .article-figure img/video rule). */
-.detail-info {
-  --md-figure-h: clamp(190px, 32vh, 360px);
-}
-
 /* No top margin on the first body block — the title <h2> sits directly above. */
 .detail-info-body > .article-heading:first-child,
 .detail-info-body > .article-text:first-child {
@@ -1568,7 +1538,7 @@
  * the grid (z1000) so its opaque bg masks the content passing beneath it.
  * (Trade-off: scanlines no longer cover the bar while scrolling — only here.) */
 .detail-nav.masthead {
-  z-index: 1001;
+  z-index: var(--z-masthead);
 }
 
 .detail-nav.visible {
@@ -1668,6 +1638,72 @@
   box-shadow: 0 0 8px var(--glow-color);
 }
 
+/* Real keyboard focus (Tab) — visible ring on interactive chrome. */
+.nav-item:focus-visible,
+.detail-nav button:focus-visible,
+.game-link:focus-visible,
+.game-card:focus-visible,
+.general-contact-link:focus-visible,
+.general-contact-item:focus-visible,
+.general-skill-thumb:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* Button reset so .nav-item renders the same as the <div> it used to be.
+ * :where() keeps specificity at 0, so every existing .nav-item rule (padding,
+ * background, selected state) still wins over it; it only cancels the UA
+ * button defaults. */
+:where(button.nav-item) {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-shadow: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Mosaic cells stay <div>s: the open cell becomes the detail view and hosts
+ * the splat canvas and the video control bar (buttons, seek range), which
+ * can't live inside a <button>. Each cell instead gets a transparent
+ * stretched <button class="mosaic-hit"> on top for focus, name and
+ * activation. Zero-specificity anchor so .detail-active's position:absolute
+ * still wins. */
+:where(.mosaic-item) {
+  position: relative;
+}
+
+.mosaic-hit {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  /* Keep whatever cursor the cell shows today — no visual change for mouse. */
+  cursor: inherit;
+}
+
+/* Inset ring: an outset one would be clipped by the cell's overflow:hidden. */
+.mosaic-hit:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: -2px;
+}
+
+/* Detail view: the open cell's media must get clicks (fullscreen toggle,
+ * splat orbit, video controls), and the faded siblings must leave the Tab
+ * order — display:none does both. */
+.mosaic-grid.detail-mode .mosaic-hit {
+  display: none;
+}
+
 /* ============================================
    Detail View Enhancements
    ============================================ */
@@ -1686,21 +1722,6 @@
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--text-primary) transparent;
-}
-
-.detail-info-side-image {
-  flex: 0 0 auto;
-  aspect-ratio: 1;
-  height: 100%;
-  overflow: hidden;
-  cursor: zoom-in;
-}
-
-.detail-info-side-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 
 /* Invisible hit-area covering the full mosaic — clicking outside the image exits fullscreen */
@@ -1736,6 +1757,55 @@
 .detail-nav-arrows.hidden {
   opacity: 0;
   pointer-events: none;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+ * Everything that animates in still ends visible; it just gets there at once.
+ * Looping blinks stop (cursor stays solid). One-shot animations/transitions
+ * are cut to 0.01ms instead of `none` because JS waits on their end events:
+ * Rabbit.js listens for animationend (rabbit-spawn-drop, rabbit-jump-sprite)
+ * and desktop.js for transitionend (mosaic fades, detail FLIP). !important is
+ * needed to beat the per-item transition-delay desktop.js sets inline for the
+ * mosaic stagger. */
+@media (prefers-reduced-motion: reduce) {
+  .cursor,
+  .general-contact-typeout.typing::after {
+    animation: none;
+  }
+
+  .rabbit.spawning,
+  .rabbit.spawning::after,
+  .rabbit.dropping,
+  .rabbit.dropping::after,
+  .rabbit.jumping,
+  .rabbit.jumping::after {
+    animation-duration: 0.01ms !important;
+  }
+
+  .mosaic-frame,
+  .mosaic-frame::before,
+  .mosaic-frame::after,
+  .mosaic-handle,
+  .mosaic-grid,
+  .mosaic-item,
+  .mosaic-item.reveal,
+  .stagger-reveal,
+  .crt-scrollbar,
+  .detail-info,
+  .detail-nav,
+  .detail-nav-arrows,
+  .mosaic-item.detail-active,
+  .mosaic-item.detail-active.detail-transitioning,
+  .gallery-fs-overlay {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+  }
+
+  /* Reveal offsets: skip the slide, keep the fade target. */
+  .mosaic-item.reveal,
+  .stagger-reveal:not(.visible) {
+    transform: none;
+  }
 }
 
 /* ── Portrait / near-square viewports ───────────────────────────────────────

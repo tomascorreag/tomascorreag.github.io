@@ -37,12 +37,10 @@ import { createMediaElement, createSpritesheetElement } from '../utils/media.js'
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
-import { deviceTier } from '../config/device.js';
+import { deviceTier, prefersReducedMotion } from '../config/device.js';
 import { attachVideoControls } from './VideoControls.js';
 
-// DEV: temporarily forced off to test the carousel animation. Restore to:
-//   window.matchMedia('(prefers-reduced-motion: reduce)').matches || deviceTier === 'low';
-const reduceMotion = false;
+const reduceMotion = prefersReducedMotion() || deviceTier === 'low';
 
 // URL of the normal site = current path minus the `?p=` query. On the user
 // site that's just "/", but using pathname keeps it correct under a subpath.
@@ -389,8 +387,9 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   // ── Scaffold ──
   const deck = el('div', { class: `deck${reduceMotion ? ' no-anim' : ''}${isMobile ? ' is-mobile' : ''}` });
 
-  // `crt-effects` is the shared site-wide glow/RGB-split rule (style.css) — same
-  // treatment the terminal and nav use, not a deck-local copy.
+  // `crt-effects` gets the deck's copy of the CRT glow/RGB-split rule in
+  // portfolio-deck.css (style.css isn't loaded on mobile); it mirrors the
+  // terminal/nav rule in style.css.
   const header = el('header', { class: 'deck-header' }, [
     el('div', { class: 'deck-header-titles' }, [
       el('h1', { class: 'deck-title crt-effects', text: page.title }),
@@ -429,7 +428,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   ]);
 
   // Bright scanline that rides the leading edge of the overlay's clip-path
-  // wipe (see .deck-doc-wipe in style.css). Sibling of the overlay so the
+  // wipe (see .deck-doc-wipe in portfolio-deck.css). Sibling of the overlay so the
   // clip doesn't cut it; toggled in lockstep with the overlay below.
   const wipe = el('div', { class: 'deck-doc-wipe' });
 

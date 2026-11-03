@@ -1,5 +1,5 @@
 import { variantsFor, resolveThumbnail } from '../config/content.js';
-import { getSaveData } from '../config/device.js';
+import { getSaveData, prefersReducedMotion } from '../config/device.js';
 
 /* ────────────────────────────────────────────────────────────────────────
  * Offscreen media manager
@@ -85,8 +85,16 @@ function registerManagedVideo(video, wantsAutoplay) {
     userPaused: false,
     pausedByManager: false,
     suppressPauseEvent: false,
+    // Set by pauseManagedVideos (media covered by a detail view/sheet): the
+    // video still intersects the viewport, so IO re-entry and tab-visible must
+    // not restart it. Cleared by resumeManagedVideos.
+    suppressed: false,
+    // Start time set by deferManagedVideo; until then the video stays paused.
+    holdUntil: 0,
+    holdTimer: null,
+    held: () => performance.now() < h.holdUntil,
     onEnter() {
-      if (h.userPaused) return;
+      if (h.userPaused || h.suppressed || h.held()) return;
       if ((wantsAutoplay || h.pausedByManager) && video.paused) {
         h.pausedByManager = false;
         video.play().catch(() => { /* autoplay policy — user can tap */ });
@@ -111,7 +119,7 @@ function registerManagedVideo(video, wantsAutoplay) {
     h.pausedByManager = false;
     // Autoplay can kick in after the manager already judged the video
     // offscreen (race with data loading) — re-pause immediately.
-    if (!h.lastVisible || document.hidden) h.onExit();
+    if (!h.lastVisible || document.hidden || h.suppressed || h.held()) h.onExit();
   });
   registerManagedElement(video, h);
 }
@@ -133,8 +141,34 @@ function registerManagedAnimation(el, animation) {
 export function pauseManagedVideos(filter = () => true) {
   for (const el of managedElements) {
     if (el.tagName !== 'VIDEO' || !filter(el)) continue;
-    managedHandlers.get(el)?.onExit();
+    const h = managedHandlers.get(el);
+    if (!h) continue;
+    h.suppressed = true;
+    h.onExit();
   }
+}
+
+/**
+ * Delays a managed video's start by `ms` (replaces any earlier delay), then
+ * plays it if it's still in view. Used to start grid videos one by one as
+ * their tiles appear: in Chrome, 4 grid videos (re)starting together during a
+ * category switch or detail close dropped ~40% of frames.
+ */
+export function deferManagedVideo(video, ms) {
+  const h = managedHandlers.get(video);
+  if (!h) return;
+  video.autoplay = false; // the manager starts it; no early browser autoplay
+  if (!video.paused) {
+    h.suppressPauseEvent = true;
+    h.pausedByManager = true;
+    video.pause();
+  }
+  h.holdUntil = performance.now() + ms;
+  clearTimeout(h.holdTimer);
+  h.holdTimer = setTimeout(() => {
+    h.holdTimer = null;
+    if (h.lastVisible && !document.hidden) h.onEnter();
+  }, ms);
 }
 
 /**
@@ -145,7 +179,29 @@ export function resumeManagedVideos(filter = () => true) {
   for (const el of managedElements) {
     if (el.tagName !== 'VIDEO' || !filter(el)) continue;
     const h = managedHandlers.get(el);
-    if (h?.pausedByManager && h.lastVisible && !document.hidden) h.onEnter();
+    if (!h) continue;
+    h.suppressed = false;
+    if (h.pausedByManager && h.lastVisible && !document.hidden) h.onEnter();
+  }
+}
+
+/**
+ * Stops and unloads every <video> under `root` and drops managed media there
+ * from the registry. Call before discarding a subtree (innerHTML = ''):
+ * detached videos otherwise keep downloading until GC.
+ */
+export function releaseMedia(root) {
+  for (const el of managedElements) {
+    if (!root.contains(el)) continue;
+    clearTimeout(managedHandlers.get(el)?.holdTimer); // no deferred start on a discarded video
+    mediaObserver?.unobserve(el);
+    managedElements.delete(el);
+  }
+  for (const video of root.querySelectorAll('video')) {
+    video.pause();
+    video.removeAttribute('src');
+    for (const source of video.querySelectorAll('source')) source.removeAttribute('src');
+    video.load(); // aborts the in-flight fetch
   }
 }
 
@@ -243,6 +299,7 @@ export function createMediaElement(relativePath, opts = {}) {
   video.loop = loop;
   video.playsInline = playsInline;
   video.preload = saveData ? 'none' : preload;
+  if (variants.poster) video.poster = variants.poster;
   for (const src of variants.sources) {
     const source = document.createElement('source');
     source.type = src.type;
@@ -347,6 +404,11 @@ export function createSpritesheetElement(config, opts = {}) {
 
   const fromPct = (first / (frames - 1)) * 100;
   const toPct = ((first + count) / (frames - 1)) * 100;
+  // Reduced motion: hold the first frame, no loop.
+  if (prefersReducedMotion()) {
+    sprite.style.backgroundPosition = `${fromPct}% 0`;
+    return container;
+  }
   const anim = sprite.animate(
     [{ backgroundPosition: `${fromPct}% 0` }, { backgroundPosition: `${toPct}% 0` }],
     { duration: (count / fps) * 1000, iterations: Infinity, easing: `steps(${count})` }

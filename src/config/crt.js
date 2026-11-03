@@ -7,7 +7,7 @@
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
 
-import { getDeviceTier, isMobileDevice } from './device.js';
+import { getDeviceTier, prefersReducedMotion, reducedMotionQuery } from './device.js';
 
 export const CRT_CONFIG = Object.freeze({
   // Scanlines
@@ -47,13 +47,6 @@ export const CRT_CONFIG = Object.freeze({
     // mid and high: use defaults (no overrides needed)
   },
 });
-
-/**
- * Detects if device is mobile/tablet.
- * Kept for any remaining viewport-specific checks (layout, not quality).
- * Re-exported from device.js to avoid duplicate logic.
- */
-export { isMobileDevice as isMobile };
 
 /**
  * Gets active config values based on device tier.
@@ -144,9 +137,17 @@ export function injectCRTVariables() {
 let glowNoiseTimer = null;
 let glowNoiseFrame = null;
 let glowNoiseActive = false;
+let glowNoiseMotionHooked = false;
 
 export function startGlowNoise() {
-  if (glowNoiseActive) return;
+  // Follow the OS reduced-motion toggle at runtime: off when set, back on when cleared.
+  if (!glowNoiseMotionHooked) {
+    glowNoiseMotionHooked = true;
+    reducedMotionQuery.addEventListener('change', (e) => {
+      if (e.matches) stopGlowNoise(); else startGlowNoise();
+    });
+  }
+  if (glowNoiseActive || prefersReducedMotion()) return;
 
   const config = getActiveConfig();
   const { glowNoiseMin: min, glowNoiseFrequency: freq,
@@ -204,5 +205,9 @@ export function stopGlowNoise() {
   if (glowNoiseFrame) cancelAnimationFrame(glowNoiseFrame);
   glowNoiseTimer = null;
   glowNoiseFrame = null;
+  // Don't leave the glow stuck mid-drop.
+  if (glowNoiseActive) {
+    document.documentElement.style.setProperty('--crt-glow-intensity', getActiveConfig().glowIntensity);
+  }
   glowNoiseActive = false;
 }

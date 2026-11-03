@@ -11,7 +11,7 @@
  * ──────────────────────────────────────────────────────────────────────── */
 
 const MARGIN = 24;        // gap (px) between the zoomed image and the viewport edge
-const ANIM_MS = 300;      // keep in sync with .img-lightbox-overlay transition (CSS)
+const ANIM_MS = 300;      // keep in sync with .img-lightbox-overlay transition (src/article.css)
 
 // Only one lightbox at a time. Also lets the Escape handler know it's the owner
 // of the key press (so it can stop the event before a host view's own Escape).

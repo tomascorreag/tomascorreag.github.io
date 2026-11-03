@@ -10,6 +10,7 @@
 
 import { Sprite } from './Sprite.js';
 import { RABBIT_CONFIG } from '../config/animations.js';
+import { prefersReducedMotion } from '../config/device.js';
 
 export class Rabbit extends Sprite {
   constructor(options = {}) {
@@ -73,6 +74,22 @@ export class Rabbit extends Sprite {
 
     this.updatePosition();
 
+    // Reduced motion: skip the drop, land at the bottom immediately.
+    if (prefersReducedMotion()) {
+      this.element.classList.remove('spawning');
+      this.isSpawning = false;
+      const visualHeight = RABBIT_CONFIG.height * this.scale;
+      this.y = window.innerHeight - visualHeight;
+      this.updatePosition();
+      this.refreshBottomCenter();
+      return this;
+    }
+
+    // .spawning is already on the element (createElement), so the drop
+    // distance must be set in this same task, before the first style recalc
+    // starts the animation.
+    this._armDrop();
+
     // Start tracking mouse position immediately for glow during drop
     this.earlyMouseHandler = (e) => {
       this.lastMouseX = e.clientX;
@@ -99,14 +116,39 @@ export class Rabbit extends Sprite {
       this.element.classList.remove('spawning');
 
       // Lock in final position at bottom of viewport
-      const visualHeight = RABBIT_CONFIG.height * this.scale;
-      this.y = window.innerHeight - visualHeight;
-      this.updatePosition();
+      this._commitDrop();
       this.refreshBottomCenter();
     };
     this.element.addEventListener('animationend', onSpawnEnd);
 
     return this;
+  }
+
+  /**
+   * Sets --rabbit-drop-dy: the px distance from the current top to the landing
+   * top (viewport bottom minus visual height). rabbit-spawn-drop animates the
+   * `translate` property by this amount, so the fall runs on the compositor
+   * instead of animating `top` (a layout property under a heavy filter).
+   * transform-origin is top center, so the scaled sprite's visual top equals
+   * its CSS top and the visual height is height × scale.
+   */
+  _armDrop() {
+    const visualHeight = RABBIT_CONFIG.height * this.scale;
+    const dy = window.innerHeight - visualHeight - this.y;
+    this.element.style.setProperty('--rabbit-drop-dy', `${dy}px`);
+  }
+
+  /**
+   * Commits the landing: writes the final `top` and drops the translate
+   * variable. Called in the same task that removes the drop class, so the
+   * translate (held by `forwards`) and the new top swap in one frame and the
+   * cached geometry (bottom-center, jump math) reads the real position.
+   */
+  _commitDrop() {
+    const visualHeight = RABBIT_CONFIG.height * this.scale;
+    this.y = window.innerHeight - visualHeight;
+    this.updatePosition();
+    this.element.style.removeProperty('--rabbit-drop-dy');
   }
 
   /**
@@ -154,6 +196,17 @@ export class Rabbit extends Sprite {
 
     this.reveal();
 
+    // Reduced motion: skip the fall, land at the bottom immediately.
+    if (prefersReducedMotion()) {
+      this.isSpawning = false;
+      const visualHeight = RABBIT_CONFIG.height * this.scale;
+      this.y = window.innerHeight - visualHeight;
+      this.updatePosition();
+      this.element.style.backgroundPosition = `0px 0`;
+      this.refreshBottomCenter();
+      return;
+    }
+
     // Start tracking mouse for glow during drop
     this.earlyMouseHandler = (e) => {
       this.lastMouseX = e.clientX;
@@ -162,7 +215,9 @@ export class Rabbit extends Sprite {
     document.addEventListener('mousemove', this.earlyMouseHandler);
     this.startGlowAnimation();
 
-    // Use dropping class (drop-only, no sprite animation)
+    // Use dropping class (drop-only, no sprite animation). Distance first,
+    // so the animation starts with the right target.
+    this._armDrop();
     this.element.classList.add('dropping');
 
     const onDropEnd = (e) => {
@@ -174,9 +229,7 @@ export class Rabbit extends Sprite {
       this.element.classList.remove('dropping');
 
       // Lock final position at bottom of viewport
-      const visualHeight = RABBIT_CONFIG.height * this.scale;
-      this.y = window.innerHeight - visualHeight;
-      this.updatePosition();
+      this._commitDrop();
       this.element.style.backgroundPosition = `0px 0`;
       this.refreshBottomCenter();
     };
@@ -228,6 +281,15 @@ export class Rabbit extends Sprite {
         this.element.classList.remove('flipped');
       }
 
+      // Reduced motion: hop instantly to the destination, no arc animation.
+      if (prefersReducedMotion()) {
+        this.x = this.x - RABBIT_CONFIG.jumpDistance * direction;
+        this.updatePosition();
+        this.refreshBottomCenter();
+        this.isJumping = false;
+        return resolve();
+      }
+
       // Reset animation by removing and re-adding class
       this.element.classList.remove('jumping');
       void this.element.offsetWidth;  // Force reflow
@@ -245,13 +307,18 @@ export class Rabbit extends Sprite {
         // Remove listener now that we've handled the correct animation
         this.element.removeEventListener('animationend', onJumpEnd);
 
+        // Drop .jumping BEFORE moving and measuring. rabbit-jump-move fills
+        // `forwards`, so while the class is on, the element is still shifted
+        // by the full jump distance; measuring then cached the feet one jump
+        // past the real rabbit, and hovering the rabbit stopped working.
+        // Both changes land in the same frame, so there's no visible snap.
+        this.element.classList.remove('jumping');
+
         // Update position based on direction
         const offset = RABBIT_CONFIG.jumpDistance * direction;
         this.x = this.x - offset;
         this.updatePosition();
         this.refreshBottomCenter();
-
-        this.element.classList.remove('jumping');
 
         // Stop continuous glow updates
         this.stopGlowAnimation();
@@ -431,6 +498,9 @@ export class Rabbit extends Sprite {
           this.jumpCooldown = true;
           this.setTimeout(() => {
             this.jumpCooldown = false;
+            // Mouse may not move again: if the rabbit landed near a resting
+            // cursor, react now instead of waiting for the next mousemove.
+            if (this.mouseHandler && this.lastMouseX !== null) this.processMouseMove();
           }, RABBIT_CONFIG.jumpCooldown);
         });
       }
@@ -486,16 +556,22 @@ export class Rabbit extends Sprite {
 
   /**
    * Freezes the rabbit — stops all animations and disables interaction.
-   * Returns the rabbit's current CSS position as a rect for use as
-   * the particle morph source.
+   * Returns the pose the rabbit is showing right now (mid-jump or mid-drop
+   * included) for use as the particle morph source.
    *
-   * @returns {{ x: number, y: number, w: number, h: number }}
+   * @returns {{ x: number, y: number, w: number, h: number, frame: number, flipped: boolean }}
    */
   freeze() {
     this.isFrozen = true;
 
     // Stop all interaction
     this.disableMouseReaction();
+
+    // Capture the rendered pose BEFORE stopping the animations. A jump moves
+    // the sprite with an animated transform and swaps frames via an animated
+    // background-position, so this.x/this.y and the idle frame describe where
+    // the jump started, not what's on screen.
+    const pose = this.getRenderedPose();
 
     // Stop any in-progress jump
     this.element.classList.remove('jumping');
@@ -506,13 +582,33 @@ export class Rabbit extends Sprite {
     this.element.style.setProperty('--crt-glow-intensity', 1);
     this.element.style.setProperty('--crt-glow-spread', 1);
 
-    // Return the CSS position (not visual bounding rect — the particle
-    // morph needs the untransformed position to apply its own flip math)
+    return pose;
+  }
+
+  /**
+   * The on-screen pose in the morph's coordinate convention: x/y are the
+   * untransformed CSS left/top that would put the sprite where it's drawn
+   * now (ParticleMorph applies the scale and flip math itself).
+   *
+   * transform-origin is top center, so the scaled box is centred on
+   * left + width/2 and its top equals the CSS top; reading the rendered rect
+   * folds in every animated offset (jump translate, drop translate).
+   */
+  getRenderedPose() {
+    const { width, height } = RABBIT_CONFIG;
+    const rect = this.element.getBoundingClientRect();
+    // Animated value mid-jump (e.g. "-160px"); snap to a whole frame.
+    const bgX = parseFloat(getComputedStyle(this.element).backgroundPositionX);
+    const frame = Number.isFinite(bgX)
+      ? Math.round(bgX / width) * width
+      : RABBIT_CONFIG.frames.idle;
     return {
-      x: this.x,
-      y: this.y,
-      w: RABBIT_CONFIG.width,
-      h: RABBIT_CONFIG.height,
+      x: rect.left + (rect.width - width) / 2,
+      y: rect.top,
+      w: width,
+      h: height,
+      frame,
+      flipped: this.element.classList.contains('flipped'),
     };
   }
 

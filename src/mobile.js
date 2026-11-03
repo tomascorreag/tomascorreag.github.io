@@ -27,7 +27,13 @@ import {
   resolveSplat,
 } from './config/content.js';
 import { ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement } from './utils/media.js';
+import {
+  createMediaElement,
+  createSpritesheetElement,
+  pauseManagedVideos,
+  releaseMedia,
+  resumeManagedVideos,
+} from './utils/media.js';
 import { applyInline, parseMarkdown } from './utils/markdown.js';
 import { openImageLightbox } from './utils/imageLightbox.js';
 import { attachVideoControls } from './components/VideoControls.js';
@@ -39,7 +45,16 @@ import { attachVideoControls } from './components/VideoControls.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isVideoSrc = (src) => typeof src === 'string' && /\.(mp4|webm|mov|m4v)$/i.test(src);
-const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Live value: follows OS setting changes made while the page is open.
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+let prefersReducedMotion = reducedMotionQuery.matches;
+const onReducedMotionChange = (e) => { prefersReducedMotion = e.matches; };
+if (reducedMotionQuery.addEventListener) reducedMotionQuery.addEventListener('change', onReducedMotionChange);
+else reducedMotionQuery.addListener?.(onReducedMotionChange); // Safari < 14
+
+// Unload videos in a subtree about to be discarded and drop them from the
+// media manager's registry (otherwise held until the next registration).
+const releaseVideos = (root) => { if (root) releaseMedia(root); };
 
 /**
  * Create element with optional className/attrs/children. Tiny hyperscript.
@@ -79,8 +94,9 @@ function loadSplatModule() {
 }
 
 // Monotonic counter that invalidates every in-flight splat mount. Every
-// renderSheetItem call captures a local `my = ++splatSession`; after any
-// await, it compares `my === splatSession` to decide whether to continue.
+// renderSheetItem call (splat or not) captures `mySession = ++splatSession`;
+// after any await it compares `mySession === splatSession` to decide whether
+// to continue.
 // This replaces the previous per-sheet field which was assigned but never read.
 let splatSession = 0;
 
@@ -374,6 +390,7 @@ function switchTab(id, { immediate = false } = {}) {
   }
 
   // Clear content; JS handles stagger via .m-fade animations
+  releaseVideos(contentEl);
   contentEl.replaceChildren();
   contentEl.scrollTop = 0;
 
@@ -444,7 +461,8 @@ function buildSkillsList(skills) {
       for (const ref of skill.thumbnails) {
         const item = CATEGORIES[ref.category]?.[ref.itemIndex];
         if (!item) continue;
-        const thumb = buildMediaThumb(item, 'm-skill-thumb');
+        // Thumb box is 104px wide (mobile.css .m-skill-thumb).
+        const thumb = buildMediaThumb(item, 'm-skill-thumb', '104px');
         thumb.addEventListener('click', () => openSheet(ref.category, ref.itemIndex));
         strip.appendChild(thumb);
       }
@@ -530,15 +548,15 @@ function renderCategoryFeed(categoryId) {
   items.forEach((item, idx) => {
     // First card is the LCP candidate — load it eagerly at high priority
     // instead of letting loading=lazy deprioritize the first paint.
-    const card = buildFeedCard(item, { eager: idx === 0 });
-    card.addEventListener('click', () => openSheet(categoryId, idx));
+    const card = buildFeedCard(item, { eager: idx === 0, label: `Open item ${idx + 1}` });
+    card.querySelector('.m-card-hit').addEventListener('click', () => openSheet(categoryId, idx));
     feed.appendChild(card);
   });
   contentEl.appendChild(feed);
   scheduleFadeStagger(feed);
 }
 
-function buildFeedCard(item, { eager = false } = {}) {
+function buildFeedCard(item, { eager = false, label = 'Open item' } = {}) {
   const mediaWrap = h('div', { class: 'm-card-media' });
   const media = buildMedia(item, { inCard: true, eager });
   mediaWrap.appendChild(media);
@@ -552,13 +570,20 @@ function buildFeedCard(item, { eager = false } = {}) {
     item.description ? h('p', { class: 'm-card-desc', unsafeHtml: applyInline(item.description) }) : null,
   ]);
 
-  // Use a <button> so keyboard activation + role semantics come free
-  const card = h('button', { class: 'm-card m-fade', attrs: { type: 'button' } }, [mediaWrap, body]);
+  // <article> keeps the heading/paragraph semantics (a <button> flattens
+  // them). A transparent button stretched over the whole card is the tap /
+  // keyboard target; it also sits above the media, so a tap never reaches an
+  // in-card Save-Data video's tap-to-play handler.
+  const hit = h('button', {
+    class: 'm-card-hit',
+    attrs: { type: 'button', 'aria-label': item.title || label },
+  });
+  const card = h('article', { class: 'm-card m-fade' }, [mediaWrap, body, hit]);
   return card;
 }
 
 /** Builds a <picture> or <video> element appropriate for the item. */
-function buildMedia(item, { inCard = false, eager = false } = {}) {
+function buildMedia(item, { inCard = false, eager = false, sizes = '100vw' } = {}) {
   if (item.type === 'spritesheet') {
     const sprite = createSpritesheetElement(item.spritesheet, { alt: item.alt || item.title || '', responsive: true });
     if (sprite) return sprite;
@@ -570,7 +595,7 @@ function buildMedia(item, { inCard = false, eager = false } = {}) {
   // cellular-data trap, and autoplaying videos buffer themselves anyway.
   const el = createMediaElement(item.src, {
     alt: item.alt || item.title || '',
-    sizes: '100vw',
+    sizes,
     lazy: !eager,
     fetchPriority: eager ? 'high' : null,
     video: { preload: 'metadata' },
@@ -580,9 +605,12 @@ function buildMedia(item, { inCard = false, eager = false } = {}) {
   return el;
 }
 
-function buildMediaThumb(item, className) {
-  const el = h('div', { class: className }, [buildMedia(item)]);
-  return el;
+// <button> so keyboard users can open it; label comes from the item title.
+function buildMediaThumb(item, className, sizes) {
+  return h('button', {
+    class: className,
+    attrs: { type: 'button', 'aria-label': item.title || item.alt || 'Open item' },
+  }, [buildMedia(item, { sizes })]);
 }
 
 
@@ -686,6 +714,10 @@ function openSheet(categoryId, index) {
   const sheet = h('div', { class: 'm-sheet m-sheet-entering', attrs: { role: 'dialog', 'aria-modal': 'true' } },
                   [nav, scroll, swipeHint]);
 
+  // Capture before `inert` — inert blurs the focused element in the shell,
+  // which would leave activeElement as <body>.
+  const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
   // Hide the underlying shell from AT + tab order while the sheet is open.
   // Without this, `aria-modal="true"` is a lie: keyboard users tab out to
   // the feed cards behind the sheet.
@@ -693,7 +725,9 @@ function openSheet(categoryId, index) {
 
   document.body.appendChild(sheet);
 
-  const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  // Feed videos stay "in view" to the IntersectionObserver under the opaque
+  // sheet, so pause them explicitly (resumed in closeSheet).
+  pauseManagedVideos((v) => !sheet.contains(v));
 
   activeSheet = {
     el: sheet, categoryId, items, index,
@@ -755,6 +789,10 @@ async function renderSheetItem(index) {
   const item = items[index];
   if (!item) return;
 
+  // Bumped for EVERY item (not just splats) so a pending splat continuation
+  // from an earlier item can't mount over a later non-splat item.
+  const mySession = ++splatSession;
+
   activeSheet.index = index;
   counter.textContent = `${index + 1} / ${items.length}`;
   prevBtn.disabled = index <= 0;
@@ -768,7 +806,12 @@ async function renderSheetItem(index) {
   activeSheet.videoControls?.destroy();
   activeSheet.videoControls = null;
 
+  // Info panel first, so the text never waits on the splat module import.
+  releaseVideos(info);
+  renderSheetInfo(info, item);
+
   // Replace media
+  releaseVideos(media);
   media.replaceChildren();
   media.classList.remove('loading');
 
@@ -777,7 +820,6 @@ async function renderSheetItem(index) {
     const placeholder = buildMedia(item);
     media.appendChild(placeholder);
     media.classList.add('loading');
-    const mySession = ++splatSession;
     try {
       const { SplatViewer } = await loadSplatModule();
       // After any await, bail if the user navigated away or closed the sheet.
@@ -823,8 +865,9 @@ async function renderSheetItem(index) {
       if (video) activeSheet.videoControls = attachVideoControls(video, media, { reveal: 'tap' });
     }
   }
+}
 
-  // Info panel
+function renderSheetInfo(info, item) {
   info.replaceChildren();
   if (item.title) info.appendChild(h('h2', { text: item.title }));
   if (item.description) info.appendChild(h('p', { unsafeHtml: applyInline(item.description) }));
@@ -883,6 +926,7 @@ function closeSheet() {
     clearTimeout(fallback);
     el.removeEventListener('transitionend', cleanup);
     destroySplatViewer(viewer);
+    releaseVideos(el);
     el.remove();
   };
   el.addEventListener('transitionend', cleanup);
@@ -894,6 +938,8 @@ function closeSheet() {
   // Re-expose the shell to AT + tab order, restore focus to whatever
   // triggered the open.
   if (appEl) appEl.removeAttribute('inert');
+  // Counterpart of the pause in openSheet; sheet videos are being discarded.
+  resumeManagedVideos((v) => !el.contains(v));
   if (prevFocus && typeof prevFocus.focus === 'function') {
     try { prevFocus.focus(); } catch { /* ignore */ }
   }

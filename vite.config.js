@@ -14,10 +14,25 @@ export default defineConfig({
     open: true, // Auto-open browser on npm run dev
   },
 
+  plugins: [
+    {
+      // index.html carries long maintainer comments (CSP notes etc.); keep
+      // them in source, strip them from the deployed page.
+      name: 'strip-html-comments',
+      apply: 'build',
+      transformIndexHtml: (html) => html.replace(/<!--[\s\S]*?-->\s*/g, ''),
+    },
+  ],
+
   // Build output settings
   build: {
     outDir: 'dist',
     target: 'es2020',
+    // Never base64-inline thumbnails: the URL map lives in the shared chunk
+    // every visitor loads, so small tier images inlined there cost ~27 KB on
+    // the critical path for files that are rarely picked. Other assets keep
+    // the default 4 KB rule (undefined = fall back to it).
+    assetsInlineLimit: (filePath) => (filePath.includes('/thumbnails/') ? false : undefined),
     minify: 'esbuild',
     cssCodeSplit: true,
     sourcemap: false,

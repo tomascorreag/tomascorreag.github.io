@@ -37,8 +37,8 @@ export function getDeviceMemory() {
  * Returns null if unavailable. Useful for logging, not great for tiering
  * (thousands of GPU names, inconsistent across drivers).
  *
- * Result is cached at module load — the GPU never changes at runtime, and
- * creating/destroying a WebGL context is expensive (~10-50ms on some devices).
+ * Lazy: probed on first call, then cached. Tiering doesn't use it, so normal
+ * visits never pay for the throwaway WebGL context (~10-50ms on some devices).
  */
 function _queryGPURenderer() {
   try {
@@ -55,8 +55,11 @@ function _queryGPURenderer() {
     return null;
   }
 }
-const _gpuRenderer = _queryGPURenderer();
-export function getGPURenderer() { return _gpuRenderer; }
+let _gpuRenderer;
+export function getGPURenderer() {
+  if (_gpuRenderer === undefined) _gpuRenderer = _queryGPURenderer();
+  return _gpuRenderer;
+}
 
 /** Network effective type ('slow-2g', '2g', '3g', '4g'). Chrome/Edge only. */
 export function getNetworkType() {
@@ -77,6 +80,14 @@ export function getSaveData() {
 export function isMobileDevice() {
   return window.matchMedia('(hover: none) and (pointer: coarse)').matches ||
     window.innerWidth <= 820;
+}
+
+/** Live `prefers-reduced-motion: reduce` query (listen for 'change' on it). */
+export const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+/** True when the OS asks for reduced motion. Read live, so toggling applies. */
+export function prefersReducedMotion() {
+  return reducedMotionQuery.matches;
 }
 
 // --- Tier assignment ---

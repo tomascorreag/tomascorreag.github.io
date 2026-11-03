@@ -26,7 +26,7 @@
  * import.meta.glob — Vite's way of importing many files at once.
  *
  * At build time, Vite scans the glob pattern and generates an object like:
- *   { './3d-art/0169.png': '/assets/0169-abc123.png', ... }
+ *   { './3d-art/0169.jpg': '/assets/0169-abc123.jpg', ... }
  *
  * The `eager: true` option means all imports resolve immediately (no async).
  * The `as: 'url'` option returns just the resolved URL string (not the module).
@@ -72,7 +72,7 @@ export function resolveSplat(filename) {
 }
 
 /**
- * Resolves a relative thumbnail path (like '3d-art/0169.png') to a Vite-processed URL.
+ * Resolves a relative thumbnail path (like '3d-art/0169.jpg') to a Vite-processed URL.
  * Returns the hashed URL for production or the dev server URL in development.
  */
 export function resolveThumbnail(relativePath) {
@@ -107,7 +107,7 @@ import ASSET_DIMS from './asset-dims.json';
 
 // Responsive tier widths emitted by the optimizer as -{W}w.{webp,avif}
 // siblings. Must match TIER_WIDTHS in scripts/optimize-assets.sh.
-const TIER_WIDTHS = [480, 960];
+const TIER_WIDTHS = [480, 960, 1440];
 
 function tryResolve(basePath, ext) {
   const key = `../assets/thumbnails/${basePath}.${ext}`;
@@ -198,7 +198,10 @@ export function variantsFor(relativePath) {
       console.warn(`Thumbnail not found: ${relativePath}`);
       return null;
     }
-    return { kind: 'video', sources, dims };
+    // First frame as a JPEG (scripts/optimize-assets.sh), shown before the
+    // video has data — e.g. with Save-Data, where preload is 'none'.
+    const poster = tryResolve(`${basePath}-poster`, 'jpg');
+    return { kind: 'video', sources, dims, poster };
   }
 
   console.warn(`Unsupported thumbnail extension: ${relativePath}`);
@@ -392,7 +395,7 @@ Threats climb the mountain from below:
 
 Three things keep a run going. **Water** comes from the ecosystem itself, **funding** from grants and eco-tourism, and **community support** decides whether the people who live nearby are your allies or your adversaries.
 
-![Páramo isometric tile system](Games/Paramo/Large.png)
+![Páramo isometric tile system](Games/Paramo/Large.jpg)
 *Isometric tile grid with elevation, vegetation, and terrain variety.*
 
 ---
@@ -418,7 +421,7 @@ The rules carry the smaller arguments:
 - **Climate is a ceiling, not an enemy.** There's no way to beat it, only to adapt.
 - **The land remembers.** Damage is partly permanent, and the end screen shows you what was lost, not a score.
 
-![Páramo mountain at dusk](Games/Paramo/Small.png)
+![Páramo mountain at dusk](Games/Paramo/Small.jpg)
 *The mountain at dusk: stream, vegetation gradients, and atmospheric fog.*
 
 ---
@@ -441,7 +444,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
   },
   {
     id: 'scars-of-violence',
-    src: 'artifacts/MemoryOfTheLand_thumb.png',
+    src: 'artifacts/MemoryOfTheLand_thumb.jpg',
     // kindLabel: deck-card corner chip. Without it this entry (it lives in
     // GAMES) would read "GAME" — wrong register for a memory artifact.
     kindLabel: 'ARTIFACT',
@@ -449,8 +452,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
     date: '2026',
     description: 'The Memory of the Land is an interactive map of Colombia with two views, Scars of Violence and Ashes of Death, that I designed, built, and built the data pipelines for: seventy years of armed conflict, and a quarter-century of forest loss, on the same territory.',
     links: [
-      { label: 'Scars of Violence', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
-      { label: 'Ashes of Death', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?section=deforestation&lang=en' },
+      { label: 'Website', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
     ],
     page: `
 ## About the Project
@@ -461,7 +463,7 @@ One map of Colombia, one timeline, two archives. **Scars of Violence** renders t
 
 ## Scars of Violence
 
-![Scars of Violence: the map at 2003, the conflict's peak](artifacts/ScarsOfViolence.png)
+![Scars of Violence: the map at 2003, the conflict's peak](artifacts/ScarsOfViolence.jpg)
 *The map at 2003, the conflict's peak. Every documented event is a wound that spreads, fades, and scars the land permanently; the left panel filters by form of violence, the timeline plays the seven decades through.*
 
 An interactive, browser-based map that shows the documented violence of the country\'s armed conflict (1958-present) as **wounds on the land that heal into permanent scars**. Every mark is drawn from the case-by-case record compiled by Colombia's **Centro Nacional de Memoria Histórica** (CNMH), the national body tasked with documenting the conflict.
@@ -479,7 +481,7 @@ The wound-and-scar metaphor is the heart of the piece: violence is an injury to 
 
 ## Ashes of Death
 
-![Ashes of Death: the Guaviare deforestation frontier at 2022](artifacts/AshesOfDeath.png)
+![Ashes of Death: the Guaviare deforestation frontier at 2022](artifacts/AshesOfDeath.jpg)
 *The Guaviare frontier at 2022: every hectare lost since 2001 still marked, the freshest clearings burning brightest. Left panel: what the cleared land became; below: loss per year.*
 
 The second view asks the same question of the forest. A year-by-year raster of tree-cover loss (from the Hansen Global Forest Change dataset, 30 m resolution) plays from 2001 to 2025; cleared land stays marked, so the map darkens as the years pass. Clicking a municipality gives its per-year loss in hectares, counted from the native pixels and joined on the official municipal code, never on a name.
@@ -520,8 +522,7 @@ The same rules hold for the forest: no hectare is estimated, drivers are ranked 
 
 ---
 
-[Scars of Violence|website](https://tomascorreag.github.io/MapColombia/?lang=en)
-[Ashes of Death|website](https://tomascorreag.github.io/MapColombia/?section=deforestation&lang=en)
+[Website|website](https://tomascorreag.github.io/MapColombia/?lang=en)
 `,
   },
   {
@@ -582,17 +583,17 @@ export const CATEGORIES = {
     // splat.camera → optional [x,y,z] camera position override for this piece.
 
     // Add entries here as you export splats from Blender:
-    // { src: '3d-assets/crystal.png', alt: 'Crystal material', cols: 2, rows: 2,
+    // { src: '3d-assets/crystal.jpg', alt: 'Crystal material', cols: 2, rows: 2,
     //   title: 'Crystal', description: '...', type: 'splat',
     //   splat: { file: 'crystal.spz' } },
     {
-      id: 'flesh', src: '3d-assets/fleshThumb.png', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
+      id: 'flesh', src: '3d-assets/fleshThumb.jpg', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
       title: 'Procedural Raw Flesh Material',
       description: 'A raw-flesh material I built and sell for Blender, realistic living tissue with full control over its look.',
       page: `
 ## About
 
-![Raw flesh material: wet, fresh tissue](3d-assets/flesh_details/var1_comp.png){right}
+![Raw flesh material: wet, fresh tissue](3d-assets/flesh_details/var1_comp.jpg){right}
 
 Realistic raw, living tissue with fine control over colour, wetness, and surface detail. Surface wetness, colour, and subsurface depth are all art-directable. It is one of my commercial materials and a consistent best-seller, with over 1,000 sales on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
@@ -610,21 +611,21 @@ Designed and built entirely by me in **Blender (Cycles)**. I also package and se
 
 I built it as a product: a fully parametric organic-tissue material other artists can buy and reuse. I also use it in my own work, for example it can be seen in *Ardo*, in the **3D Art** section.
 
-![Flesh material variation](3d-assets/flesh_details/var2_comp.png)
-![Flesh material variation](3d-assets/flesh_details/var3_comp.png)
+![Flesh material variation](3d-assets/flesh_details/var2_comp.jpg)
+![Flesh material variation](3d-assets/flesh_details/var3_comp.jpg)
 
-![Flesh material variation](3d-assets/flesh_details/var4_comp.png)
-![Flesh material variation](3d-assets/flesh_details/var5_comp.png)
+![Flesh material variation](3d-assets/flesh_details/var4_comp.jpg)
+![Flesh material variation](3d-assets/flesh_details/var5_comp.jpg)
 `,
     },
     {
-      id: 'ice', src: '3d-assets/iceThumb.png', alt: 'Procedural ice in a glass', cols: 4, rows: 2,
+      id: 'ice', src: '3d-assets/iceThumb.jpg', alt: 'Procedural ice in a glass', cols: 4, rows: 2,
       title: 'Procedural Ice',
       description: 'A reusable Blender setup I built for creating almost any kind of ice, shown here as cubes in a glass with a drink.',
       page: `
 ## About
 
-![The full range of ice the setup can produce](3d-assets/ice_details/AllVars.png){right}
+![The full range of ice the setup can produce](3d-assets/ice_details/AllVars.jpg){right}
 *One setup, many possible variations*
 
 One setup that can produce a wide range of ice: different shapes, clarity, and surface looks. The version shown here, classic ice in a glass with a drink, is just one of many.
@@ -639,8 +640,8 @@ It is one of my commercial products, available on Superhive (Blender Market). A 
 
 Built entirely by me in **Blender**, combining geometry generation (Geometry Nodes), surface/volume shading, and the way light scatters inside the ice (volumetric shading).
 
-![Glass variation](3d-assets/ice_details/Glass_Var2.png)
-![Glass variation](3d-assets/ice_details/Glass_Var3.png)
+![Glass variation](3d-assets/ice_details/Glass_Var2.jpg)
+![Glass variation](3d-assets/ice_details/Glass_Var3.jpg)
 
 ---
 
@@ -675,13 +676,13 @@ A study in non-photorealistic rendering: getting 3D to read as a drawing, and le
 `,
     },
     {
-      id: 'eyes', src: '3d-assets/eyeThumb.png', alt: 'Procedural rigged eye', cols: 2, rows: 2,
+      id: 'eyes', src: '3d-assets/eyeThumb.jpg', alt: 'Procedural rigged eye', cols: 2, rows: 2,
       title: 'Procedural Eyes',
       description: 'A detailed, anatomically accurate eye I built in Blender, generated procedurally, fully adjustable, and rigged to animate.',
       page: `
 ## About
 
-![A procedural eye: iris pattern and sclera veining](3d-assets/eye_details/var2.png){right}
+![A procedural eye: iris pattern and sclera veining](3d-assets/eye_details/var2.jpg){right}
 
 Every part of the eye's look (the iris pattern, the veins in the white, the wet sheen of the cornea) is generated procedurally, without a single photograph. It's fully adjustable and rigged to animate, pupil dilation included.
 
@@ -695,9 +696,9 @@ It is one of my commercial products, available on Superhive (Blender Market). A 
 
 Designed, built, and rigged entirely by me in **Blender**, with controls over vein density, iris and sclera colour, and more.
 
-![Eye variation](3d-assets/eye_details/var3.png)
-![Eye variation](3d-assets/eye_details/var4.png)
-![Eye variation](3d-assets/eye_details/var5.png)
+![Eye variation](3d-assets/eye_details/var3.jpg)
+![Eye variation](3d-assets/eye_details/var4.jpg)
+![Eye variation](3d-assets/eye_details/var5.jpg)
 
 ---
 
@@ -705,18 +706,18 @@ Designed, built, and rigged entirely by me in **Blender**, with controls over ve
 
 I built it for my own work, a reusable and fully parametric eye I can drop into any character and tune to fit rather than rebuilding eyes from scratch. It's used in my piece *Ardo*, in the **3D Art** section. Once it was that reusable, it became something worth packaging and selling too.
 
-![The full range of eyes the setup can generate](3d-assets/eye_details/allVars.png)
+![The full range of eyes the setup can generate](3d-assets/eye_details/allVars.jpg)
 *Every iris, colour, and vein pattern is procedurally generated*
 `,
     },
     {
-      id: 'fabric', src: '3d-assets/fabricThumb.png', alt: 'Procedural fabric weave material', cols: 4, rows: 2,
+      id: 'fabric', src: '3d-assets/fabricThumb.jpg', alt: 'Procedural fabric weave material', cols: 4, rows: 2,
       title: 'Procedural Fabric Material',
       description: 'A reusable fabric material I built in Blender that can become almost any woven cloth.',
       page: `
 ## About
 
-![A close-up of the woven fabric material](3d-assets/fabric_details/detail1-min.png){right}
+![A close-up of the woven fabric material](3d-assets/fabric_details/detail1-min.jpg){right}
 
 One material that spans a huge range of woven cloth: a few controls take it from a broad basket-weave to a tight cloth knit, and it stays physically believable throughout.
 
@@ -730,8 +731,8 @@ It is one of my commercial products, available on Superhive (Blender Market). A 
 
 Designed and built entirely by me in **Blender**, driven by a single node group that exposes the weave pattern, scale, colour, and wear.
 
-![Fabric weave variation](3d-assets/fabric_details/detail2-min.png)
-![Fabric weave variation](3d-assets/fabric_details/detail4-min.png)
+![Fabric weave variation](3d-assets/fabric_details/detail2-min.jpg)
+![Fabric weave variation](3d-assets/fabric_details/detail4-min.jpg)
 
 ---
 
@@ -739,13 +740,13 @@ Designed and built entirely by me in **Blender**, driven by a single node group 
 
 I built it for my own personal and commercial projects as a single fully parametric tool, so any woven fabric can be dialled in instead of being modelled or textured from scratch each time. It's used in some of those projects, such as *Another Day at the Office*. That same generality is what let me turn it into one of my products.
 
-![A final fabric weave variation](3d-assets/fabric_details/detail5-min.png){left}
+![A final fabric weave variation](3d-assets/fabric_details/detail5-min.jpg){left}
 
 A single node group exposes the weave pattern, scale, colour, and wear, so the same material covers everything from coarse upholstery to fine garment cloth.
 `,
     },
     {
-      id: 'paint', src: '3d-assets/paintThumb.png', alt: 'Procedural brushstroke painting material', cols: 4, rows: 2,
+      id: 'paint', src: '3d-assets/paintThumb.jpg', alt: 'Procedural brushstroke painting material', cols: 4, rows: 2,
       title: 'Brushstroke Painting Material',
       description: 'A Blender shader I built that turns any image into an oil painting of broad brushstrokes on canvas.',
       page: `
@@ -753,8 +754,8 @@ A single node group exposes the weave pattern, scale, colour, and wear, so the s
 
 Feed it any image and it re-renders the picture as if painted onto canvas with broad strokes, with the paint visibly thicker where the source is brighter.
 
-![Broad brushstrokes on canvas](3d-assets/paint_details/im2.png)
-![Another image through the painting shader](3d-assets/paint_details/im5.png)
+![Broad brushstrokes on canvas](3d-assets/paint_details/im2.jpg)
+![Another image through the painting shader](3d-assets/paint_details/im5.jpg)
 *The same shader applied to two different source images: impasto thickness follows each one's brightness*
 
 It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
@@ -805,7 +806,7 @@ It's one of my early pieces, and much of what I learned about building a full sc
 `,
     },
     {
-      id: 'ardo', src: '3d-art/thumb2.png', alt: 'Character screaming as he burns in a nighttime wildfire', cols: 2, rows: 2, title: 'Ardo.', date: '2024',
+      id: 'ardo', src: '3d-art/thumb2.jpg', alt: 'Character screaming as he burns in a nighttime wildfire', cols: 2, rows: 2, title: 'Ardo.', date: '2024',
       description: 'A personal 3D piece I made entirely in Blender, picturing a man burning alive in a night-time fire.',
       page: `
 ## About the Piece
@@ -820,12 +821,12 @@ Built end-to-end on my own in **Blender**, including two of my own custom assets
 
 I sculpted the head from scratch. The screaming expression took most of the passes. A face that extreme slips into caricature very easily, and it had to stay believable for the image to land. Another important focus was on the lighting and post-processing: fire wants to dominate every frame it's in, and I wanted the stillness of the night to survive beside it, so the intensity of the flames and the calm of the dark could share one frame without either flattening the other. I created some of my procedural assets for this piece, including the material for the burning flesh and the parametric assets for the eyes.
 
-![Procedural Flesh material](3d-assets/flesh_details/var1_comp.png){right}
+![Procedural Flesh material](3d-assets/flesh_details/var1_comp.jpg){right}
 *Flesh: a fully parametric skin-and-tissue material.*
 
 The skin is driven by my **Flesh** material, raw, living tissue with warmth, wetness, and pore-level detail, all built procedurally rather than from photographs.
 
-![Procedural Eyes](3d-assets/eye_details/var2.png){left}
+![Procedural Eyes](3d-assets/eye_details/var2.jpg){left}
 *Eyes: anatomically detailed and rigged.*
 
 The **Eyes** are anatomically detailed and rigged, their pattern and detail generated without a single image texture.
@@ -863,7 +864,7 @@ The draw was the face itself: studying its anatomy and translating it into hard,
 `,
     },
     {
-      id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.png', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro', date: '2022',
+      id: 'ciudad-faro', src: '3d-art/ciudadFaroThumb.jpg', alt: 'Lighthouse surrounded by floating whales', cols: 2, rows: 2, title: 'Ciudad Faro', date: '2022',
       description: 'A 3D piece I made end-to-end in Blender, rebuilding the cover painting of Burning Caravan\'s album *Ciudad Faro* as a three-dimensional scene.',
       page: `
 ## About the Piece
@@ -888,7 +889,7 @@ It's a tribute to Burning Caravan, whose music I love, and an exercise in transl
 `,
     },
     {
-      id: 'brain-farm', src: '3d-art/marsThumb.png', alt: 'Fantastical greenhouse on Mars powering a brain', cols: 4, rows: 2, title: 'Brain Farm', date: '2021',
+      id: 'brain-farm', src: '3d-art/marsThumb.jpg', alt: 'Fantastical greenhouse on Mars powering a brain', cols: 4, rows: 2, title: 'Brain Farm', date: '2021',
       description: 'A 3D piece I made end-to-end in Blender, picturing a fantastical greenhouse on Mars that powers a giant brain.',
       // Optional `page` Markdown drives the detail-view body (parsed by parseMarkdown).
       // Same syntax as a GAMES item's `page`: ## headings, paragraphs, --- dividers,
@@ -899,7 +900,7 @@ It's a tribute to Burning Caravan, whose music I love, and an exercise in transl
 
 A surreal scene: a fantastical greenhouse on Mars powering a giant brain. It belongs to an ongoing series of mine built around brains and strange worlds that frame them.
 
-![Brain-City companion study](3d-art/brainCityThumb.png){right}
+![Brain-City companion study](3d-art/brainCityThumb.jpg){right}
 *Brain-City, a companion study: a vast city floating in space, powered by a brain (or is it a brain powered by a city?).*
 
 The companion **Brain-City** piece extends the same idea into a sprawling city suspended in space.
@@ -922,7 +923,7 @@ It's part of an ongoing personal exploration of brain-themed surrealism, a motif
 `,
     },
     {
-      id: 'ascension', src: '3d-art/ascensionThumb.png', alt: 'Abstract volumetric light and particles', cols: 2, rows: 2, title: 'Ascension V', date: '2025',
+      id: 'ascension', src: '3d-art/ascensionThumb.jpg', alt: 'Abstract volumetric light and particles', cols: 2, rows: 2, title: 'Ascension V', date: '2025',
       description: 'An abstract 3D piece I made end-to-end in Blender, drawn from *Ascension* by the artist Moebius.',
       page: `
 ## About the Piece

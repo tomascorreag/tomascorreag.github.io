@@ -29,6 +29,7 @@ export class SplatViewer {
     this.destroyed = false;
     this.needsRender = true;
     this.loaded = false;
+    this.failed = false;
   }
 
   /**
@@ -109,6 +110,8 @@ export class SplatViewer {
         if (!this.destroyed && opts.onLoad) opts.onLoad();
       },
       onError: (err) => {
+        // Stops the "render until loaded" path — it would otherwise run every frame forever.
+        this.failed = true;
         console.error('Gaussian splat load failed:', err);
         if (!this.destroyed && opts.onError) opts.onError(err);
       },
@@ -141,7 +144,7 @@ export class SplatViewer {
     // progressively and there's no change event for that.
     const clock = new THREE.Clock();
     const animate = () => {
-      if (this.destroyed) return;
+      if (this.destroyed || this.failed) return;
       this.animFrameId = requestAnimationFrame(animate);
 
       const moved = this.controls.update();
