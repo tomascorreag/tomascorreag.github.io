@@ -16,6 +16,7 @@ import './article.css'; // shared markdown styles (also used by deck + mobile)
 import './style.css';
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js';
+import { createParallaxBanner } from './components/ParallaxBanner.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
@@ -945,6 +946,10 @@ async function renderGames() {
     if (game.type === 'spritesheet') {
       const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
       if (banner) card.appendChild(banner);
+    } else if (game.type === 'parallax') {
+      // Card slot is a fixed 256px column (style.css .game-card > :first-child).
+      // Lite: at that size particles, light effects and the shine barely show.
+      card.appendChild(createParallaxBanner(game.parallax, { className: 'game-banner', alt: game.title, sizes: '256px', lite: true }));
     } else if (game.src) {
       const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner', sizes: '55vw' });
       if (banner) card.appendChild(banner);
@@ -1067,10 +1072,12 @@ function buildArticleContent(itemData) {
   const header = document.createElement('div');
   header.className = 'article-header';
 
-  if (itemData.type === 'spritesheet' || itemData.src) {
+  if (itemData.type === 'spritesheet' || itemData.type === 'parallax' || itemData.src) {
     const bannerMedia = itemData.type === 'spritesheet'
       ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true })
-      : createMediaElement(itemData.src, {
+      : itemData.type === 'parallax'
+        ? createParallaxBanner(itemData.parallax, { className: 'article-banner', alt: itemData.title || '', sizes: '55vw', lazy: false })
+        : createMediaElement(itemData.src, {
         alt: itemData.title || '',
         className: 'article-banner',
         lazy: false,

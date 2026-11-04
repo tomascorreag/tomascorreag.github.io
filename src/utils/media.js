@@ -124,11 +124,16 @@ function registerManagedVideo(video, wantsAutoplay) {
   registerManagedElement(video, h);
 }
 
-function registerManagedAnimation(el, animation) {
+/**
+ * Pauses `animation` (one Animation or an array, e.g. every layer of a
+ * ParallaxBanner) while `el` is offscreen or the tab is hidden.
+ */
+export function registerManagedAnimation(el, animation) {
+  const list = Array.isArray(animation) ? animation : [animation];
   registerManagedElement(el, {
     lastVisible: true,
-    onEnter() { if (animation.playState === 'paused') animation.play(); },
-    onExit() { if (animation.playState === 'running') animation.pause(); },
+    onEnter() { for (const a of list) if (a.playState === 'paused') a.play(); },
+    onExit() { for (const a of list) if (a.playState === 'running') a.pause(); },
   });
 }
 

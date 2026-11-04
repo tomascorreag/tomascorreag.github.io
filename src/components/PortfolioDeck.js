@@ -34,6 +34,7 @@ import { resolvePage } from '../config/portfolio.js';
 import '../article.css'; // shared .article-* markdown styles
 import './portfolio-deck.css';
 import { createMediaElement, createSpritesheetElement } from '../utils/media.js';
+import { createParallaxBanner } from './ParallaxBanner.js';
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
@@ -81,6 +82,9 @@ function el(tag, opts = {}, children = []) {
 function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true, sizes, video, managed = true } = {}) {
   if (item.type === 'spritesheet' && item.spritesheet) {
     return createSpritesheetElement(item.spritesheet, { className, alt, responsive: true, managed });
+  }
+  if (item.type === 'parallax' && item.parallax) {
+    return createParallaxBanner(item.parallax, { className, alt, lazy, sizes, managed });
   }
   if (item.src) {
     return createMediaElement(item.src, { className, alt, lazy, sizes, video });
@@ -182,6 +186,12 @@ function applyMediaAspect(box, item, mediaEl) {
       const [w, h] = fa.split('/').map((n) => parseFloat(n));
       set(w, h);
     }
+    return;
+  }
+  if (item.type === 'parallax') {
+    // Layered scene: its aspect is the scene's view, not any one layer image.
+    const [w, h] = item.parallax.view;
+    set(w, h);
     return;
   }
   if (!mediaEl) return;

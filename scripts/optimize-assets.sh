@@ -226,11 +226,14 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 first_line() { awk 'NF { print; exit }'; }
 
 # Read "WIDTHxHEIGHT" of the first video stream. Empty string on failure.
+# Some AVIFs (alpha as an auxiliary item) print an extra empty field, e.g.
+# "1542x1133x", so keep only the first two fields.
 get_dims() {
   local src="$1"
   [[ "$HAVE_FFPROBE" != "1" ]] && { printf ''; return; }
   { ffprobe -v error -select_streams v:0 \
-    -show_entries stream=width,height -of csv=s=x:p=0 "$src" 2>/dev/null || true; } | first_line
+    -show_entries stream=width,height -of csv=s=x:p=0 "$src" 2>/dev/null || true; } | first_line \
+    | awk -F'x' 'NF >= 2 && $1 != "" && $2 != "" { print $1 "x" $2 }'
 }
 
 # Container-level bitrate in kbps (integer). Empty string on failure.

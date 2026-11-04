@@ -75,12 +75,14 @@ export function resolveSplat(filename) {
  * Resolves a relative thumbnail path (like '3d-art/0169.jpg') to a Vite-processed URL.
  * Returns the hashed URL for production or the dev server URL in development.
  */
-export function resolveThumbnail(relativePath) {
+// `quiet`: the caller is probing for an optional variant (e.g. a width tier
+// that may not exist), so a miss isn't worth a warning.
+export function resolveThumbnail(relativePath, { quiet = false } = {}) {
   // The glob keys are relative to THIS file, so they start with '../assets/thumbnails/'
   const key = `../assets/thumbnails/${relativePath}`;
   const resolved = thumbnailModules[key];
   if (!resolved) {
-    console.warn(`Thumbnail not found: ${relativePath}`);
+    if (!quiet) console.warn(`Thumbnail not found: ${relativePath}`);
     return '';
   }
   return resolved;
@@ -268,7 +270,10 @@ export const GENERAL_CONTENT = {
  * Optional per-game field:
  *   - deckPage: full markdown override used ONLY by PortfolioDeck (falls back
  *     to `page`). Lets a curated deck show extra sections the main site omits.
+ *   - type: 'parallax' + parallax: <scene> → the banner is a layered animated
+ *     scene (components/ParallaxBanner.js) instead of the `src` still.
  */
+import { ARBO_SPLASH } from './arboSplash.js';
 
 // ── ARBO page composition ──────────────────────────────────────────────────
 // The design post-mortem is deck-only: it appears in the UCL application deck
@@ -358,6 +363,11 @@ const ARBO_LINKS = `
 export const GAMES = [
   {
     id: 'arbo',
+    // Animated banner: the game's sign-in splash rebuilt as layers with pointer
+    // parallax (components/ParallaxBanner.js, scene in config/arboSplash.js).
+    // `src` stays as the still for anything that only takes one image.
+    type: 'parallax',
+    parallax: ARBO_SPLASH,
     src: 'Games/ARBO/ARBO_thumb.jpg',
     title: 'ARBO: Arena Tactics',
     date: '2021–2026',
