@@ -346,7 +346,10 @@ export function createSpritesheetElement(config, opts = {}) {
     // pixel maps to a uniform scale×scale block (no fractional scaling artifacts).
     scale, frameWidth, frameHeight,
   } = config;
-  const { className = '', alt = '', responsive = false } = opts;
+  // managed:false leaves play/pause to the caller (the portfolio deck runs
+  // only the centred card's sprite; the offscreen manager would restart any
+  // sprite that peeks into view).
+  const { className = '', alt = '', responsive = false, managed = true } = opts;
 
   const url = resolveThumbnail(file);
   if (!url) return null;
@@ -413,7 +416,7 @@ export function createSpritesheetElement(config, opts = {}) {
     [{ backgroundPosition: `${fromPct}% 0` }, { backgroundPosition: `${toPct}% 0` }],
     { duration: (count / fps) * 1000, iterations: Infinity, easing: `steps(${count})` }
   );
-  registerManagedAnimation(container, anim);
+  if (managed) registerManagedAnimation(container, anim);
 
   return container;
 }

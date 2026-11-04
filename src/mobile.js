@@ -37,6 +37,7 @@ import {
 import { applyInline, parseMarkdown } from './utils/markdown.js';
 import { openImageLightbox } from './utils/imageLightbox.js';
 import { attachVideoControls } from './components/VideoControls.js';
+import { parseRoute, findItemIndex, createUrlSync } from './utils/route.js';
 
 
 // ---------------------------------------------------------------------------
@@ -126,7 +127,7 @@ let activeSheet = null;  // { el, categoryId, index, items, viewer, ... }
 // One-shot modal shown on page load before anything else mounts. Tells the
 // visitor the full experience lives on desktop. Gated by sessionStorage so a
 // reload within the same tab doesn't nag twice; a fresh tab (new session)
-// shows it again. NOT shown on gated `?p=` deck routes (see boot()).
+// shows it again. NOT shown on gated `?p=` deck routes (main.js mounts those).
 //
 // Appended straight to <body> (not #mobile-app) so it sits above the app's
 // scanline overlay. Returns a promise that resolves on dismissal so boot()
@@ -201,21 +202,17 @@ function showDesktopNotice() {
 export async function boot() {
   document.documentElement.classList.add('mobile-mode');
 
-  // URL-gated portfolio decks: `/?p=<slug>` boots straight into the slide deck
-  // (shared component with desktop, code-split), skipping the mobile intro/tabs
-  // AND the desktop-recommended notice — these links go to reviewers, and an
+  // `?p=` portfolio decks never reach this module: main.js mounts them
+  // directly, which also skips this notice. Those links go to reviewers, and an
   // apologetic interstitial before any work is visible is the wrong first
-  // impression for a deck that is perfectly mobile-capable.
-  const gatedSlug = new URLSearchParams(window.location.search).get('p');
-  if (gatedSlug !== null) {
-    document.querySelectorAll('#crt-screen, #mosaic, .crt-overlay').forEach((el) => el.remove());
-    const m = await import('./components/PortfolioDeck.js');
-    m.mountDeck(gatedSlug, { isMobile: true });
-    return;
-  }
+  // impression for a deck that works fine on mobile.
+
+  // A section/project link (`/#3d-art/ardo`) skips the notice and the intro,
+  // same as desktop: whoever follows it wants that piece, not the preamble.
+  const route = parseRoute();
 
   // Main mobile site: show the desktop-recommended notice before the intro.
-  const noticeDone = showDesktopNotice();
+  const noticeDone = route ? null : showDesktopNotice();
 
   // Remove desktop DOM stubs — index.html ships empty placeholders for the
   // terminal / mosaic / scanline overlay so the desktop entry can boot
@@ -229,13 +226,59 @@ export async function boot() {
   appEl = h('div', { attrs: { id: 'mobile-app' } });
   document.body.appendChild(appEl);
 
-  // Hold the intro until the notice is dismissed — its typewriter is
-  // CSS-driven and starts on mount, so mounting it under the modal would
-  // burn the whole animation behind the backdrop.
-  await noticeDone;
-  await runIntro();
-  buildShell();
-  switchTab('General', { immediate: true });
+  if (route) {
+    buildShell();
+    applyRoute(route);
+  } else {
+    // Hold the intro until the notice is dismissed — its typewriter is
+    // CSS-driven and starts on mount, so mounting it under the modal would
+    // burn the whole animation behind the backdrop.
+    await noticeDone;
+    await runIntro();
+    buildShell();
+    switchTab('General', { immediate: true });
+  }
+  // After the opening view is up: its state is the baseline the sync compares
+  // against, so a link's own entry is replaced, never pushed.
+  syncUrl = createUrlSync({ currentRoute, applyRoute });
+}
+
+
+// ---------------------------------------------------------------------------
+// URL routes (see src/utils/route.js)
+// ---------------------------------------------------------------------------
+let syncUrl = () => {}; // live once the shell is up
+
+function currentRoute() {
+  if (!activeTabId) return null;
+  if (activeSheet) {
+    const id = activeSheet.items[activeSheet.index]?.id ?? null;
+    return { section: activeSheet.categoryId, id };
+  }
+  return { section: activeTabId, id: null };
+}
+
+/**
+ * Makes the screen match `route`. Games have no sheet on mobile (each card is
+ * already the whole entry), so `#games/<id>` scrolls to that card. The link
+ * keeps its URL on load; reached via Back/Forward it's normalised to `#games`.
+ */
+function applyRoute(route) {
+  const target = route ?? { section: 'General', id: null };
+  const idx = findItemIndex(target.section, target.id);
+  const sheetMatches = activeSheet
+    && activeSheet.categoryId === target.section
+    && activeSheet.items[activeSheet.index]?.id === target.id;
+  if (activeSheet && !sheetMatches) closeSheet();
+  if (activeTabId !== target.section) switchTab(target.section, { immediate: true });
+  if (idx < 0 || sheetMatches) return;
+
+  if (target.section === 'Games') {
+    contentEl.querySelector(`[data-game-id="${CSS.escape(target.id)}"]`)
+      ?.scrollIntoView({ block: 'start' });
+  } else {
+    openSheet(target.section, idx);
+  }
 }
 
 
@@ -384,6 +427,7 @@ function buildShell() {
 function switchTab(id, { immediate = false } = {}) {
   if (id === activeTabId && !immediate) return;
   activeTabId = id;
+  syncUrl();
 
   for (const btn of tabButtons) {
     btn.classList.toggle('is-active', btn.dataset.tab === id);
@@ -641,7 +685,7 @@ function renderGamesFeed() {
       ])
     );
 
-    const card = h('article', { class: 'm-game-card m-fade' }, [
+    const card = h('article', { class: 'm-game-card m-fade', attrs: game.id ? { 'data-game-id': game.id } : {} }, [
       banner,
       h('div', { class: 'm-game-body' }, [
         h('h2', { text: game.title }),
@@ -794,6 +838,7 @@ async function renderSheetItem(index) {
   const mySession = ++splatSession;
 
   activeSheet.index = index;
+  syncUrl(); // first render = sheet opened (push); later ones = prev/next (replace)
   counter.textContent = `${index + 1} / ${items.length}`;
   prevBtn.disabled = index <= 0;
   nextBtn.disabled = index >= items.length - 1;
@@ -915,6 +960,7 @@ function closeSheet() {
 
   el.classList.add('m-sheet-exiting');
   activeSheet = null;
+  syncUrl();
 
   // Defer splat destroy + DOM removal until the exit transition completes
   // so the canvas doesn't pop out mid-slide. Guard against transitionend

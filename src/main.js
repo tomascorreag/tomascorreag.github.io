@@ -24,7 +24,26 @@
 const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 const isMobile = coarsePointer || window.innerWidth <= 820;
 
-if (isMobile) {
+// URL-gated portfolio decks (`/?p=<slug>`) skip both apps: the deck is
+// self-contained, so loading desktop.js (terminal, rabbit, particles, global
+// key/resize handlers) or mobile.js just to mount it was wasted download and
+// parse. mountDeck shows its own "not found" panel for an unknown slug, so
+// presence of the param is enough.
+const gatedSlug = new URLSearchParams(window.location.search).get('p');
+
+if (gatedSlug !== null) {
+  if (isMobile) document.documentElement.classList.add('mobile-mode');
+  // index.html's desktop scene stubs are dead weight under the deck.
+  document.querySelectorAll('#crt-screen, #mosaic, .crt-overlay').forEach((el) => el.remove());
+  Promise.all([
+    import('./components/PortfolioDeck.js'),
+    // Desktop decks always ran with the tuned CRT glow values; mobile decks
+    // use the CSS fallbacks. Keep both looks as they were.
+    isMobile ? null : import('./config/crt.js').then((c) => c.injectCRTVariables()),
+  ])
+    .then(([m]) => m.mountDeck(gatedSlug, { isMobile }))
+    .catch((err) => console.error('Deck boot failed:', err));
+} else if (isMobile) {
   document.documentElement.classList.add('mobile-mode');
   import('./mobile.js')
     .then((m) => m.boot())
