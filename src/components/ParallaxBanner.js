@@ -55,15 +55,26 @@ function hookPointer() {
   const bump = () => { layoutEpoch++; };
   window.addEventListener('scroll', bump, { passive: true, capture: true });
   window.addEventListener('resize', bump, { passive: true });
-  window.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse') return;
+  // Any mouse event with a position counts, not only moves: the click that
+  // opens a page, and the mouseover browsers send when the page (or content
+  // under a still cursor) changes, tell us where the cursor is before it moves.
+  const track = (e) => {
+    if (e.pointerType && e.pointerType !== 'mouse') return;
     pointer.x = e.clientX;
     pointer.y = e.clientY;
     pointer.active = true;
-  }, { passive: true });
+  };
+  for (const type of ['pointermove', 'pointerdown', 'mouseover']) {
+    window.addEventListener(type, track, { passive: true, capture: true });
+  }
   // No reset on mouseleave/blur: the scene holds the last pointer position
   // rather than drifting back to centre when the cursor leaves the window.
 }
+
+// Listen from module load, not from the first banner: the cursor position
+// often arrives (load-time mouseover, the click that opens a page) before
+// any banner exists.
+if (typeof window !== 'undefined') hookPointer();
 
 const instances = new WeakMap();
 let io = null;
@@ -381,10 +392,16 @@ class Emitter {
 export function createParallaxBanner(scene, opts = {}) {
   const { className = '', alt = '', sizes = '100vw', lazy = true, managed = true } = opts;
   const reduced = prefersReducedMotion();
-  // Lite: layers, idle loop and parallax only; no particles, light effects
-  // or logo shine. For small slots where the extras are barely visible, and
-  // for low-tier devices (config/device.js).
-  const extras = !reduced && !opts.lite && deviceTier !== 'low';
+  // Lite: layers + pointer parallax only. No particles, light effects, logo
+  // shine, and no per-layer idle loop. For small slots (the loop moves ~1 px
+  // there) and low-tier devices (config/device.js).
+  // Dropping the loop matters beyond cost: each looping layer is its own GPU
+  // layer, and when an ancestor's transform changes (the games card's hover
+  // zoom) those layers are re-rendered independently and can be out of step
+  // for a frame or two, flashing the bright plate along the foreground's edge.
+  // Without the loop the whole scene paints as one image and zooms as one.
+  const lite = !reduced && (opts.lite || deviceTier === 'low');
+  const extras = !reduced && !lite;
   const [VW, VH] = scene.view;
   const loopMs = scene.loopSeconds * 1000;
 
@@ -474,7 +491,7 @@ export function createParallaxBanner(scene, opts = {}) {
       }
     }
 
-    if (node.loop && !reduced) {
+    if (node.loop && extras) {
       const L = node.loop;
       const mid = poseTransform(node, L.pos || pos, L.rot ?? rot0, L.scale ?? scale0);
       const start = el.style.transform;
@@ -722,6 +739,11 @@ export function createParallaxBanner(scene, opts = {}) {
     root.classList.add('is-ready');
   });
 
+  // Lite has no layer animations, but the per-frame loop (pointer easing)
+  // still needs a clock that the offscreen manager / deck can pause. An empty
+  // keyframe effect ticks without animating anything, so it adds no GPU layer.
+  if (lite) anims.push(root.animate([], { duration: loopMs, iterations: Infinity }));
+
   if (managed && anims.length) registerManagedAnimation(root, anims);
   if (reduced || anims.length === 0) return root;
 
@@ -738,6 +760,7 @@ export function createParallaxBanner(scene, opts = {}) {
   let frame = 0;
   let mx = 0;
   let my = 0;
+  let primed = false; // pointer state taken from the first frame yet?
   let unit = 1; // canvas px per scene unit
 
   function resize() {
@@ -769,20 +792,12 @@ export function createParallaxBanner(scene, opts = {}) {
     return rect;
   }
 
-  // rAF doesn't fire in hidden tabs, so tab switches need no handling here;
-  // the clock (paused by the offscreen manager) absorbs the gap.
-  function tick() {
-    raf = 0;
-    if (!visible || !root.isConnected) return;
-    raf = requestAnimationFrame(tick);
-
-    const now = clock.currentTime ?? 0;
-    const running = clock.playState === 'running';
-    const dt = lastClock == null ? 0 : Math.max(0, (now - lastClock) / 1000);
-    lastClock = now;
-    if (!running || dt === 0) return;
-
-    // Pointer: normalised offset from the banner centre, eased.
+  /**
+   * Eases the parallax offset (--pb-mx/--pb-my, banner-centred, −1..1) and
+   * the logo glint (--pb-sx) toward the cursor. `instant` jumps straight
+   * there (first frame).
+   */
+  function updatePointer(dt, instant) {
     let tx = 0;
     let ty = 0;
     if (pointer.active) {
@@ -790,7 +805,7 @@ export function createParallaxBanner(scene, opts = {}) {
       tx = Math.max(-1, Math.min(1, (pointer.x - (r.left + r.width / 2)) / (window.innerWidth / 2)));
       ty = Math.max(-1, Math.min(1, (pointer.y - (r.top + r.height / 2)) / (window.innerHeight / 2)));
     }
-    const k = 1 - Math.exp(-dt * POINTER_RATE);
+    const k = instant ? 1 : 1 - Math.exp(-dt * POINTER_RATE);
     const nmx = mx + (tx - mx) * k;
     const nmy = my + (ty - my) * k;
     if (Math.abs(nmx - mx) > 1e-4 || Math.abs(nmy - my) > 1e-4) {
@@ -803,9 +818,9 @@ export function createParallaxBanner(scene, opts = {}) {
     // Shine glint: the cursor's x across the whole window maps onto the
     // logo (left screen edge → just off the logo's left, right edge → just
     // off its right), so any sweep of the mouse crosses it. Parked off-left
-    // until the first mouse move; afterwards it holds the last position.
+    // until the cursor is known; afterwards it holds the last position.
     if (shineFollowers.length) {
-      const ks = 1 - Math.exp(-dt * SHINE_RATE);
+      const ks = instant ? 1 : 1 - Math.exp(-dt * SHINE_RATE);
       const target = pointer.active
         ? SHINE_RANGE[0] + (pointer.x / window.innerWidth) * (SHINE_RANGE[1] - SHINE_RANGE[0])
         : SHINE_PARK;
@@ -817,6 +832,31 @@ export function createParallaxBanner(scene, opts = {}) {
         }
       }
     }
+  }
+
+  // rAF doesn't fire in hidden tabs, so tab switches need no handling here;
+  // the clock (paused by the offscreen manager) absorbs the gap.
+  function tick() {
+    raf = 0;
+    if (!visible || !root.isConnected) return;
+    raf = requestAnimationFrame(tick);
+
+    // First frame: if the cursor position is already known, start the scene
+    // there instead of easing in from centre. Done before the clock checks
+    // below, which skip this first frame, so not even one centred frame shows.
+    // If the cursor isn't known yet, its first move eases in as usual.
+    if (!primed) {
+      primed = true;
+      if (pointer.active) updatePointer(0, true);
+    }
+
+    const now = clock.currentTime ?? 0;
+    const running = clock.playState === 'running';
+    const dt = lastClock == null ? 0 : Math.max(0, (now - lastClock) / 1000);
+    lastClock = now;
+    if (!running || dt === 0) return;
+
+    updatePointer(dt, false);
 
     acc = Math.min(acc + dt, STEP * MAX_STEPS);
     while (acc >= STEP) {
