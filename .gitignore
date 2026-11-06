@@ -33,3 +33,6 @@ secrets*
 
 # Logs
 npm-debug.log*
+
+# Local working files (source docs, .clip/.psd, references) — never committed
+local-files/

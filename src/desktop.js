@@ -16,6 +16,7 @@ import './article.css'; // shared markdown styles (also used by deck + mobile)
 import './style.css';
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js';
+import { createParallaxBanner } from './components/ParallaxBanner.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
@@ -26,6 +27,8 @@ import { createMediaElement, createSpritesheetElement, pauseManagedVideos, resum
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
+import { parseRoute, findItemIndex, createUrlSync } from './utils/route.js';
+import { observeScrollReveal } from './utils/scrollReveal.js';
 
 /**
  * Returns particle config with device-tier overrides merged in,
@@ -943,6 +946,10 @@ async function renderGames() {
     if (game.type === 'spritesheet') {
       const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
       if (banner) card.appendChild(banner);
+    } else if (game.type === 'parallax') {
+      // Card slot is a fixed 256px column (style.css .game-card > :first-child).
+      // Lite: at that size particles, light effects and the shine barely show.
+      card.appendChild(createParallaxBanner(game.parallax, { className: 'game-banner', alt: game.title, sizes: '256px', lite: true }));
     } else if (game.src) {
       const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner', sizes: '55vw' });
       if (banner) card.appendChild(banner);
@@ -1019,6 +1026,7 @@ async function openArticlePage(itemData, returnTo) {
   if (activeDetail) closeDetail(true);
 
   activeArticle = { data: itemData, returnTo, observer: null };
+  syncUrl();
   currentCategoryItems = [];
 
   if (mosaicHasContent) {
@@ -1042,18 +1050,8 @@ async function openArticlePage(itemData, returnTo) {
   const article = buildArticleContent(itemData);
   mosaicEl.appendChild(article);
 
-  // Scroll-triggered reveal for content blocks
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('revealed');
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { root: mosaicEl, threshold: 0.1 });
-
-  article.querySelectorAll('.article-reveal').forEach(el => observer.observe(el));
-  activeArticle.observer = observer;
+  // Scroll-triggered reveal for content blocks (replays both directions).
+  activeArticle.observer = observeScrollReveal(article, mosaicEl);
 
   mosaicHasContent = true;
   await new Promise(r => setTimeout(r, MOSAIC_CONFIG.renderDelay));
@@ -1074,10 +1072,12 @@ function buildArticleContent(itemData) {
   const header = document.createElement('div');
   header.className = 'article-header';
 
-  if (itemData.type === 'spritesheet' || itemData.src) {
+  if (itemData.type === 'spritesheet' || itemData.type === 'parallax' || itemData.src) {
     const bannerMedia = itemData.type === 'spritesheet'
       ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true })
-      : createMediaElement(itemData.src, {
+      : itemData.type === 'parallax'
+        ? createParallaxBanner(itemData.parallax, { className: 'article-banner', alt: itemData.title || '', sizes: '55vw', lazy: false })
+        : createMediaElement(itemData.src, {
         alt: itemData.title || '',
         className: 'article-banner',
         lazy: false,
@@ -1210,6 +1210,7 @@ async function closeArticlePage() {
   clearMosaic();
   mosaicEl.classList.remove('article-mode');
   activeArticle = null;
+  syncUrl();
 
   // Re-render the previous view
   if (returnTo === 'Games') {
@@ -1833,6 +1834,7 @@ function detachMediaClickHandler() {
 function openDetail(itemEl, itemData) {
   const sessionId = ++detailSessionId;
   activeDetail = { el: itemEl, data: itemData, viewer: null, videoControls: null, sessionId, placeholder: null };
+  syncUrl();
 
   const containerRect = mosaicEl.getBoundingClientRect();
 
@@ -2207,6 +2209,7 @@ function closeDetail(instant = false) {
   activeDetail.videoControls?.destroy();
 
   activeDetail = null;
+  syncUrl();
   // Closing mid-navigateDetail: that call bails after its await (session
   // check), so undo its fade here or the tile stays at opacity 0.
   itemEl.classList.remove('detail-fading');
@@ -2420,6 +2423,15 @@ async function switchToAndOpenDetail(category, itemIndex) {
   }
 }
 
+/** Drops an open article without its fade (the next render replaces the view). */
+function teardownArticle() {
+  if (!activeArticle) return;
+  if (activeArticle.observer) activeArticle.observer.disconnect();
+  crtScreen.querySelector('.detail-nav')?.remove();
+  mosaicEl.classList.remove('article-mode');
+  activeArticle = null;
+}
+
 /** Toggles a nav item's .selected look and its aria-current together. */
 function markNavSelected(navItem, selected) {
   navItem.classList.toggle('selected', selected);
@@ -2443,16 +2455,11 @@ function selectNavItem(navItem) {
     return Promise.resolve();
   }
 
-  // Clean up article page if open
-  if (activeArticle) {
-    if (activeArticle.observer) activeArticle.observer.disconnect();
-    crtScreen.querySelector('.detail-nav')?.remove();
-    mosaicEl.classList.remove('article-mode');
-    activeArticle = null;
-  }
+  teardownArticle();
 
   if (current) markNavSelected(current, false);
   markNavSelected(navItem, true);
+  syncUrl();
   mosaicFocusIndex = -1; // mosaic content is changing, reset its focus
 
   const label = navItem.dataset.label;
@@ -2651,6 +2658,7 @@ async function navigateDetail(direction) {
 
     const sessionId = ++detailSessionId;
     activeDetail = { el: nextEl, data: nextData, viewer: null, videoControls: null, sessionId, placeholder: null };
+    syncUrl();
     mosaicFocusIndex = nextIdx;
 
     // Fade in after a frame (let browser paint the positioned element first)
@@ -2835,7 +2843,7 @@ const username = rawName
 // ============================================
 
 const terminalElement = document.getElementById('terminal');
-// Created in main() — `?p=` deck visits never boot the terminal.
+// Created in main() (intro) or bootDirect() (direct link).
 let terminal = null;
 
 // Build name for sequence (defaults to "Neo")
@@ -2852,6 +2860,167 @@ let rabbit = null;
 
 // Guard against double-click triggering multiple transitions
 let transitionInProgress = false;
+
+// ============================================
+// Nav menu + URL routes (shared by the intro and direct links)
+// ============================================
+
+// Creation order. Each item is prepended, so the menu reads top to bottom
+// General, Games, 3D Art, 3D Tech; the intro types them bottom-up.
+const NAV_ORDER = ['3D Tech', '3D Art', 'Games', 'General'];
+
+function revealNavMenu() {
+  const navMenu = document.getElementById('nav-menu');
+  navMenu.hidden = false;
+  navMenu.setAttribute('aria-label', 'Sections');
+  return navMenu;
+}
+
+/**
+ * One empty nav button: <span class="nav-prompt"/><span class="nav-label"/>.
+ * Real <button> so Tab reaches it and Enter/Space activate it. The aria-label
+ * gives a stable name while the visible "> Label" is still being typed (and
+ * keeps the decorative prompt/cursor out of it).
+ */
+function createNavItem(label) {
+  const item = document.createElement('button');
+  item.type = 'button';
+  item.className = 'nav-item';
+  item.dataset.label = label;
+  item.setAttribute('aria-label', label);
+
+  const promptSpan = document.createElement('span');
+  promptSpan.className = 'nav-prompt';
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'nav-label';
+  item.append(promptSpan, labelSpan);
+  return { item, promptSpan, labelSpan };
+}
+
+const navItemFor = (label) =>
+  [...document.querySelectorAll('#nav-menu .nav-item')].find((n) => n.dataset.label === label);
+
+/** Nav clicks, keyboard navigation and URL syncing go live (end of either boot). */
+function enableNav(navMenu) {
+  navMenu.addEventListener('click', (e) => {
+    const clicked = e.target.closest('.nav-item');
+    if (!clicked) return;
+
+    // Mouse click resets the keyboard cursor. Enter/Space on the focused
+    // button also arrives here as a click (detail === 0) — keep the cursor
+    // on it then, since real focus stays put.
+    if (e.detail !== 0) clearFocus();
+    selectNavItem(clicked);
+  });
+
+  // Keyboard navigation is now active
+  navReady = true;
+  urlSync = createUrlSync({ currentRoute, applyRoute });
+}
+
+// Set once the nav is live; until then (intro playing) there's no route.
+let urlSync = null;
+function syncUrl() { urlSync?.(); }
+
+/** What's on screen, as a route. See src/utils/route.js. */
+function currentRoute() {
+  const selected = document.querySelector('#nav-menu .nav-item.selected');
+  if (!navReady || !selected) return null;
+  const section = selected.dataset.label;
+  const id = (activeDetail?.data ?? activeArticle?.data)?.id ?? null;
+  // Mid-switch the old section's detail can still be open; it isn't part of
+  // the new section's route.
+  return { section, id: findItemIndex(section, id) >= 0 ? id : null };
+}
+
+/** Makes the screen match `route` (Back/Forward or an edited hash). */
+async function applyRoute(route) {
+  if (!navReady) return;
+  const target = route ?? { section: 'General', id: null };
+  const cur = currentRoute();
+  if (cur && cur.section === target.section && cur.id === target.id) return;
+
+  const navItem = navItemFor(target.section);
+  if (!navItem) return;
+  const sameSection = cur?.section === target.section;
+
+  // ── Section only: close whatever is open, or switch section ──
+  if (!target.id) {
+    if (sameSection && activeArticle) return closeArticlePage();
+    if (sameSection && activeDetail) return closeDetail();
+    return selectNavItem(navItem);
+  }
+
+  const idx = findItemIndex(target.section, target.id);
+
+  // ── A game: its full-page article ──
+  if (target.section === 'Games') {
+    if (activeDetail) closeDetail(true);
+    teardownArticle();
+    if (!sameSection) {
+      const current = document.querySelector('#nav-menu .nav-item.selected');
+      if (current) markNavSelected(current, false);
+      markNavSelected(navItem, true);
+    }
+    return openArticlePage(GAMES[idx], 'Games');
+  }
+
+  // ── A grid piece: its detail view ──
+  if (!sameSection) return switchToAndOpenDetail(target.section, idx);
+  if (activeDetail) closeDetail(true);
+  const cell = mosaicEl.querySelector(`.mosaic-item[data-index="${idx}"]`);
+  if (cell) {
+    detailOpenedByKeyboard = false;
+    openDetail(cell, CATEGORIES[target.section][idx]);
+  }
+}
+
+/**
+ * Direct link (`/#3d-art/ardo`): build the screen the intro ends on, instantly,
+ * then open the linked section/piece. No rabbit, no typing. Uses the same nav
+ * builders and renderers as the intro, so the two paths can't drift apart.
+ */
+async function bootDirect(route) {
+  terminal = new Terminal(terminalElement);
+  startGlowNoise();
+  terminal.addChar("Hi! I'm Tomás,");
+  terminal.submitLine();
+  terminal.addChar('Technical Artist');
+  terminal.hideCursor();
+
+  const navMenu = revealNavMenu();
+  for (const label of NAV_ORDER) {
+    const { item, promptSpan, labelSpan } = createNavItem(label);
+    promptSpan.textContent = '> ';
+    labelSpan.textContent = label;
+    markNavSelected(item, label === route.section);
+    navMenu.prepend(item);
+  }
+
+  showMosaicFrame();
+  showMosaic();
+
+  const idx = findItemIndex(route.section, route.id);
+  if (route.section === 'Games' && idx >= 0) {
+    // Straight to the article; rendering the games list first would only
+    // flash it before the crossfade.
+    await openArticlePage(GAMES[idx], 'Games');
+  } else if (route.section === 'Games') {
+    await renderGames();
+  } else {
+    await renderMosaic(route.section);
+    const cell = idx >= 0 && mosaicEl.querySelector(`.mosaic-item[data-index="${idx}"]`);
+    if (cell) openDetail(cell, CATEGORIES[route.section][idx]);
+  }
+
+  // After the opening view is up, so its state is the baseline URL sync
+  // compares against (the link's own entry is replaced, never pushed).
+  enableNav(navMenu);
+  // Warm the other sections only now: started earlier, the staggered fetches
+  // compete with the linked view's own images (the intro had ~10 s of idle
+  // network for this; a direct link has none).
+  preloadThumbnails();
+}
 
 /**
  * Transition: rabbit click → freeze → particle dissolve → white terminal → typing
@@ -2935,44 +3104,20 @@ async function startRabbitTransition() {
     await sleep(TIMING.normal);
     whiteTerminal.hideCursor();
 
-    const navMenu = document.getElementById('nav-menu');
-
-    // Reveal the nav menu (already in DOM, just hidden)
-    navMenu.hidden = false;
-    navMenu.setAttribute('aria-label', 'Sections');
-
-    // Type menu items bottom to top — Art first, General last (ends selected)
-    const menuItems = ['3D Tech', '3D Art', 'Games', 'General'];
+    const navMenu = revealNavMenu();
     await sleep(200);
 
     let prevItem = null;
 
-    for (const label of menuItems) {
+    for (const label of NAV_ORDER) {
       // Deselect previous item
       if (prevItem) markNavSelected(prevItem, false);
 
       await sleep(100);
 
-      // Real <button> so Tab reaches it and Enter/Space activate it. The
-      // aria-label gives a stable name while the visible "> Label" is still
-      // being typed (and keeps the decorative prompt/cursor out of it).
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'nav-item';
-      item.dataset.label = label;
-      item.setAttribute('aria-label', label);
+      const { item, promptSpan, labelSpan } = createNavItem(label);
       markNavSelected(item, true);  // selected while typing
       navMenu.prepend(item);  // prepend so each new item appears above the previous
-
-      // Build structure: <span class="nav-prompt">> </span><span class="nav-label">Label</span>
-      const promptSpan = document.createElement('span');
-      promptSpan.className = 'nav-prompt';
-
-      const labelSpan = document.createElement('span');
-      labelSpan.className = 'nav-label';
-
-      item.appendChild(promptSpan);
-      item.appendChild(labelSpan);
 
       // Type "> Label" char by char with cursor
       const fullText = `> ${label}`;
@@ -2982,7 +3127,7 @@ async function startRabbitTransition() {
       item.appendChild(cursorChar);
 
       // Start frame sweep as the last nav item begins typing
-      if (label === menuItems[menuItems.length - 1]) showMosaicFrame();
+      if (label === NAV_ORDER[NAV_ORDER.length - 1]) showMosaicFrame();
 
       // First 2 chars ("> ") go into promptSpan, rest into labelSpan
       for (let i = 0; i < fullText.length; i++) {
@@ -3010,20 +3155,7 @@ async function startRabbitTransition() {
     showMosaic();
     await renderMosaic(initialCategory);
 
-    // Click handler for selection + mosaic switch
-    navMenu.addEventListener('click', (e) => {
-      const clicked = e.target.closest('.nav-item');
-      if (!clicked) return;
-
-      // Mouse click resets the keyboard cursor. Enter/Space on the focused
-      // button also arrives here as a click (detail === 0) — keep the cursor
-      // on it then, since real focus stays put.
-      if (e.detail !== 0) clearFocus();
-      selectNavItem(clicked);
-    });
-
-    // Keyboard navigation is now active
-    navReady = true;
+    enableNav(navMenu);
 
   } catch (error) {
     console.error('Rabbit transition failed:', error);
@@ -3144,16 +3276,14 @@ async function main() {
   }
 }
 
-// URL-gated portfolio decks: `/?p=<slug>` skips the terminal/rabbit intro and
-// boots straight into the slide deck (code-split — the deck chunk only loads
-// for gated visits, never for the normal site). mountDeck handles an unknown
-// slug with its own "not found" panel, so presence of the param is enough.
-const gatedSlug = new URLSearchParams(window.location.search).get('p');
-if (gatedSlug !== null) {
-  document.getElementById('crt-screen')?.setAttribute('hidden', '');
-  import('./components/PortfolioDeck.js')
-    .then((m) => m.mountDeck(gatedSlug, { isMobile: false }))
-    .catch((err) => console.error('Deck boot failed:', err));
+// `?p=` portfolio decks never reach this module (main.js routes them).
+// A section/project link (`/#games`, `/#3d-art/ardo`) skips the intro.
+const initialRoute = parseRoute();
+if (initialRoute) {
+  bootDirect(initialRoute).catch((err) => {
+    console.error('Direct link boot failed:', err);
+    window.location.replace(window.location.pathname + window.location.search);
+  });
 } else {
   main();
 }

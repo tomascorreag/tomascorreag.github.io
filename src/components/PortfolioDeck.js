@@ -34,11 +34,14 @@ import { resolvePage } from '../config/portfolio.js';
 import '../article.css'; // shared .article-* markdown styles
 import './portfolio-deck.css';
 import { createMediaElement, createSpritesheetElement } from '../utils/media.js';
+import { createParallaxBanner } from './ParallaxBanner.js';
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
 import { deviceTier, prefersReducedMotion, getSaveData } from '../config/device.js';
 import { attachVideoControls } from './VideoControls.js';
+import { createHistorySync } from '../utils/historySync.js';
+import { observeScrollReveal } from '../utils/scrollReveal.js';
 
 const reduceMotion = prefersReducedMotion() || deviceTier === 'low';
 
@@ -76,9 +79,12 @@ function el(tag, opts = {}, children = []) {
  * thumbnails, splat thumbnails) goes through createMediaElement. Returns null
  * if neither is available, so callers can render a fallback.
  */
-function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true, sizes, video } = {}) {
+function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true, sizes, video, managed = true } = {}) {
   if (item.type === 'spritesheet' && item.spritesheet) {
-    return createSpritesheetElement(item.spritesheet, { className, alt, responsive: true });
+    return createSpritesheetElement(item.spritesheet, { className, alt, responsive: true, managed });
+  }
+  if (item.type === 'parallax' && item.parallax) {
+    return createParallaxBanner(item.parallax, { className, alt, lazy, sizes, managed });
   }
   if (item.src) {
     return createMediaElement(item.src, { className, alt, lazy, sizes, video });
@@ -90,6 +96,15 @@ function buildItemMedia(item, { className = '', alt = item.title || '', lazy = t
 // narrow/touch screens (see portfolio-deck.css). Without this the default
 // '100vw' fetches and decodes twice the pixels the card can show.
 const CARD_SIZES = '(max-width: 820px) 88vw, (hover: none) and (pointer: coarse) 88vw, 50vw';
+
+// The open document's column is capped at 860px (.deck-doc-scroll), so its
+// banner and embedded images never render wider than that.
+const DOC_SIZES = 'min(860px, 100vw)';
+const createDocMedia = (src, opts) => createMediaElement(src, { sizes: DOC_SIZES, ...opts });
+
+// Web Animations the deck owns (the Páramo sprite loop), as opposed to the CSS
+// transitions that also show up in getAnimations().
+const isScriptAnimation = (a) => !('transitionProperty' in a) && !('animationName' in a);
 
 /**
  * Sizes a media box to its image's exact width so the card frame hugs it (no
@@ -173,6 +188,12 @@ function applyMediaAspect(box, item, mediaEl) {
     }
     return;
   }
+  if (item.type === 'parallax') {
+    // Layered scene: its aspect is the scene's view, not any one layer image.
+    const [w, h] = item.parallax.view;
+    set(w, h);
+    return;
+  }
   if (!mediaEl) return;
 
   const img = mediaEl.tagName === 'IMG' ? mediaEl : mediaEl.querySelector?.('img');
@@ -196,8 +217,8 @@ function applyMediaAspect(box, item, mediaEl) {
   }
 }
 
-/** Make any `.article-reveal` children visible immediately (the deck doesn't
- *  scroll-reveal — content is short and the overlay animates as a whole). */
+/** Make any `.article-reveal` children visible immediately (reduced motion /
+ *  low tier, where the deck runs without animation). */
 function revealAll(root) {
   root.querySelectorAll('.article-reveal').forEach((node) => node.classList.add('revealed'));
 }
@@ -239,7 +260,7 @@ function buildDocument(item) {
   // ── Header: banner + title-row + description ──
   const header = el('div', { class: 'article-header' });
 
-  const banner = buildItemMedia(item, { className: 'article-banner', lazy: false });
+  const banner = buildItemMedia(item, { className: 'article-banner', lazy: false, sizes: DOC_SIZES });
   if (banner) {
     const bannerWrap = el('div', { class: 'article-banner-wrap' }, banner);
     // Pixel-art sprite titles must not get the .article-page CRT blur/filter —
@@ -274,7 +295,7 @@ function buildDocument(item) {
   const pageMd = item.deckPage ?? item.page;
   if (pageMd) {
     const body = el('div', { class: 'article-body' });
-    body.appendChild(parseMarkdown(pageMd, { createMediaElement, iconMap: ICONS }));
+    body.appendChild(parseMarkdown(pageMd, { createMediaElement: createDocMedia, iconMap: ICONS }));
     // Embedded images are click-to-zoom, mirroring the desktop detail view.
     // Bind the whole <figure> (floated images wrap text + a caption, so the bare
     // <img> is an unreliable hit target). Video figures have no <img> → skipped.
@@ -287,7 +308,6 @@ function buildDocument(item) {
     page.appendChild(body);
   }
 
-  revealAll(page);
   return page;
 }
 
@@ -304,12 +324,13 @@ function buildCard(entry, indexLabel, onOpen) {
   // its slide slides into view, so it would decode mid-transition.
   // autoplay:false keeps card videos out of the shared offscreen manager, which
   // would play any video that peeks into the viewport (neighbours included).
-  // The deck plays only the centred card's video (syncSlideVideos).
+  // The deck plays only the centred card's media (syncSlideMedia).
   const media = buildItemMedia(item, {
     className: 'deck-card-media-el',
     lazy: false,
     sizes: CARD_SIZES,
     video: { autoplay: false },
+    managed: false, // same reason, for the Páramo sprite loop
   });
   const mediaBox = el('div', { class: 'deck-card-media' }, media || el('div', { class: 'deck-card-media-fallback' }));
   applyMediaAspect(mediaBox, item, media);
@@ -408,6 +429,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   let index = 0;
   let docOpen = false;
   let docControls = null; // video control bar handle for the open doc's banner
+  let docReveal = null;   // scroll-reveal observer for the open doc
 
   // ── Scaffold ──
   const deck = el('div', { class: `deck${reduceMotion ? ' no-anim' : ''}${isMobile ? ' is-mobile' : ''}` });
@@ -442,15 +464,22 @@ export function mountDeck(slug, { isMobile = false } = {}) {
 
   // ── Document overlay (built once, populated on open) ──
   const docContent = el('div', { class: 'deck-doc-scroll' });
+  const backBtn = el('button', {
+    class: 'deck-doc-back',
+    html: '<span class="deck-cta-arrow">◂</span> back',
+    attrs: { type: 'button' },
+    on: { click: () => closeDoc() },
+  });
   const overlay = el('div', { class: 'deck-doc-overlay', attrs: { 'aria-hidden': 'true' } }, [
-    el('button', {
-      class: 'deck-doc-back',
-      html: '<span class="deck-cta-arrow">◂</span> back',
-      attrs: { type: 'button' },
-      on: { click: closeDoc },
-    }),
+    backBtn,
     docContent,
   ]);
+  // Closed overlay: out of the tab order and the a11y tree (it only fades
+  // visually; its last document stays mounted).
+  overlay.inert = true;
+
+  // Screen-reader announcement of the current slide ("2 of 6: Páramo").
+  const status = el('p', { class: 'deck-sr-only', attrs: { 'aria-live': 'polite', 'aria-atomic': 'true' } });
 
   // Bright scanline that rides the leading edge of the overlay's clip-path
   // wipe (see .deck-doc-wipe in portfolio-deck.css). Sibling of the overlay so the
@@ -477,68 +506,115 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   }
   const dotEls = [...dots.children];
 
-  deck.append(header, viewport, prevBtn, nextBtn, dots, overlay, wipe);
+  deck.append(header, viewport, prevBtn, nextBtn, dots, overlay, wipe, status);
   document.body.appendChild(deck);
+
+  // Everything behind the open document. Made inert while it's open so Tab
+  // and screen readers stay inside the document.
+  const behindDoc = [header, viewport, prevBtn, nextBtn, dots];
+
+  const slideTitle = (i) => page.slides[i]?.item.title || (i === page.slides.length ? 'End of selection' : '');
+
+  // The viewport is overflow:hidden, but focusing an element inside it can
+  // still scroll it, which would offset every slide from the translateX math.
+  viewport.addEventListener('scroll', () => {
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+  });
 
   // ── Navigation ──
   // Set the `transform` declaration directly (with the index baked in) so the
   // track's `transition: transform` reliably fires on every change. The CSS
   // `calc()` still keeps slide `index` centred while neighbours peek at the
   // edges; `var(--slide-w)` stays a var so the responsive width is honoured.
+  let announce = false; // set after mount: the first slide isn't announced
   function goTo(next) {
+    const prevIndex = index;
     index = Math.max(0, Math.min(total - 1, next));
     track.style.transform =
       `translateX(calc(${-index} * var(--slide-w) + (100% - var(--slide-w)) * 0.5))`;
     prevBtn.disabled = index === 0;
     nextBtn.disabled = index === total - 1;
-    dotEls.forEach((d, i) => d.classList.toggle('active', i === index));
-    slideEls.forEach((s, i) => s.classList.toggle('is-active', i === index));
-    syncSlideVideos();
+    dotEls.forEach((d, i) => {
+      d.classList.toggle('active', i === index);
+      if (i === index) d.setAttribute('aria-current', 'true');
+      else d.removeAttribute('aria-current');
+    });
+    // Keyboard focus follows the slide when it was on the old card, so it
+    // never sits on a card that's now off to the side.
+    const focusWasOnSlide = slideEls[prevIndex]?.contains(document.activeElement);
+    slideEls.forEach((s, i) => {
+      const on = i === index;
+      s.classList.toggle('is-active', on);
+      // Side slides stay clickable (a click slides to them) but leave the tab
+      // order and the a11y tree. Not `inert`: that would block the click too.
+      s.querySelectorAll('.deck-card, a').forEach((f) => { f.tabIndex = on ? 0 : -1; });
+    });
+    // Move focus before hiding the old slide (focus inside aria-hidden is invalid).
+    if (focusWasOnSlide && prevIndex !== index) {
+      slideEls[index].querySelector('.deck-card, a')?.focus({ preventScroll: true });
+    }
+    slideEls.forEach((s, i) => {
+      if (i === index) s.removeAttribute('aria-hidden');
+      else s.setAttribute('aria-hidden', 'true');
+    });
+    if (announce) status.textContent = `${index + 1} of ${total}: ${slideTitle(index)}`;
+    syncSlideMedia();
   }
 
-  // Only the centred card's video plays. Card videos are built without
-  // autoplay and outside the shared media manager, so the deck is their only
-  // owner. Others pause right away; the centred one starts once the slide has
-  // settled, because starting playback (first decode, first GPU upload) during
-  // the slide drops frames. On a cold GPU cache, measured in Chrome, it froze
-  // one transition for ~200 ms.
+  // Only the centred card's media plays. Card videos and sprite loops are
+  // built outside the shared media manager (it would play anything that peeks
+  // into view), so the deck is their only owner. Others pause right away. The
+  // centred video starts once the slide has settled, because starting playback
+  // (first decode, first GPU upload) during the slide drops frames: on a cold
+  // GPU cache, measured in Chrome, it froze one transition for ~200 ms. Sprite
+  // loops are cheap to resume, so they start immediately.
   const SLIDE_MS = 560; // keep in sync with .deck-track / .deck-slide transitions
   const saveData = getSaveData();
   let playTimer = null;
-  function syncSlideVideos({ immediate = false } = {}) {
+  const spriteAnims = (s) =>
+    s.querySelector('.deck-card-media')?.getAnimations({ subtree: true }).filter(isScriptAnimation) ?? [];
+
+  function syncSlideMedia({ immediate = false } = {}) {
     clearTimeout(playTimer);
     playTimer = null;
+    const visible = !docOpen && !document.hidden;
     let current = null;
     slideEls.forEach((s, i) => {
+      const on = i === index && visible;
+      for (const a of spriteAnims(s)) {
+        if (on && a.playState === 'paused') a.play();
+        else if (!on && a.playState === 'running') a.pause();
+      }
       for (const v of s.querySelectorAll('video')) {
         if (i === index) current = v;
         else if (!v.paused) v.pause();
       }
     });
-    // Data saver: no autoplay (createMediaElement's rule); docOpen / hidden tab:
-    // nobody can see the card.
-    if (!current || saveData || docOpen || document.hidden) return;
+    // Data saver: no autoplay (createMediaElement's rule).
+    if (!current || saveData || !visible) return;
     const start = () => { if (current.paused) current.play().catch(() => {}); };
     if (immediate || reduceMotion) start();
     else playTimer = setTimeout(start, SLIDE_MS);
   }
 
-  function pauseSlideVideos() {
+  function pauseSlideMedia() {
     clearTimeout(playTimer);
     playTimer = null;
     track.querySelectorAll('video').forEach((v) => v.pause());
+    for (const s of slideEls) for (const a of spriteAnims(s)) a.pause();
   }
 
   const onVisibility = () => {
-    if (document.hidden) pauseSlideVideos();
-    else syncSlideVideos({ immediate: true });
+    if (document.hidden) pauseSlideMedia();
+    else syncSlideMedia({ immediate: true });
   };
   document.addEventListener('visibilitychange', onVisibility);
 
   // A card click means one of two things: tapping the already-centred card
   // opens its document; tapping a half-visible neighbour just slides to it.
   function activate(i) {
-    if (i === index) openDoc(page.slides[i]);
+    if (i === index) openDoc(i);
     else goTo(i);
   }
 
@@ -553,10 +629,35 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     wipeTimer = setTimeout(() => wipe.classList.remove('lit'), WIPE_MS);
   }
 
-  function openDoc(entry) {
+  // ── Documents + browser history ──
+  // An open document is `#<id>` (historySync.js): opening one adds a history
+  // entry, so Back / swipe-back closes it instead of leaving the deck, and
+  // `?p=<slug>#<id>` links straight to one project.
+  const slideIndexOf = (id) => (id ? page.slides.findIndex((s) => s.item.id === id) : -1);
+  const parseDocRoute = () => {
+    let id = '';
+    try { id = decodeURIComponent(window.location.hash.slice(1)); } catch { /* malformed */ }
+    return slideIndexOf(id) >= 0 ? { section: null, id } : null;
+  };
+  const docRouteUrl = (route) =>
+    window.location.pathname + window.location.search + (route ? `#${encodeURIComponent(route.id)}` : '');
+  let openIndex = -1;
+  let urlSync = null; // created after the opening view is up (see bottom)
+  const syncUrl = () => urlSync?.sync();
+
+  function openDoc(i) {
+    const entry = page.slides[i];
+    if (!entry) return;
+    openIndex = i;
     docControls?.destroy(); // stale bar from a previously opened doc
     docControls = null;
     docContent.replaceChildren(buildDocument(entry.item));
+    // Same scroll reveal as the main site's article pages, replaying both
+    // ways. The overlay is the scroll container.
+    docReveal?.disconnect();
+    docReveal = null;
+    if (reduceMotion) revealAll(docContent);
+    else docReveal = observeScrollReveal(docContent, overlay);
     if (entry.item.hasAudio) {
       const wrap = docContent.querySelector('.article-banner-wrap');
       const video = wrap?.querySelector('video');
@@ -569,13 +670,30 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     wipe.classList.add('at-bottom'); // edge sweeps top → bottom with the clip
     overlay.classList.add('open');
     overlay.setAttribute('aria-hidden', 'false');
+    overlay.inert = false;
+    behindDoc.forEach((n) => { n.inert = true; });
+    backBtn.focus({ preventScroll: true });
     docOpen = true;
     // The opaque overlay covers the card; Frenesí's doc banner is the same
     // file, so leaving the card playing meant two decodes of one video.
-    pauseSlideVideos();
+    pauseSlideMedia();
+    syncUrl();
+  }
+
+  // Back/Forward (or an edited hash) → screen.
+  function applyDocRoute(route) {
+    const i = slideIndexOf(route?.id);
+    if (i < 0) {
+      if (docOpen) closeDoc();
+      return;
+    }
+    if (docOpen && openIndex === i) return;
+    if (i !== index) goTo(i);
+    openDoc(i);
   }
 
   function closeDoc() {
+    if (!docOpen) return;
     // closeDoc only hides the overlay — the doc stays mounted behind it
     // (openDoc rebuilds the content anyway). Stop its videos: an invisible
     // autoplaying loop keeps a decode pipeline alive indefinitely. Clearing
@@ -588,10 +706,16 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     docControls = null;
     flashWipe();
     wipe.classList.remove('at-bottom'); // edge rides bottom → top — same wipe, reversed
+    behindDoc.forEach((n) => { n.inert = false; });
+    // Return focus to the card the document came from (it's the centred one).
+    slideEls[index]?.querySelector('.deck-card, a')?.focus({ preventScroll: true });
     overlay.classList.remove('open');
     overlay.setAttribute('aria-hidden', 'true');
+    overlay.inert = true;
     docOpen = false;
-    syncSlideVideos({ immediate: true });
+    openIndex = -1;
+    syncSlideMedia({ immediate: true });
+    syncUrl();
   }
 
   // ── Keyboard ──
@@ -629,7 +753,29 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   viewport.addEventListener('pointerup', onPointerUp);
   viewport.addEventListener('pointercancel', () => { swipeX = null; });
 
-  goTo(0);
+  // Deep link (`#<id>`): land on that slide with its document already open,
+  // without playing the slide or wipe animations on page load.
+  const linked = slideIndexOf(parseDocRoute()?.id);
+  if (linked >= 0) {
+    deck.classList.add('no-anim');
+    goTo(linked);
+    openDoc(linked);
+    clearTimeout(wipeTimer);
+    wipe.classList.remove('lit');
+    void deck.offsetWidth; // commit the no-transition state before re-enabling
+    if (!reduceMotion) deck.classList.remove('no-anim');
+  } else {
+    goTo(0);
+  }
+  announce = true;
+  // After the opening view: a linked document is the baseline, so its entry
+  // is rewritten on close rather than going back out of the deck.
+  urlSync = createHistorySync({
+    currentRoute: () => (docOpen ? { section: null, id: page.slides[openIndex].item.id } : null),
+    applyRoute: applyDocRoute,
+    parse: parseDocRoute,
+    format: docRouteUrl,
+  });
 
   // Now that the cards are laid out, size each media box to its image width so
   // the frame hugs (build-time clientHeight was 0). A second pass on the next
@@ -662,9 +808,11 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     destroy() {
       clearTimeout(wipeTimer);
       clearTimeout(relayoutTimer);
-      pauseSlideVideos();
+      pauseSlideMedia();
       docControls?.destroy();
       document.removeEventListener('visibilitychange', onVisibility);
+      urlSync?.dispose();
+      docReveal?.disconnect();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
       deck.remove();
