@@ -97,6 +97,13 @@ function buildItemMedia(item, { className = '', alt = item.title || '', lazy = t
 // '100vw' fetches and decodes twice the pixels the card can show.
 const CARD_SIZES = '(max-width: 820px) 88vw, (hover: none) and (pointer: coarse) 88vw, 50vw';
 
+// Narrowest a card gets when its media is height-limited (short windows).
+const MIN_CARD_REM = 20;
+
+// Spritesheet title cards (Páramo): bg band above and below the title, as a
+// fraction of the frame height.
+const SPRITE_PAD_Y = 0.2;
+
 // The open document's column is capped at 860px (.deck-doc-scroll), so its
 // banner and embedded images never render wider than that.
 const DOC_SIZES = 'min(860px, 100vw)';
@@ -107,11 +114,16 @@ const createDocMedia = (src, opts) => createMediaElement(src, { sizes: DOC_SIZES
 const isScriptAnimation = (a) => !('transitionProperty' in a) && !('animationName' in a);
 
 /**
- * Sizes a media box to its image's exact width so the card frame hugs it (no
- * black side-letterbox on narrow pieces). The box height is flex-driven (the
- * "current sizing" we keep); we set an explicit width = height × aspect-ratio.
- * The aspect-ratio is stashed in `dataset.ar`, so this is also the per-resize
- * recompute. No-ops until the box has a laid-out height (post-mount / on load).
+ * Sizes a media box to the piece's aspect so the card frame hugs it on both
+ * axes (no letterbox, no parallax crop). The box fills the height the slot
+ * leaves below the card body, unless that would be wider than the slot; then
+ * it is slot-wide and its height drops to width / aspect. The card height
+ * goes to auto, so the shorter card centres in the slide (align-items).
+ * The card never gets narrower than MIN_CARD_REM (or the slot), so very
+ * short windows widen the card around the media instead of hugging it.
+ * The aspect is stashed in `dataset.ar`, so this is also the per-resize
+ * recompute. Space is measured from the slide, not the box's own size, so
+ * a previous pass's px can't feed back into the next one.
  */
 // Split into measure (layout reads) + apply (style writes) so relayout() can
 // batch all reads before any writes — a width write on slide i invalidates
@@ -124,41 +136,61 @@ function measureMediaBox(box) {
   const slide = box.closest('.deck-slide');
   if (!card || !slide) return null;
 
-  const h = box.clientHeight; // layout height — ignores the slide's transform scale
-  if (!h) return null;
-
-  // Width the image WANTS (height × aspect-ratio), capped to the space available
-  // in the slot (slot − slide padding − card padding/border). Wide pieces fill
-  // the slot exactly as before; only narrower-than-slot pieces hug. We set the
-  // card width too (not fit-content) so an oversized media can't blow out the
-  // flex item's min-content and overflow the slot.
   const px = (v) => parseFloat(v) || 0;
   const ss = getComputedStyle(slide);
   const cs = getComputedStyle(card);
-  const slotInner = slide.clientWidth - px(ss.paddingLeft) - px(ss.paddingRight);
-  const cardChrome = px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
-  const avail = slotInner - cardChrome;
-  if (avail <= 0) return null;
-
-  const w = Math.min(Math.round(h * ar), Math.floor(avail));
+  const bs = getComputedStyle(box);
   // CSS clamps card width to --card-max (a sane cap that keeps the wide pixel-art
   // title banners from sprawling on big screens). But for a stretchable image/video
-  // piece that cap can be SMALLER than the height-driven fill width `w`, which pins
+  // piece that cap can be SMALLER than the height-driven fill width, which pins
   // the card narrow and letterboxes square/tall art top & bottom. Lift the cap for
-  // those so the card grows to `w` — already ≤ the slot, so it never overflows.
-  // Fixed pixel-art (spritesheet) cards keep the cap (Páramo stays as-is).
+  // those (applyMediaBox); fixed pixel-art (spritesheet) cards keep it.
   const stretches = !!box.querySelector('img, video');
-  return { box, card, w, cardChrome, stretches };
+
+  // Layout sizes (client/offset) ignore the slide's transform scale.
+  const slotW = slide.clientWidth - px(ss.paddingLeft) - px(ss.paddingRight);
+  const slotH = slide.clientHeight - px(ss.paddingTop) - px(ss.paddingBottom);
+  const cardChrome = px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
+  const cardChromeY = px(cs.paddingTop) + px(cs.paddingBottom) + px(cs.borderTopWidth) + px(cs.borderBottomWidth);
+  const bodyH = card.querySelector('.deck-card-body')?.offsetHeight || 0;
+  const boxX = px(bs.borderLeftWidth) + px(bs.borderRightWidth);
+  const boxY = px(bs.borderTopWidth) + px(bs.borderBottomWidth);
+
+  let availW = slotW - cardChrome;
+  const cardMax = px(cs.getPropertyValue('--card-max'));
+  if (!stretches && cardMax) availW = Math.min(availW, cardMax - cardChrome);
+  const availH = slotH - cardChromeY - bodyH - px(cs.rowGap);
+
+  // Media area inside the box's own border, fitted to the aspect.
+  const innerW = availW - boxX;
+  const innerH = availH - boxY;
+  // No room (collapsed slot): drop back to the CSS sizing rather than keep
+  // px from an older, larger layout.
+  if (innerW <= 0 || innerH <= 0) return { box, card, reset: true };
+
+  const mw = Math.floor(Math.min(innerH * ar, innerW));
+  const mh = Math.min(Math.round(mw / ar), Math.floor(innerH));
+  // Short windows make height-limited media tiny; hugging it would squeeze
+  // the title/blurb into a sliver. Keep the card at least a readable column
+  // (media stays centred inside it).
+  const minCardW = Math.min(slotW, MIN_CARD_REM * px(getComputedStyle(document.documentElement).fontSize));
+  const cardW = Math.max(mw + boxX + cardChrome, minCardW);
+  return { box, card, w: mw + boxX, h: mh + boxY, cardW, stretches };
 }
 
-function applyMediaBox({ box, card, w, cardChrome, stretches }) {
-  // `w` is the width the MEDIA box should be. The card is border-box (its width
-  // includes padding+border), so to give its *content* a width of `w` we must add
-  // the chrome back — otherwise the media box ends up `cardChrome` px narrower than
-  // `w` while keeping its full flex height, which letterboxes square/tall art top
-  // & bottom. (avail already subtracted cardChrome, so w + cardChrome ≤ slot.)
+function applyMediaBox({ box, card, w, h, cardW, stretches, reset }) {
+  if (reset) {
+    box.style.width = box.style.height = box.style.flex = '';
+    card.style.width = card.style.height = card.style.maxWidth = '';
+    return;
+  }
+  // `w` is the border-box width of the MEDIA box; `cardW` is the card's
+  // border-box width (media + chrome, or the readable minimum), ≤ the slot.
   box.style.width = `${w}px`;
-  card.style.width = `${w + cardChrome}px`;
+  box.style.height = `${h}px`;
+  box.style.flex = '0 0 auto'; // explicit height, not the flex-grown one
+  card.style.width = `${cardW}px`;
+  card.style.height = 'auto';
   card.style.maxWidth = stretches ? 'none' : '';
 }
 
@@ -184,7 +216,9 @@ function applyMediaAspect(box, item, mediaEl) {
     const fa = item.spritesheet?.frameAspect;
     if (fa) {
       const [w, h] = fa.split('/').map((n) => parseFloat(n));
-      set(w, h);
+      // Taller than the frame: the sprite element centres the title on its
+      // solid bg colour, so this leaves a band of bg above and below it.
+      set(w, h * (1 + 2 * SPRITE_PAD_Y));
     }
     return;
   }
@@ -777,9 +811,8 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     format: docRouteUrl,
   });
 
-  // Now that the cards are laid out, size each media box to its image width so
-  // the frame hugs (build-time clientHeight was 0). A second pass on the next
-  // frame settles any title re-wrap caused by the first pass's width change.
+  // Now that the cards are laid out, size each media box to its piece so the
+  // frame hugs (at build time the slides had no size).
   const relayout = () => {
     // All reads first, then all writes (see measureMediaBox).
     const jobs = [];
@@ -791,30 +824,48 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     }
     for (const j of jobs) applyMediaBox(j);
   };
-  relayout();
-  requestAnimationFrame(relayout);
 
-  // Debounced: iOS fires resize streams while the address bar collapses;
-  // re-laying-out every slide per event is pure waste — only the settled
-  // size matters.
-  let relayoutTimer = null;
-  const onResize = () => {
-    clearTimeout(relayoutTimer);
-    relayoutTimer = setTimeout(relayout, 120);
+  // Two passes, one frame apart: the first pass's width change can re-wrap a
+  // card title, which changes the body height the second pass measures.
+  // rAF-throttled rather than debounced: iOS fires resize streams while the
+  // address bar collapses, and a debounce left the old px overflowing the new
+  // size until it fired. At most one settle is queued at a time.
+  let settleRaf = 0;
+  let destroyed = false;
+  const settle = () => {
+    if (settleRaf || destroyed) return;
+    settleRaf = requestAnimationFrame(() => {
+      relayout();
+      settleRaf = requestAnimationFrame(() => {
+        settleRaf = 0;
+        relayout();
+      });
+    });
   };
-  window.addEventListener('resize', onResize);
+  relayout();
+  settle();
+
+  // The viewport box covers window resizes and header re-wraps (font swap,
+  // user text scaling). Card body text can re-wrap from a font swap without
+  // the viewport changing, so font loads settle too.
+  const ro = new ResizeObserver(settle);
+  ro.observe(viewport);
+  document.fonts?.ready.then(settle);
+  document.fonts?.addEventListener('loadingdone', settle);
 
   return {
     destroy() {
+      destroyed = true;
+      cancelAnimationFrame(settleRaf);
+      ro.disconnect();
+      document.fonts?.removeEventListener('loadingdone', settle);
       clearTimeout(wipeTimer);
-      clearTimeout(relayoutTimer);
       pauseSlideMedia();
       docControls?.destroy();
       document.removeEventListener('visibilitychange', onVisibility);
       urlSync?.dispose();
       docReveal?.disconnect();
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', onResize);
       deck.remove();
     },
   };

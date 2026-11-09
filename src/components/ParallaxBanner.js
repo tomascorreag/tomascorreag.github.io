@@ -3,8 +3,10 @@
  * (see src/config/arboSplash.js for the format and the Unity source).
  *
  * Three motions stack on every layer:
- *   1. Placement: CSS left/top/width/height in percent of the parent layer,
- *      so the scene scales with the banner and needs no resize code.
+ *   1. Placement: CSS left/top/width/height in percent of the parent layer.
+ *      Top-level layers sit in .pb-stage, which keeps the scene's aspect and
+ *      cover-fits the root, so the scene scales (and crops) with the banner.
+ *      Only the particle canvases need resize code (resize(), DPR watcher).
  *   2. Idle loop: one Web Animation per layer on `transform` (plus `filter`
  *      for brightness keys), t0 → midpoint → t0. Unity's flat-tangent keys are
  *      a smoothstep, which cubic-bezier(1/3, 0, 2/3, 1) reproduces exactly.
@@ -77,17 +79,34 @@ function hookPointer() {
 if (typeof window !== 'undefined') hookPointer();
 
 const instances = new WeakMap();
+// Attached instances, for the DPR watcher (a WeakMap can't be iterated).
+// Added on first attach, removed in destroy(), so detached banners aren't held.
+const live = new Set();
 let io = null;
 let ro = null;
 
+// Moving the window to a screen with another density (or browser zoom)
+// changes devicePixelRatio without always resizing the banner, so the
+// ResizeObserver alone would leave canvases at the old resolution. A
+// resolution query only matches one DPR, so it is re-created after each change.
+function watchDpr() {
+  const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  mq.addEventListener('change', () => {
+    for (const inst of live) inst.resize();
+    watchDpr();
+  }, { once: true });
+}
+
 function observers() {
   if (io) return;
+  watchDpr();
   io = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       const inst = instances.get(entry.target);
       if (!inst) continue;
       if (entry.target.isConnected) {
         inst.attached = true;
+        live.add(inst);
         inst.setVisible(entry.isIntersecting);
       } else if (inst.attached) {
         // Removed from the page (detail closed, list re-rendered).
@@ -151,8 +170,8 @@ function scaleSizes(sizes, k) {
 }
 
 /**
- * CSS drop-shadow glow whose radius is in scene units: 100cqw is the banner
- * width (the root is a size container), so it scales with the banner.
+ * CSS drop-shadow glow whose radius is in scene units: 100cqw is the stage
+ * width (the stage is an inline-size container), so it scales with the scene.
  */
 function dropShadow(glow, viewW) {
   // One { radius, color } or a list (stacked: tight core + wide bloom).
@@ -381,7 +400,11 @@ class Emitter {
  * @param {object} opts
  *   className  classes for the root (banner slot styling: aspect, bg)
  *   alt        accessible label for the whole banner
- *   sizes      `sizes` of the banner slot; each layer scales it by its share
+ *   sizes      `sizes` of the banner slot; each layer scales it by its share.
+ *              Assumes the stage is as wide as the root, i.e. the slot keeps
+ *              the scene's aspect (inline default; the deck card box is sized
+ *              to it). A slot taller than the scene's aspect crops the sides
+ *              and these sizes then underestimate the stage width.
  *   lazy       lazy-load layer images (default true)
  *   managed    register with the shared offscreen manager (default true).
  *              Pass false when the caller plays/pauses the loop itself
@@ -409,7 +432,14 @@ export function createParallaxBanner(scene, opts = {}) {
   root.className = `parallax-banner${className ? ` ${className}` : ''}`;
   root.setAttribute('role', 'img');
   if (alt) root.setAttribute('aria-label', alt);
+  // Default slot shape; slots may override it (the deck card fills its box).
   root.style.aspectRatio = `${VW} / ${VH}`;
+  // Layers are placed in percent of the stage, which keeps the view's aspect
+  // and cover-fits the root (parallax-banner.css), so any root shape crops.
+  const stage = document.createElement('div');
+  stage.className = 'pb-stage';
+  stage.style.setProperty('--pb-ar', `${VW} / ${VH}`);
+  root.appendChild(stage);
 
   const anims = [];
   const imgs = [];
@@ -653,7 +683,7 @@ export function createParallaxBanner(scene, opts = {}) {
 
     if (fx.noise) {
       const tile = maskSource(fx.noise.tile, null);
-      // Tile size in banner-relative units: 100cqw is the banner width.
+      // Tile size in scene-relative units: 100cqw is the stage width.
       fx.noise.layers.forEach(({ size, period, drift = 0 }) => {
         const t = `calc(100cqw * ${+((size * w) / VW).toFixed(5)})`;
         const layer = document.createElement('div');
@@ -729,7 +759,7 @@ export function createParallaxBanner(scene, opts = {}) {
   }
 
   const shineSetups = [];
-  build(scene.root, root, [VW, VH], scene.viewCenterY, [0, 0]);
+  build(scene.root, stage, [VW, VH], scene.viewCenterY, [0, 0]);
 
   // Reveal once the layers have decoded, so the scene doesn't assemble piece
   // by piece. Lazy images only start loading near the viewport; that's fine,
@@ -764,7 +794,8 @@ export function createParallaxBanner(scene, opts = {}) {
   let unit = 1; // canvas px per scene unit
 
   function resize() {
-    const bw = root.clientWidth;
+    // Stage, not root: scene units scale with the (possibly cropped) stage.
+    const bw = stage.clientWidth;
     if (!bw) return;
     const dpr = Math.min(window.devicePixelRatio || 1, PARTICLE_DPR_CAP);
     unit = (bw / VW) * dpr;
@@ -888,6 +919,7 @@ export function createParallaxBanner(scene, opts = {}) {
       io.unobserve(root);
       ro.unobserve(root);
       instances.delete(root);
+      live.delete(inst);
     },
   };
   instances.set(root, inst);

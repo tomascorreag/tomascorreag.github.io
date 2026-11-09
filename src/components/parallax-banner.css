@@ -2,7 +2,8 @@
  *
  * The root also carries the slot's own class (.game-banner, .article-banner,
  * .m-game-banner, .deck-card-media-el), which sets width and background.
- * Aspect ratio comes inline from the scene's view size. */
+ * The default aspect ratio comes inline from the scene's view size; a slot
+ * may override it (the deck card fills its box) and .pb-stage crops to fit. */
 
 .parallax-banner {
   position: relative;
@@ -10,17 +11,34 @@
   overflow: hidden;
   isolation: isolate;
   background: #111;
-  /* cqw units inside resolve against the banner width (glow radii). */
+  /* Size container so the stage can cover-fit with cqw/cqh. The slot always
+   * gives the root a definite height (inline aspect-ratio or slot CSS). */
+  container-type: size;
+}
+
+/* The scene at its own aspect (--pb-ar), cover-fitted and centred in the
+ * root: a box of any other shape crops the scene instead of stretching the
+ * layer boxes (which letterboxed each contain-fit image inside them). */
+.pb-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100cqw, 100cqh * var(--pb-ar));
+  aspect-ratio: var(--pb-ar);
+  transform: translate(-50%, -50%);
+  /* cqw inside the scene resolves against the stage width (glow radii,
+   * noise tiles), so they track the scene, not the cropped box. */
   container-type: inline-size;
+  pointer-events: none;
 }
 
 /* Layers fade in together once decoded (see is-ready in the JS). */
-.parallax-banner > .pb-node {
+.pb-stage > .pb-node {
   opacity: 0;
   transition: opacity 500ms ease;
 }
 
-.parallax-banner.is-ready > .pb-node {
+.parallax-banner.is-ready .pb-stage > .pb-node {
   opacity: 1;
 }
 

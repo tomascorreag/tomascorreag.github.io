@@ -41,6 +41,17 @@
      so they read as one legible colour (lighter than the headings' full green). */
   --deck-body-text: color-mix(in srgb, var(--text-primary) 40%, #ffffff);
 
+  /* Notch / home-indicator insets (index.html sets viewport-fit=cover). Each
+     use takes max(own spacing, inset), so non-notched screens are unchanged. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Dot row's bottom padding; the touch arrows shift by whatever the safe
+     area adds on top of it, so they keep their place above the dots. */
+  --dots-pad-b: clamp(1rem, 3vw, 1.75rem);
+
   /* Scanline ink, BAKED BEHIND content. Reuses the site's --scanline-* geometry
      (same line spacing/size as .crt-overlay). The line is a faint phosphor-green
      LIGHT — the deck surfaces are near-black, so a dark line (the main page's,
@@ -67,7 +78,11 @@
   align-items: center;
   text-align: center;
   gap: 0.2rem;
-  margin: clamp(0.75rem, 2vw, 1.25rem) clamp(1rem, 3vw, 2.5rem) 0;
+  margin:
+    max(clamp(0.75rem, 2vw, 1.25rem), var(--safe-top))
+    max(clamp(1rem, 3vw, 2.5rem), var(--safe-right))
+    0
+    max(clamp(1rem, 3vw, 2.5rem), var(--safe-left));
   padding: clamp(0.4rem, 1.2vw, 0.75rem) clamp(0.75rem, 2vw, 1.5rem);
 }
 
@@ -186,7 +201,11 @@
   gap: clamp(0.6rem, 1.4vw, 1rem);
   /* Hug the media width: JS (sizeMediaBox) sets an explicit width = the image's
      rendered width, capped to the slot — so narrow pieces lose their black
-     side-margins while wide pieces fill as before. 100% is the pre-JS fallback. */
+     side-margins while wide pieces fill as before. Floor is MIN_CARD_REM, so
+     on short windows the card stays a readable column around tiny media.
+     JS also sets height:auto so
+     a card whose media is width-capped shrinks to fit and centres in the slide.
+     100% (both axes) is the pre-JS fallback. */
   width: 100%;
   max-width: min(var(--card-max), 100%);
   height: 100%;
@@ -222,9 +241,10 @@
 .deck-card-media {
   flex: 1 1 auto;
   min-height: 0;
-  /* JS (sizeMediaBox) sets an explicit border-box width = the image's rendered
-     width, so the border frames the image exactly with no letterbox. width:auto +
-     aspect-ratio is just the pre-JS fallback; align-self:center avoids stretch. */
+  /* JS (sizeMediaBox) sets an explicit border-box width AND height at the
+     piece's aspect, so the border frames the image exactly with no letterbox.
+     flex-grow + width:auto + aspect-ratio is just the pre-JS fallback;
+     align-self:center avoids stretch. */
   box-sizing: border-box;
   align-self: center;
   width: auto;
@@ -373,7 +393,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: clamp(2.75rem, 5vw, 4rem);
+  /* --nav-w / --nav-inset-* feed the on-screen clamp in .deck-nav-prev/next. */
+  --nav-w: clamp(2.75rem, 5vw, 4rem);
+  --nav-inset-l: max(0.5rem, var(--safe-left));
+  --nav-inset-r: max(0.5rem, var(--safe-right));
+  width: var(--nav-w);
   height: 68%;
   /* green-border/glow chrome box with scanlines behind the glyph */
   background: var(--deck-scan), var(--bg-primary);
@@ -389,13 +413,15 @@
 
 /* Hug the slot edge (half the slot width) with a small gap. Stretchable pieces
    now fill the slot (the --card-max cap is lifted for them in sizeMediaBox), so
-   the arrows track the slot rather than the old fixed 760px card width. */
+   the arrows track the slot rather than the old fixed 760px card width.
+   min() pins them inside the screen edge once the slot leaves no room beside
+   it (narrow windows, the 88% touch slot); there they overlap the card edge. */
 .deck-nav-prev {
-  right: calc(50% + var(--slide-w) / 2 + 0.6rem);
+  right: min(calc(50% + var(--slide-w) / 2 + 0.6rem), calc(100% - var(--nav-w) - var(--nav-inset-l)));
   left: auto;
 }
 .deck-nav-next {
-  left: calc(50% + var(--slide-w) / 2 + 0.6rem);
+  left: min(calc(50% + var(--slide-w) / 2 + 0.6rem), calc(100% - var(--nav-w) - var(--nav-inset-r)));
   right: auto;
 }
 
@@ -416,7 +442,7 @@
   justify-content: center;
   align-items: center;
   gap: 0.6rem;
-  padding: 1rem 0 clamp(1rem, 3vw, 1.75rem);
+  padding: 1rem 0 max(var(--dots-pad-b), var(--safe-bottom));
   z-index: 30;
 }
 
@@ -638,12 +664,12 @@
 
 .deck-doc-back {
   position: sticky;
-  top: 0;
+  top: var(--safe-top);          /* stuck below the notch, not under it */
   z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 1rem;
+  margin: max(1rem, var(--safe-top)) 1rem 1rem max(1rem, var(--safe-left));
   padding: 0.5em 1em;
   font-family: inherit;
   font-size: clamp(0.7rem, 1.5vw, 0.9rem);
@@ -668,11 +694,15 @@
 
 .deck-doc-scroll {
   position: relative;
-  z-index: 1;                    /* above the overlay's fixed vignette ::before */
+  z-index: 1;                    /* below the sticky back button (2) */
   width: 100%;
   max-width: 860px;
   margin: 0 auto;
-  padding: 0 clamp(1.25rem, 4vw, 3rem) clamp(2rem, 5vw, 4rem);
+  padding:
+    0
+    max(clamp(1.25rem, 4vw, 3rem), var(--safe-right))
+    max(clamp(2rem, 5vw, 4rem), var(--safe-bottom))
+    max(clamp(1.25rem, 4vw, 3rem), var(--safe-left));
 }
 
 /* Constrain the reused .article-page inside the deck doc. (Transparent bg is
@@ -704,12 +734,14 @@
   }
 
   /* Touch uses swipe + dots; keep arrows but tuck them small into the bottom
-     corners (the tall desktop rails would dominate a phone screen). */
+     corners (the tall desktop rails would dominate a phone screen). The 88%
+     slot leaves no room beside it, so the min() in .deck-nav-prev/next pins
+     them to the screen edges. */
   .deck-nav {
+    --nav-w: clamp(2.2rem, 8vw, 3rem);
     top: auto;
-    bottom: clamp(3rem, 12vw, 4.5rem);
-    height: clamp(2.2rem, 8vw, 3rem);
-    width: clamp(2.2rem, 8vw, 3rem);
+    bottom: calc(clamp(3rem, 12vw, 4.5rem) + max(0px, var(--safe-bottom) - var(--dots-pad-b)));
+    height: var(--nav-w);
     transform: none;
   }
 }
@@ -750,6 +782,32 @@
 
   .deck::before {
     animation: none;
+  }
+}
+
+/* Short windows (landscape phones, squat desktop windows): the header and
+   card text would leave the media a few px tall. Tighten the type so the
+   piece itself keeps most of the height. */
+@media (max-height: 500px) {
+  .deck-header {
+    padding-block: 0.25rem;
+  }
+
+  .deck-title {
+    font-size: 1rem;
+  }
+
+  .deck-intro {
+    margin-top: 0.2rem;
+    font-size: 0.68rem;
+  }
+
+  .deck-card-title {
+    font-size: 1rem;
+  }
+
+  .deck-card-desc {
+    -webkit-line-clamp: 1;
   }
 }
 

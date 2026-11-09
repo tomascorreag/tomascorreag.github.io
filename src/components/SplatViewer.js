@@ -25,6 +25,8 @@ export class SplatViewer {
     this.controls = null;
     this.splatMesh = null;
     this.resizeObserver = null;
+    this.dprQuery = null;
+    this.onDprChange = null;
     this.animFrameId = null;
     this.destroyed = false;
     this.needsRender = true;
@@ -56,6 +58,25 @@ export class SplatViewer {
     this.renderer.setPixelRatio(tier.pixelRatio);
     this.renderer.setSize(width, height);
     container.appendChild(this.renderer.domElement);
+
+    // The high tier tracks the screen density (capped at 2, as in splats.js),
+    // which was read once at module load. Moving the window to another screen
+    // changes devicePixelRatio, often without resizing the container, so
+    // re-apply on change. A resolution query matches one DPR only, so it is
+    // re-created after each change. Lower tiers are fixed at 1×; no listener.
+    if (tier === SPLAT_CONFIG.tiers.high) {
+      const watchDpr = () => {
+        this.dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+        this.dprQuery.addEventListener('change', this.onDprChange, { once: true });
+      };
+      this.onDprChange = () => {
+        if (this.destroyed || !this.renderer) return;
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.needsRender = true;
+        watchDpr();
+      };
+      watchDpr();
+    }
 
     // Gesture shield. OrbitControls owns drags on the canvas but never stops
     // propagation, so an orbit would also reach the parents' swipe handlers
@@ -181,6 +202,9 @@ export class SplatViewer {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
     }
+
+    this.dprQuery?.removeEventListener('change', this.onDprChange);
+    this.dprQuery = null;
 
     if (this.controls) {
       this.controls.dispose();
