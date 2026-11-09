@@ -472,7 +472,7 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
     kindLabel: 'ARTIFACT',
     title: 'The Memory of the Land',
     date: '2026',
-    description: 'The Memory of the Land is an interactive map of Colombia with two views, Scars of Violence and Ashes of Death, that I designed, built, and built the data pipelines for: seventy years of armed conflict, and a quarter-century of forest loss, on the same territory.',
+    description: 'The Memory of the Land is an interactive map of Colombia that I designed and built. Its two views, Scars of Violence and Ashes of Death, show seventy years of armed conflict and a quarter-century of forest loss on the same territory.',
     links: [
       { label: 'Website', icon: 'website', url: 'https://tomascorreag.github.io/MapColombia/?lang=en' },
     ],

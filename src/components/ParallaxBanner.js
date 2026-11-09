@@ -151,8 +151,8 @@ function scaleSizes(sizes, k) {
 }
 
 /**
- * CSS drop-shadow glow whose radius is in scene units: 100cqw is the banner
- * width (the root is a size container), so it scales with the banner.
+ * CSS drop-shadow glow whose radius is in scene units: 100cqw is the stage
+ * width (the stage is an inline-size container), so it scales with the scene.
  */
 function dropShadow(glow, viewW) {
   // One { radius, color } or a list (stacked: tight core + wide bloom).
@@ -409,7 +409,14 @@ export function createParallaxBanner(scene, opts = {}) {
   root.className = `parallax-banner${className ? ` ${className}` : ''}`;
   root.setAttribute('role', 'img');
   if (alt) root.setAttribute('aria-label', alt);
+  // Default slot shape; slots may override it (the deck card fills its box).
   root.style.aspectRatio = `${VW} / ${VH}`;
+  // Layers are placed in percent of the stage, which keeps the view's aspect
+  // and cover-fits the root (parallax-banner.css), so any root shape crops.
+  const stage = document.createElement('div');
+  stage.className = 'pb-stage';
+  stage.style.setProperty('--pb-ar', `${VW} / ${VH}`);
+  root.appendChild(stage);
 
   const anims = [];
   const imgs = [];
@@ -653,7 +660,7 @@ export function createParallaxBanner(scene, opts = {}) {
 
     if (fx.noise) {
       const tile = maskSource(fx.noise.tile, null);
-      // Tile size in banner-relative units: 100cqw is the banner width.
+      // Tile size in scene-relative units: 100cqw is the stage width.
       fx.noise.layers.forEach(({ size, period, drift = 0 }) => {
         const t = `calc(100cqw * ${+((size * w) / VW).toFixed(5)})`;
         const layer = document.createElement('div');
@@ -729,7 +736,7 @@ export function createParallaxBanner(scene, opts = {}) {
   }
 
   const shineSetups = [];
-  build(scene.root, root, [VW, VH], scene.viewCenterY, [0, 0]);
+  build(scene.root, stage, [VW, VH], scene.viewCenterY, [0, 0]);
 
   // Reveal once the layers have decoded, so the scene doesn't assemble piece
   // by piece. Lazy images only start loading near the viewport; that's fine,
@@ -764,7 +771,8 @@ export function createParallaxBanner(scene, opts = {}) {
   let unit = 1; // canvas px per scene unit
 
   function resize() {
-    const bw = root.clientWidth;
+    // Stage, not root: scene units scale with the (possibly cropped) stage.
+    const bw = stage.clientWidth;
     if (!bw) return;
     const dpr = Math.min(window.devicePixelRatio || 1, PARTICLE_DPR_CAP);
     unit = (bw / VW) * dpr;
