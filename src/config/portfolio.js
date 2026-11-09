@@ -18,6 +18,21 @@
  * id → { item, kind } index over both sources; `kind` is 'game' (banner +
  * links + markdown page) or 'thumb' (mosaic thumbnail + description).
  *
+ * ── SHARED LINKS ARE PERMANENT ──────────────────────────────────────────────
+ * These URLs have been sent to admissions/juries and must keep working:
+ *   https://tomascorreag.github.io/?p=65f2    UCL application
+ *   https://tomascorreag.github.io/?p=65f2v   UCL application (alias, same deck)
+ *   https://tomascorreag.github.io/?p=0c3d    OceanX challenge
+ * Rules:
+ *   - Never rename or delete these slugs or the PAGE_ALIASES entry.
+ *   - Never remove the `id` of a project they list from content.js (the deck
+ *     would silently drop that project).
+ *   - Never change the `?p=` routing in src/main.js.
+ * Editing a deck's text or order is allowed. scripts/check-portfolio-links.mjs
+ * enforces the rules: it runs before every `npm run build` (so a broken link
+ * can't deploy) and in the pre-commit hook (.githooks/pre-commit). Newly
+ * shared slugs go in its PINNED list.
+ *
  * To add a page:
  *   1. Make sure each project you want has an `id` in content.js.
  *   2. Add an entry below: a slug key + { title, intro?, items, outro? }.
@@ -56,7 +71,8 @@ for (const items of Object.values(CATEGORIES)) {
 export const PORTFOLIO_PAGES = {
   // UCL MA Digital Media: Production — application portfolio.
   // Slug is an opaque hash so the URL can't be guessed/enumerated by reading it.
-  // Shared at: https://tomascorreag.github.io/?p=65f2
+  // Shared at: https://tomascorreag.github.io/?p=65f2 (and ?p=65f2v via
+  // PAGE_ALIASES). PERMANENT: do not rename or delete this slug.
   '65f2': {
     title: 'Tomás Correa — Selected Work',
     // Arc, in order: shipped commercial craft (with its post-mortem as a
@@ -70,6 +86,7 @@ export const PORTFOLIO_PAGES = {
   // OceanX Science Impact Challenge (prompt 2: CTD / water-column data as
   // navigable 3D structures) — evidence for the "team execution capacity"
   // criterion. Shared at: https://tomascorreag.github.io/?p=0c3d
+  // PERMANENT: do not rename or delete this slug.
   '0c3d': {
     title: 'Tomás Correa — Selected Work',
     // Arc, in order: the closest analogue to the challenge (a public archive
@@ -82,6 +99,12 @@ export const PORTFOLIO_PAGES = {
   },
 };
 
+// Extra slugs that render an existing page unchanged. alias → target slug.
+// PERMANENT: shared link, see "SHARED LINKS ARE PERMANENT" above.
+export const PAGE_ALIASES = {
+  '65f2v': '65f2', // UCL: https://tomascorreag.github.io/?p=65f2v
+};
+
 /**
  * Resolves a slug to a render-ready page, or null if the slug is unknown or
  * resolves to zero valid items (so callers can show a "not found" state).
@@ -89,7 +112,7 @@ export const PORTFOLIO_PAGES = {
  * Unknown ids are skipped with a warning rather than failing the whole page.
  */
 export function resolvePage(slug) {
-  const page = PORTFOLIO_PAGES[slug];
+  const page = PORTFOLIO_PAGES[PAGE_ALIASES[slug] ?? slug];
   if (!page) return null;
 
   const slides = [];

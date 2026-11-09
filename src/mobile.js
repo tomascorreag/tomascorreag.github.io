@@ -674,7 +674,8 @@ function renderGamesFeed() {
   const feed = h('section', { class: 'm-feed' });
   for (const game of GAMES) {
     const banner = game.type === 'spritesheet'
-      ? createSpritesheetElement(game.spritesheet, { alt: game.title, className: 'm-game-banner', responsive: true })
+      // contain: the 2:1 banner box can't fit a full-width 1:1 frame (Matrix)
+      ? createSpritesheetElement(game.spritesheet, { alt: game.title, className: 'm-game-banner', responsive: true, fit: 'contain' })
       : game.type === 'parallax'
         ? createParallaxBanner(game.parallax, { alt: game.title, className: 'm-game-banner', sizes: '100vw' })
         : game.src
@@ -1008,16 +1009,19 @@ function destroySplatViewer(viewer) {
 // ---------------------------------------------------------------------------
 function attachSwipe(el, { onHorizontal, threshold = 48, offAxis = 0.6 } = {}) {
   let startX = 0, startY = 0, active = false;
+  // While pinch-zoomed, a one-finger drag pans the page; don't read it as a swipe.
+  const zoomed = () => (window.visualViewport?.scale ?? 1) > 1.01;
   el.addEventListener('touchstart', (e) => {
     // A second finger means pinch/zoom, not a swipe — cancel for the rest of
     // this gesture (touchstart fires per finger, so this catches it).
-    if (e.touches.length > 1) { active = false; return; }
+    if (e.touches.length > 1 || zoomed()) { active = false; return; }
     const t = e.touches[0]; if (!t) return;
     startX = t.clientX; startY = t.clientY; active = true;
   }, { passive: true });
   el.addEventListener('touchend', (e) => {
     if (!active) return;
     active = false;
+    if (zoomed()) return; // zoom changed mid-gesture (e.g. double-tap-drag)
     const t = e.changedTouches[0]; if (!t) return;
     const dx = t.clientX - startX;
     const dy = t.clientY - startY;

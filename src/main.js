@@ -1,5 +1,6 @@
 /**
- * Router entry — decides between the desktop and mobile apps at boot.
+ * Router entry — decides between the desktop and mobile apps at boot, and
+ * reloads to re-route if that decision flips mid-session (see below).
  *
  * Both branches are dynamic imports so only one code+CSS chunk actually
  * downloads per session. A mobile device never ships the Three.js/Rabbit/
@@ -21,14 +22,33 @@
  * via Apple Pencil + trackpad paths and usually stay on desktop; iPad in
  * full tablet-only mode reports coarse and correctly gets mobile.
  */
-const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-const isMobile = coarsePointer || window.innerWidth <= 820;
+const coarseQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+const narrowQuery = window.matchMedia('(max-width: 820px)');
+const wantsMobile = () => coarseQuery.matches || narrowQuery.matches;
+const isMobile = wantsMobile();
+
+// Re-route when the decision flips mid-session (window resized across 820px,
+// a mouse attached to a tablet). The apps aren't built to tear down, so swap
+// by reloading; routes live in the URL hash, so the open page survives.
+// Debounced so dragging a window edge back and forth across the line
+// doesn't reload on every crossing.
+let rerouteTimer = 0;
+const onDeviceChange = () => {
+  clearTimeout(rerouteTimer);
+  rerouteTimer = setTimeout(() => {
+    if (wantsMobile() !== isMobile) window.location.reload();
+  }, 400);
+};
+coarseQuery.addEventListener('change', onDeviceChange);
+narrowQuery.addEventListener('change', onDeviceChange);
 
 // URL-gated portfolio decks (`/?p=<slug>`) skip both apps: the deck is
 // self-contained, so loading desktop.js (terminal, rabbit, particles, global
 // key/resize handlers) or mobile.js just to mount it was wasted download and
 // parse. mountDeck shows its own "not found" panel for an unknown slug, so
 // presence of the param is enough.
+// PERMANENT: shared links depend on this `?p=` param (see src/config/portfolio.js);
+// scripts/check-portfolio-links.mjs fails the build if this line changes shape.
 const gatedSlug = new URLSearchParams(window.location.search).get('p');
 
 if (gatedSlug !== null) {

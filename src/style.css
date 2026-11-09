@@ -396,14 +396,22 @@
    * 2% of a 1366px-wide screen (27px) or 5% of a 600px-tall one (30px) is
    * less than 2rem — the border was clipping off the viewport edge. */
   --mosaic-margin-min: calc(var(--mosaic-frame-pad) + 4px);
-  --mosaic-right: max(2%, var(--mosaic-margin-min));
-  --mosaic-top: max(5%, var(--mosaic-margin-min));
-  --mosaic-bottom: max(5%, var(--mosaic-margin-min));
+  /* --mosaic-avail-* is the stylesheet box and is never overridden; JS only
+   * writes the --mosaic-* copies below. The detail view (.detail-box,
+   * .detail-nav) reads the avail set directly. */
+  --mosaic-avail-right: max(2%, var(--mosaic-margin-min));
+  --mosaic-avail-top: max(5%, var(--mosaic-margin-min));
+  --mosaic-avail-bottom: max(5%, var(--mosaic-margin-min));
   /* 55% of the screen, unless that would put the frame's left border over
    * the nav — then whatever is left between the nav and the right margin.
-   * At 1920 the cap is slack (grid stays 55%); at 1366 it trims ~20px;
-   * at 911 (a 1366 laptop at 150% zoom) it's what keeps the layout legible. */
-  --mosaic-width: min(55%, calc(100% - var(--mosaic-right) - var(--nav-right) - var(--mosaic-frame-pad) - 1.5rem));
+   * At 1920 the cap is slack (grid stays 55%); at 1366 it trims ~20px.
+   * Narrower than 62.5em (~1000px, ~400px of mosaic) the stacked layout at
+   * the end of this file takes over instead of shrinking this further. */
+  --mosaic-avail-width: min(55%, calc(100% - var(--mosaic-avail-right) - var(--nav-right) - var(--mosaic-frame-pad) - 1.5rem));
+  --mosaic-right: var(--mosaic-avail-right);
+  --mosaic-top: var(--mosaic-avail-top);
+  --mosaic-bottom: var(--mosaic-avail-bottom);
+  --mosaic-width: var(--mosaic-avail-width);
 
   /* Column count is frozen so `cols`/`rows` in content.js mean the same thing
    * on every display. 8 matches what a 1920px-wide screen used to auto-fill. */
@@ -628,6 +636,15 @@
     width 320ms var(--ease-smooth);
 }
 
+/* Live window resize (desktop.js toggles the class until it settles): the
+ * grid has no geometry transition, so the frame would trail it, and the
+ * fullscreen detail rects would replay their 300ms tween on every frame. */
+.is-resizing .mosaic-frame,
+.is-resizing .mosaic-item.detail-active,
+.is-resizing .gallery-fs-overlay {
+  transition: none !important;
+}
+
 /* Outer border (1px) — sweeps in from bottom-right to top-left.
  * Triangle starts as a point at (100%,100%) and expands until
  * its hypotenuse (a 45° line) has swept across the full rect. */
@@ -707,11 +724,11 @@
   gap: var(--mosaic-gap);
   /* Push first row below the handle bar in .mosaic-frame.
    * Handle bar: top 13px + height 20px = 33px from frame top.
-   * Frame sits 1.5rem above the grid, so handle bleeds calc(33px - 1.5rem) into grid.
-   * Add 12px of breathing room. Stays a FIXED px value (not scaled with the
-   * cell) because the handle bar it clears is fixed chrome. Kept in sync with
-   * MOSAIC_PAD_TOP in desktop.js, which needs the number to fit rows to the
-   * box height. */
+   * Frame sits --mosaic-frame-pad above the grid (2rem; 1.5rem stacked), so the
+   * handle bleeds 33px minus that pad into the grid. The 1.5rem below is the
+   * stacked pad: 12px of room there, ~8px in landscape. Not scaled with the
+   * cell, because the handle bar it clears is fixed chrome. layoutMosaic()
+   * reads the computed value to fit rows to the box height. */
   padding-top: calc(33px - 1.5rem + 12px);
 
   opacity: 0;
@@ -1316,6 +1333,16 @@
   pointer-events: none;
 }
 
+/* Detail view takes the full available box instead of the box fitted to the
+ * thumbnail rows (a 3-row category left the image a sliver). layoutMosaic()
+ * also drops the frame's fitted overrides, so the frame grows to match. */
+.mosaic-grid.detail-box {
+  right: var(--mosaic-avail-right);
+  top: var(--mosaic-avail-top);
+  bottom: var(--mosaic-avail-bottom);
+  width: var(--mosaic-avail-width);
+}
+
 /* Siblings fade out when detail opens */
 .mosaic-item.fading-out {
   opacity: 0;
@@ -1508,12 +1535,14 @@
 
 /* Detail nav bar — lives in #crt-screen (below scanlines),
  * positioned to align with the mosaic's top edge.
- * Uses the same right/top/width as .mosaic-grid so it overlaps exactly. */
+ * Uses the same box as .mosaic-grid.detail-box so it overlaps exactly — from
+ * the first frame, while the grid is still row-fitted during the open FLIP.
+ * Its 12px + 2.5rem extent is mirrored by detailNavHeight() in desktop.js. */
 .detail-nav {
   position: absolute;
-  right: var(--mosaic-right);
-  top: calc(var(--mosaic-top) + 12px);
-  width: var(--mosaic-width);
+  right: var(--mosaic-avail-right);
+  top: calc(var(--mosaic-avail-top) + 12px);
+  width: var(--mosaic-avail-width);
   height: 2.5rem;
   z-index: 1;
   /* below .crt-overlay (100) so scanlines cover it, like the terminal */
@@ -1808,10 +1837,14 @@
   }
 }
 
-/* ── Portrait / near-square viewports ───────────────────────────────────────
+/* ── Portrait / near-square / narrow viewports ──────────────────────────────
    Triggers on all portrait phones, portrait tablets, and 4:3 monitors.
-   Does NOT trigger on standard laptops/desktops (MacBook 14" = 1.54:1).      */
-@media (max-aspect-ratio: 4/3) {
+   Does NOT trigger on standard laptops/desktops (MacBook 14" = 1.54:1).
+   Also below 62.5em wide: once --ui-font hits its floor the side-by-side
+   mosaic is ~W - 37rem wide, unusable (and 0 at ~594px). em, so it scales
+   with the root font size like the rem terms it guards. Keep in sync with
+   mosaicPortrait in desktop.js.                                              */
+@media (max-aspect-ratio: 4/3), (max-width: 62.5em) {
 
   /* Terminal: shift anchor from vertical-center to upper area */
   .terminal-wrapper {
@@ -1842,13 +1875,13 @@
    * :root, not #crt-screen — see the geometry block above #crt-screen. */
   :root {
     --mosaic-frame-pad: 1.5rem;
-    --mosaic-right: max(2%, var(--mosaic-margin-min));
+    --mosaic-avail-right: max(2%, var(--mosaic-margin-min));
     /* 42%, floored below the nav row (top 30% + one line + 2×1rem padding)
      * plus the frame pad — on a squat 4:3 window (821×616 is the smallest
      * that still routes to desktop) 42% lands inside the nav. */
-    --mosaic-top: max(42%, calc(30% + 2 * var(--ui-font) + 2rem + var(--mosaic-frame-pad) + 0.5rem));
-    --mosaic-bottom: max(2%, var(--mosaic-margin-min));
-    --mosaic-width: calc(100% - 2 * var(--mosaic-right));
+    --mosaic-avail-top: max(42%, calc(30% + 2 * var(--ui-font) + 2rem + var(--mosaic-frame-pad) + 0.5rem));
+    --mosaic-avail-bottom: max(2%, var(--mosaic-margin-min));
+    --mosaic-avail-width: calc(100% - 2 * var(--mosaic-avail-right));
   }
 }
 

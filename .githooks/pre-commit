@@ -1,0 +1,6 @@
+#!/bin/sh
+# Blocks commits that break a portfolio link already sent out
+# (see the header of src/config/portfolio.js).
+# Enabled by `npm install` (the "prepare" script sets core.hooksPath=.githooks).
+# Bypass in an emergency with `git commit --no-verify`; the build check still runs in CI.
+exec node scripts/check-portfolio-links.mjs

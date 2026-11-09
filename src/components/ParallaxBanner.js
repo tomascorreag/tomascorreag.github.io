@@ -3,8 +3,10 @@
  * (see src/config/arboSplash.js for the format and the Unity source).
  *
  * Three motions stack on every layer:
- *   1. Placement: CSS left/top/width/height in percent of the parent layer,
- *      so the scene scales with the banner and needs no resize code.
+ *   1. Placement: CSS left/top/width/height in percent of the parent layer.
+ *      Top-level layers sit in .pb-stage, which keeps the scene's aspect and
+ *      cover-fits the root, so the scene scales (and crops) with the banner.
+ *      Only the particle canvases need resize code (resize(), DPR watcher).
  *   2. Idle loop: one Web Animation per layer on `transform` (plus `filter`
  *      for brightness keys), t0 → midpoint → t0. Unity's flat-tangent keys are
  *      a smoothstep, which cubic-bezier(1/3, 0, 2/3, 1) reproduces exactly.
@@ -77,17 +79,34 @@ function hookPointer() {
 if (typeof window !== 'undefined') hookPointer();
 
 const instances = new WeakMap();
+// Attached instances, for the DPR watcher (a WeakMap can't be iterated).
+// Added on first attach, removed in destroy(), so detached banners aren't held.
+const live = new Set();
 let io = null;
 let ro = null;
 
+// Moving the window to a screen with another density (or browser zoom)
+// changes devicePixelRatio without always resizing the banner, so the
+// ResizeObserver alone would leave canvases at the old resolution. A
+// resolution query only matches one DPR, so it is re-created after each change.
+function watchDpr() {
+  const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  mq.addEventListener('change', () => {
+    for (const inst of live) inst.resize();
+    watchDpr();
+  }, { once: true });
+}
+
 function observers() {
   if (io) return;
+  watchDpr();
   io = new IntersectionObserver((entries) => {
     for (const entry of entries) {
       const inst = instances.get(entry.target);
       if (!inst) continue;
       if (entry.target.isConnected) {
         inst.attached = true;
+        live.add(inst);
         inst.setVisible(entry.isIntersecting);
       } else if (inst.attached) {
         // Removed from the page (detail closed, list re-rendered).
@@ -381,7 +400,11 @@ class Emitter {
  * @param {object} opts
  *   className  classes for the root (banner slot styling: aspect, bg)
  *   alt        accessible label for the whole banner
- *   sizes      `sizes` of the banner slot; each layer scales it by its share
+ *   sizes      `sizes` of the banner slot; each layer scales it by its share.
+ *              Assumes the stage is as wide as the root, i.e. the slot keeps
+ *              the scene's aspect (inline default; the deck card box is sized
+ *              to it). A slot taller than the scene's aspect crops the sides
+ *              and these sizes then underestimate the stage width.
  *   lazy       lazy-load layer images (default true)
  *   managed    register with the shared offscreen manager (default true).
  *              Pass false when the caller plays/pauses the loop itself
@@ -896,6 +919,7 @@ export function createParallaxBanner(scene, opts = {}) {
       io.unobserve(root);
       ro.unobserve(root);
       instances.delete(root);
+      live.delete(inst);
     },
   };
   instances.set(root, inst);

@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/check-portfolio-links.mjs",
     "build": "vite build",
+    "check-links": "node scripts/check-portfolio-links.mjs",
+    "prepare": "git config core.hooksPath .githooks || true",
     "preview": "vite preview",
     "optimize-assets": "bash scripts/optimize-assets.sh",
     "optimize-assets:dry": "bash -c \"DRY_RUN=1 bash scripts/optimize-assets.sh\""

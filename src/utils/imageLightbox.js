@@ -5,7 +5,7 @@
  * Standalone and view-agnostic: it positions a `fixed` overlay relative to the
  * viewport, so it works inside any scroll container (the desktop detail view has
  * its own scroll-space variant in desktop.js; this one is used by the portfolio
- * deck, which scrolls its own overlay). "FLIP" = First/Last/Invert/Play: snapshot
+ * deck, which scrolls its own overlay, and by the mobile article sheet). "FLIP" = First/Last/Invert/Play: snapshot
  * the image's current rect, drop a copy there, then transition it to the target
  * rect — the browser tweens the gap. Same idea as a tween between two transforms.
  * ──────────────────────────────────────────────────────────────────────── */
@@ -60,14 +60,33 @@ export function openImageLightbox(imgEl) {
   document.body.appendChild(backdrop);
   document.body.appendChild(overlay);
 
+  const placeAt = (r) => {
+    overlay.style.left = `${r.x}px`;
+    overlay.style.top = `${r.y}px`;
+    overlay.style.width = `${r.w}px`;
+    overlay.style.height = `${r.h}px`;
+  };
+
   // FLIP: commit the "from" rect, then animate to the "to" rect. The backdrop
   // starts transparent (CSS) and fades in over the same reflow.
   void overlay.offsetWidth;
   backdrop.style.opacity = '1';
-  overlay.style.left = `${to.x}px`;
-  overlay.style.top = `${to.y}px`;
-  overlay.style.width = `${to.w}px`;
-  overlay.style.height = `${to.h}px`;
+  placeAt(to);
+
+  // Follow window resize / rotation while open: refit instantly (transition
+  // off for the write, flushed, then restored) once per frame.
+  let resizeFrame = 0;
+  function onResize() {
+    if (resizeFrame) return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = 0;
+      overlay.style.transition = 'none';
+      placeAt(containRect(ar, window.innerWidth, window.innerHeight));
+      void overlay.offsetWidth;
+      overlay.style.transition = '';
+    });
+  }
+  window.addEventListener('resize', onResize);
 
   let closing = false;
   function close() {
@@ -75,15 +94,14 @@ export function openImageLightbox(imgEl) {
     closing = true;
     activeClose = null;
     document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('resize', onResize);
+    cancelAnimationFrame(resizeFrame);
 
     // Re-read the source rect at close time so the reverse FLIP lands on the
     // image even if the page scrolled while the lightbox was open.
     const back = imgEl.getBoundingClientRect();
     backdrop.style.opacity = '0';
-    overlay.style.left = `${back.left}px`;
-    overlay.style.top = `${back.top}px`;
-    overlay.style.width = `${back.width}px`;
-    overlay.style.height = `${back.height}px`;
+    placeAt({ x: back.left, y: back.top, w: back.width, h: back.height });
 
     const cleanup = () => {
       overlay.removeEventListener('transitionend', cleanup);

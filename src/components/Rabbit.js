@@ -315,10 +315,9 @@ export class Rabbit extends Sprite {
         this.element.classList.remove('jumping');
 
         // Update position based on direction
-        const offset = RABBIT_CONFIG.jumpDistance * direction;
-        this.x = this.x - offset;
-        this.updatePosition();
-        this.refreshBottomCenter();
+        // _anchor also catches a resize that happened mid-jump.
+        this.x -= RABBIT_CONFIG.jumpDistance * direction;
+        this._anchor();
 
         // Stop continuous glow updates
         this.stopGlowAnimation();
@@ -529,9 +528,31 @@ export class Rabbit extends Sprite {
 
     this.addEventListener(document, 'mousemove', this.mouseHandler);
     this.addEventListener(document, 'click', this.clickHandler);
-    // The cached bottom-center goes stale if the viewport changes size
-    // (the rabbit is anchored to the viewport bottom).
-    this.addEventListener(window, 'resize', () => this.refreshBottomCenter());
+  }
+
+  /** Spawns and keeps the rabbit on the viewport floor across resizes. */
+  spawn(parent) {
+    super.spawn(parent);
+    this.addEventListener(window, 'resize', () => {
+      // Mid-drop/jump the end handlers re-anchor; frozen = mid-morph pose.
+      if (!this.isSpawning && !this.isJumping && !this.isFrozen) this._anchor();
+    });
+    return this;
+  }
+
+  /**
+   * Snaps `top` to the viewport floor and pulls `x` back inside the edges.
+   * `top` is fixed px written on landing, so a taller window left the rabbit
+   * floating and a shorter one dropped it below the fold.
+   */
+  _anchor() {
+    if (!this.element) return;
+    const { width, height, edgeMargin } = RABBIT_CONFIG;
+    const maxX = window.innerWidth - width * this.scale - edgeMargin;
+    this.x = Math.max(Math.min(edgeMargin, maxX), Math.min(this.x, maxX));
+    this.y = window.innerHeight - height * this.scale;
+    this.updatePosition();
+    this.refreshBottomCenter();
   }
 
   /**

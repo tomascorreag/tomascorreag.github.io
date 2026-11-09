@@ -589,15 +589,12 @@ const MOSAIC_COLS = 8;
 // Gap as a fraction of cell edge. 0.1 = the original 12px gap / 120px cell, so
 // the spacing shrinks with the cells instead of looking doubled when small.
 const MOSAIC_GAP_RATIO = 0.1;
-// Mirrors .mosaic-grid's padding-top: calc(33px - 1.5rem + 12px). Fixed px,
-// because the handle bar it clears is fixed chrome that doesn't scale.
-const MOSAIC_PAD_TOP = 33 - 24 + 12;
-// Same condition as the portrait block in style.css. There the box spans the
+// Same condition as the stacked block in style.css. There the box spans the
 // full width, so the fitted grid is centred (JS overrides --mosaic-right)
 // rather than right-anchored against the terminal.
-const mosaicPortrait = window.matchMedia('(max-aspect-ratio: 4/3)');
+const mosaicPortrait = window.matchMedia('(max-aspect-ratio: 4/3), (max-width: 62.5em)');
 
-const MOSAIC_GEOM_VARS = ['--mosaic-top', '--mosaic-bottom', '--mosaic-right', '--mosaic-width', '--mosaic-cell'];
+const MOSAIC_BOX_VARS = ['--mosaic-top', '--mosaic-bottom', '--mosaic-right', '--mosaic-width'];
 // The vars live on <html> (see the :root block in style.css): #mosaic sits
 // OUTSIDE #crt-screen, so anything set on #crt-screen never reaches it.
 const mosaicGeomHost = document.documentElement;
@@ -609,7 +606,13 @@ let mosaicRows = 0;
 
 /** Drops the JS overrides so the stylesheet's available box applies again. */
 function clearMosaicGeometry() {
-  MOSAIC_GEOM_VARS.forEach(v => mosaicGeomHost.style.removeProperty(v));
+  MOSAIC_BOX_VARS.forEach(v => mosaicGeomHost.style.removeProperty(v));
+  mosaicGeomHost.style.removeProperty('--mosaic-cell');
+}
+
+/** Root font size in px, for converting the stylesheet's rem constants. */
+function remPx() {
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 }
 
 /**
@@ -643,6 +646,14 @@ function layoutMosaic() {
     return;
   }
 
+  // Detail view: the image + doc get the whole available box, not the box
+  // fitted to the row count. --mosaic-cell stays so the hidden grid underneath
+  // keeps its rows (and closeDetail's reverse FLIP refits before measuring).
+  if (mosaicEl.classList.contains('detail-box')) {
+    MOSAIC_BOX_VARS.forEach(v => mosaicGeomHost.style.removeProperty(v));
+    return;
+  }
+
   // Clearing first makes the element lay out at its AVAILABLE size, so we can
   // read the box straight off the DOM instead of duplicating the 2%/5%/55%
   // constants here. Whatever the stylesheet says is what we fit into.
@@ -650,6 +661,9 @@ function layoutMosaic() {
   const avail = mosaicEl.getBoundingClientRect();
   const screen = crtScreen.getBoundingClientRect();
   if (avail.width <= 0 || avail.height <= 0) return;
+  // Read, not mirrored: it's calc(33px - 1.5rem + 12px), so it moves with the
+  // root font size.
+  const padTop = parseFloat(getComputedStyle(mosaicEl).paddingTop) || 0;
 
   // Solve for cell edge on each axis, given gap = cell * ratio:
   //   width:  cols*c + (cols-1)*ratio*c = availW
@@ -658,12 +672,12 @@ function layoutMosaic() {
   const rows = mosaicRows;
   const cellByWidth = avail.width / (cols + (cols - 1) * MOSAIC_GAP_RATIO);
   const cellByHeight =
-    (avail.height - MOSAIC_PAD_TOP) / (rows + (rows - 1) * MOSAIC_GAP_RATIO);
+    (avail.height - padTop) / (rows + (rows - 1) * MOSAIC_GAP_RATIO);
   const cell = Math.max(1, Math.min(cellByWidth, cellByHeight));
 
   const gap = cell * MOSAIC_GAP_RATIO;
   const width = cols * cell + (cols - 1) * gap;
-  const height = MOSAIC_PAD_TOP + rows * cell + (rows - 1) * gap;
+  const height = padTop + rows * cell + (rows - 1) * gap;
 
   // Vertically centred in whatever slack the available box has. Landscape:
   // right-anchored (the terminal owns the left side). Portrait: the box is
@@ -688,9 +702,21 @@ function scheduleMosaicLayout() {
   mosaicLayoutFrame = requestAnimationFrame(() => {
     mosaicLayoutFrame = 0;
     layoutMosaic();
+    relayoutDetail();
   });
 }
-window.addEventListener('resize', scheduleMosaicLayout);
+
+// html.is-resizing kills the frame/detail geometry transitions while the
+// window is being dragged, so the frame doesn't trail the grid and the detail
+// image snaps to its new rect instead of replaying the fullscreen tween.
+let resizeSettleTimer = 0;
+function onWindowResize() {
+  document.documentElement.classList.add('is-resizing');
+  clearTimeout(resizeSettleTimer);
+  resizeSettleTimer = setTimeout(() => document.documentElement.classList.remove('is-resizing'), 200);
+  scheduleMosaicLayout();
+}
+window.addEventListener('resize', onWindowResize);
 mosaicPortrait.addEventListener('change', scheduleMosaicLayout);
 
 // Custom CRT scrollbar — mounted only in the scrolling views (article + games).
@@ -1478,17 +1504,22 @@ function getMediaAspectRatio(itemEl) {
  * @param {DOMRect} containerRect - The mosaic container's bounding rect
  * @returns {{ targetRect: {x,y,w,h}, infoSide: 'below'|'left'|'right' }}
  */
-// Height reserved for the detail nav bar (back + prev/next arrows).
-// 20px offset matches the CSS top: calc(5% + 20px) on .detail-nav.
-const NAV_BAR_HEIGHT = 70;
+// Height reserved for the detail nav bar (back + prev/next arrows), from the
+// grid's top: .detail-nav's 12px offset + its 2.5rem height + 18px clearance.
+function detailNavHeight() {
+  return 12 + 2.5 * remPx() + 18;
+}
 
-function computeDetailLayout(itemEl, containerRect, itemData = {}) {
-  const ar = getMediaAspectRatio(itemEl);
+// `prev` pins the portrait side (and, on a resize relayout, the aspect ratio
+// chosen at open); without it the side comes from the thumbnail's grid rect.
+function computeDetailLayout(itemEl, containerRect, itemData = {}, prev = null) {
+  const ar = prev?.ar ?? getMediaAspectRatio(itemEl);
+  const navH = detailNavHeight();
   const cw = containerRect.width;
-  const ch = containerRect.height - NAV_BAR_HEIGHT; // available height below nav bar
+  const ch = containerRect.height - navH; // available height below nav bar
 
   let x, y, w, h, infoSide;
-  y = NAV_BAR_HEIGHT;
+  y = navH;
 
   const forced = itemData.detailLayout;
 
@@ -1529,11 +1560,15 @@ function computeDetailLayout(itemEl, containerRect, itemData = {}) {
     }
 
     // Determine side: which edge of the mosaic is the thumbnail closer to?
-    const thumbRect = itemEl.getBoundingClientRect();
-    const thumbCenterX = thumbRect.left + thumbRect.width / 2;
-    const containerCenterX = containerRect.left + cw / 2;
+    let leftHalf;
+    if (prev) {
+      leftHalf = prev.infoSide === 'right';
+    } else {
+      const thumbRect = itemEl.getBoundingClientRect();
+      leftHalf = thumbRect.left + thumbRect.width / 2 <= containerRect.left + cw / 2;
+    }
 
-    if (thumbCenterX <= containerCenterX) {
+    if (leftHalf) {
       // Thumbnail is on the left side → image stays left, info on right
       x = 0;
       infoSide = 'right';
@@ -1544,7 +1579,7 @@ function computeDetailLayout(itemEl, containerRect, itemData = {}) {
     }
   }
 
-  return { targetRect: { x, y, w, h }, infoSide };
+  return { targetRect: { x, y, w, h }, infoSide, ar };
 }
 
 // ============================================
@@ -1566,6 +1601,26 @@ function computeFullscreenRect(ar, containerRect, topMargin = 0) {
   return { x: (cw - w) / 2, y: topMargin + (ch - h) / 2, w, h };
 }
 
+/** Writes a {x,y,w,h} rect as inline left/top/width/height px. */
+function setRect(el, r) {
+  el.style.left = `${r.x}px`;
+  el.style.top = `${r.y}px`;
+  el.style.width = `${r.w}px`;
+  el.style.height = `${r.h}px`;
+}
+
+/**
+ * Fullscreen target for an image of aspect `ar`, below the back button nav
+ * bar — its actual bottom is measured so the image never slides under it.
+ */
+function detailFullscreenRect(ar, containerRect) {
+  const nav = crtScreen.querySelector('.detail-nav');
+  const topMargin = nav
+    ? Math.max(0, nav.getBoundingClientRect().bottom - containerRect.top) + 8
+    : 0;
+  return computeFullscreenRect(ar, containerRect, topMargin);
+}
+
 /**
  * Expands the detail image to fill the container (AR-preserved).
  * Fades out the info panel and hides the prev/next arrows.
@@ -1576,16 +1631,8 @@ function enterDetailFullscreen() {
   const layout = itemEl._detailLayout;
   if (!layout) return;
 
-  const containerRect = mosaicEl.getBoundingClientRect();
   const { targetRect } = layout;
-  const ar = targetRect.w / targetRect.h;
-  // Reserve space for the back button nav bar — measure its actual bottom
-  // relative to the mosaic top so the image never slides under it.
-  const nav = crtScreen.querySelector('.detail-nav');
-  const topMargin = nav
-    ? Math.max(0, nav.getBoundingClientRect().bottom - containerRect.top) + 8
-    : 0;
-  const fsRect = computeFullscreenRect(ar, containerRect, topMargin);
+  const fsRect = detailFullscreenRect(targetRect.w / targetRect.h, mosaicEl.getBoundingClientRect());
 
   // Reset any scroll so the image expands from its unscrolled position (the
   // info is about to fade out, so the page collapses to a single screen anyway).
@@ -1593,10 +1640,7 @@ function enterDetailFullscreen() {
 
   itemEl.classList.add('detail-transitioning');
   void itemEl.offsetWidth; // force reflow so browser commits "from" state before animating
-  itemEl.style.left = `${fsRect.x}px`;
-  itemEl.style.top = `${fsRect.y}px`;
-  itemEl.style.width = `${fsRect.w}px`;
-  itemEl.style.height = `${fsRect.h}px`;
+  setRect(itemEl, fsRect);
 
   const info = mosaicEl.querySelector('.detail-info');
   if (info) { info.classList.remove('visible'); info.style.pointerEvents = 'none'; }
@@ -1623,9 +1667,11 @@ function enterDetailFullscreen() {
  * from the image's current position to fill the container, then fades out the
  * info panel — mirroring the main-thumb fullscreen experience.
  */
-function enterGalleryImageFullscreen(imgEl) {
-  if (!activeDetail || detailFullscreen) return;
-
+/**
+ * Source (`from`) and fullscreen (`to`) rects for a gallery image, in the
+ * scroll container's content space. Re-run on resize, since both move.
+ */
+function galleryFullscreenRects(imgEl) {
   const containerRect = mosaicEl.getBoundingClientRect();
   const imgRect = imgEl.getBoundingClientRect();
 
@@ -1637,21 +1683,24 @@ function enterGalleryImageFullscreen(imgEl) {
   const scrollLeft = mosaicEl.scrollLeft;
   const scrollTop = mosaicEl.scrollTop;
 
-  const fromX = imgRect.left - containerRect.left + scrollLeft;
-  const fromY = imgRect.top - containerRect.top + scrollTop;
-  const fromW = imgRect.width;
-  const fromH = imgRect.height;
-
-  const ar = fromW / fromH;
-  const nav = crtScreen.querySelector('.detail-nav');
-  const topMargin = nav
-    ? Math.max(0, nav.getBoundingClientRect().bottom - containerRect.top) + 8
-    : 0;
-  const toRect = computeFullscreenRect(ar, containerRect, topMargin);
+  const from = {
+    x: imgRect.left - containerRect.left + scrollLeft,
+    y: imgRect.top - containerRect.top + scrollTop,
+    w: imgRect.width,
+    h: imgRect.height,
+  };
+  const to = detailFullscreenRect(from.w / from.h, containerRect);
   // computeFullscreenRect returns viewport-relative (visual) coords; shift into
   // content space too so the zoomed image lands centered in the CURRENT view.
-  const toX = toRect.x + scrollLeft;
-  const toY = toRect.y + scrollTop;
+  to.x += scrollLeft;
+  to.y += scrollTop;
+  return { from, to };
+}
+
+function enterGalleryImageFullscreen(imgEl) {
+  if (!activeDetail || detailFullscreen) return;
+
+  const { from, to } = galleryFullscreenRects(imgEl);
 
   // Lock scrolling while zoomed so the content (and the content-space overlay)
   // can't drift out from under the backdrop. Restored on exit.
@@ -1668,10 +1717,7 @@ function enterGalleryImageFullscreen(imgEl) {
 
   const overlay = document.createElement('div');
   overlay.className = 'gallery-fs-overlay';
-  overlay.style.left = `${fromX}px`;
-  overlay.style.top = `${fromY}px`;
-  overlay.style.width = `${fromW}px`;
-  overlay.style.height = `${fromH}px`;
+  setRect(overlay, from);
 
   const overlayImg = document.createElement('img');
   // currentSrc = the variant the browser actually picked (avif/webp) for a
@@ -1683,10 +1729,7 @@ function enterGalleryImageFullscreen(imgEl) {
 
   // FLIP: commit "from" state then animate to "to"
   void overlay.offsetWidth;
-  overlay.style.left = `${toX}px`;
-  overlay.style.top = `${toY}px`;
-  overlay.style.width = `${toRect.w}px`;
-  overlay.style.height = `${toRect.h}px`;
+  setRect(overlay, to);
 
   // Fade out main detail image alongside the info panel
   const { el: itemEl } = activeDetail;
@@ -1700,7 +1743,8 @@ function enterGalleryImageFullscreen(imgEl) {
 
   activeDetail._galleryOverlay = overlay;
   activeDetail._galleryBackdrop = backdrop;
-  activeDetail._galleryFromRect = { x: fromX, y: fromY, w: fromW, h: fromH };
+  activeDetail._galleryFromRect = from;
+  activeDetail._galleryImg = imgEl;
   detailFullscreen = true;
 }
 
@@ -1847,11 +1891,26 @@ function openDetail(itemEl, itemData) {
     h: itemRect.height,
   };
 
-  // ---- Compute target rect (no CSS layout switching needed) ----
-  const layout = computeDetailLayout(itemEl, containerRect, itemData);
-  const { targetRect } = layout;
+  // The detail view uses the full available box, not the box fitted to the
+  // thumbnail rows. Measure it with a probe toggle; the grid itself only grows
+  // once the FLIP lands (expandDetailBox), because growing it now would reflow
+  // the fading siblings mid-fade. Until then the item sits offset inside the
+  // fitted grid at the same on-screen spot.
+  mosaicEl.classList.add('detail-box');
+  const boxRect = mosaicEl.getBoundingClientRect();
+  mosaicEl.classList.remove('detail-box');
+  const offX = boxRect.left - containerRect.left;
+  const offY = boxRect.top - containerRect.top;
 
-  // Store layout on the element for closeDetail / navigateDetail
+  // ---- Compute target rect (no CSS layout switching needed) ----
+  // Portrait side = which half of the fitted grid the thumbnail is in; decided
+  // here because computeDetailLayout only sees the (wider) box.
+  const leftHalf = itemRect.left + itemRect.width / 2 <= containerRect.left + containerRect.width / 2;
+  const layout = computeDetailLayout(itemEl, boxRect, itemData, { infoSide: leftHalf ? 'right' : 'left' });
+  const { targetRect } = layout;
+  const shiftedRect = { ...targetRect, x: targetRect.x + offX, y: targetRect.y + offY };
+
+  // Store layout on the element for closeDetail / navigateDetail / resize
   itemEl._detailLayout = layout;
 
   // Let clicks pass through grid to nav bar underneath
@@ -1879,16 +1938,13 @@ function openDetail(itemEl, itemData) {
 
   // Position the item absolutely at the target rect
   itemEl.classList.add('detail-active');
-  itemEl.style.left = `${targetRect.x}px`;
-  itemEl.style.top = `${targetRect.y}px`;
-  itemEl.style.width = `${targetRect.w}px`;
-  itemEl.style.height = `${targetRect.h}px`;
+  setRect(itemEl, shiftedRect);
 
   // ---- FLIP: animate from grid rect → target rect ----
   // Uniform scale based on width — avoids distortion
   const s = firstRect.w / targetRect.w;
-  const dx = firstRect.x - targetRect.x;
-  const dy = firstRect.y - targetRect.y;
+  const dx = firstRect.x - shiftedRect.x;
+  const dy = firstRect.y - shiftedRect.y;
 
   const anim = itemEl.animate([
     { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
@@ -1904,6 +1960,7 @@ function openDetail(itemEl, itemData) {
   buildDetailNav(itemData, layout);
 
   anim.onfinish = () => {
+    if (activeDetail?.sessionId === sessionId) expandDetailBox();
     buildDetailInfo(itemData, layout);
     // Attach click-to-fullscreen on the media element
     if (activeDetail?.sessionId === sessionId) {
@@ -2069,8 +2126,34 @@ function appendDetailBody(container, itemData) {
   }
 }
 
+const DETAIL_PAD_X = 16; // portrait doc horizontal padding (px)
+const DETAIL_PAD_Y = 24; // portrait doc top padding (px)
+const DETAIL_GAP = 24;   // horizontal gap between image and wrapped text (px)
+
+/**
+ * Writes the layout-dependent geometry of a detail-info panel. Split out of
+ * buildDetailInfo so a resize can re-run it on the live panel.
+ */
+function positionDetailInfo(info, { targetRect, infoSide }, containerWidth) {
+  if (infoSide === 'below' || infoSide === 'below-split') {
+    // Landscape: pin the doc directly under the image at its natural height.
+    info.style.top = `${targetRect.y + targetRect.h}px`;
+    return;
+  }
+  info.style.top = `${targetRect.y}px`;
+  info.style.width = `${containerWidth}px`;
+  const spacer = info.querySelector('.detail-info-float');
+  if (!spacer) return;
+  // From the doc's content-top (targetRect.y + PAD_Y) down to the image's
+  // bottom (targetRect.y + targetRect.h): the wrapped text clears at image bottom.
+  spacer.style.height = `${targetRect.h - DETAIL_PAD_Y}px`;
+  // Width spans image width + gap; negative margin pulls the float's outer
+  // edge out of the doc padding to sit flush with the image's outer edge.
+  spacer.style.width = `${targetRect.w + DETAIL_GAP}px`;
+}
+
 function buildDetailInfo(itemData, layout) {
-  const { targetRect, infoSide } = layout;
+  const { infoSide } = layout;
 
   const info = document.createElement('div');
   const isBelow = infoSide === 'below' || infoSide === 'below-split';
@@ -2096,49 +2179,29 @@ function buildDetailInfo(itemData, layout) {
     appendDetailBody(info, itemData);
   }
 
-  // Position based on layout — also set height so overflow-y: auto works.
-  // Without an explicit height, the browser can't know when to scroll.
-  const containerRect = mosaicEl.getBoundingClientRect();
-
-  if (infoSide === 'below' || infoSide === 'below-split') {
-    // Landscape: pin the doc directly under the image at its natural height and
-    // let .mosaic-grid.detail-scroll scroll the image + doc as one unit.
-    info.style.top = `${targetRect.y + targetRect.h}px`;
-    mosaicEl.classList.add('detail-scroll');
-  } else {
+  if (!isBelow) {
     // Portrait: image on one side, doc spanning the FULL width beneath it.
     // A transparent floated spacer (first child) shadows the image's footprint
     // so the text wraps beside the image, then widens to full width once it
     // clears the image's bottom — true float-wrap. The image itself stays an
     // absolutely-positioned sibling; both scroll together via .detail-scroll.
-    const PAD_X = 16;   // doc horizontal padding (px) — keep in sync with inline padding below
-    const PAD_Y = 24;   // doc top padding (px)
-    const GAP = 24;     // horizontal gap between image and wrapped text (px)
-
-    info.style.top = `${targetRect.y}px`;
     info.style.left = '0px';
-    info.style.width = `${containerRect.width}px`;
-    info.style.padding = `${PAD_Y}px ${PAD_X}px`;
+    info.style.padding = `${DETAIL_PAD_Y}px ${DETAIL_PAD_X}px`;
 
     const spacer = document.createElement('div');
     spacer.className = 'detail-info-float';
-    // From the doc's content-top (targetRect.y + PAD_Y) down to the image's
-    // bottom (targetRect.y + targetRect.h): the wrapped text clears at image bottom.
-    spacer.style.height = `${targetRect.h - PAD_Y}px`;
-    // Width spans image width + gap; negative margin pulls the float's outer
-    // edge out of the doc padding to sit flush with the image's outer edge.
-    spacer.style.width = `${targetRect.w + GAP}px`;
     if (infoSide === 'right') {
       spacer.style.float = 'left';   // image on the left (x = 0)
-      spacer.style.marginLeft = `${-PAD_X}px`;
+      spacer.style.marginLeft = `${-DETAIL_PAD_X}px`;
     } else {
       spacer.style.float = 'right';  // image on the right (x = cw - w)
-      spacer.style.marginRight = `${-PAD_X}px`;
+      spacer.style.marginRight = `${-DETAIL_PAD_X}px`;
     }
     info.insertBefore(spacer, info.firstChild);
-
-    mosaicEl.classList.add('detail-scroll');
   }
+  // Both layouts scroll image + doc as one unit via .mosaic-grid.detail-scroll.
+  mosaicEl.classList.add('detail-scroll');
+  positionDetailInfo(info, layout, mosaicEl.getBoundingClientRect().width);
 
   mosaicEl.appendChild(info);
   // Start at the top whenever a doc is (re)built (open / navigate).
@@ -2155,6 +2218,60 @@ function buildDetailInfo(itemData, layout) {
       info.classList.add('visible');
     });
   });
+}
+
+/**
+ * Grows the grid from the row-fitted box to the full available box (see
+ * openDetail) and re-places the open detail in it. No-op once expanded.
+ */
+function expandDetailBox() {
+  if (mosaicEl.classList.contains('detail-box')) return;
+  mosaicEl.classList.add('detail-box');
+  layoutMosaic(); // releases the frame to the same box
+  relayoutDetail();
+}
+
+/**
+ * Re-fits the open detail view to the current container: image, doc panel,
+ * fullscreen image, gallery overlay. Rects are written directly; during a
+ * window resize html.is-resizing suppresses their transitions, so nothing
+ * replays its open/fullscreen tween.
+ */
+function relayoutDetail() {
+  if (!activeDetail) return;
+  const { el: itemEl, data } = activeDetail;
+  const layout = itemEl._detailLayout;
+  if (!layout) return;
+  if (!mosaicEl.classList.contains('detail-box')) {
+    // Resized mid-FLIP: grow the grid now instead of when the FLIP lands.
+    mosaicEl.classList.add('detail-box');
+    layoutMosaic();
+  }
+
+  const containerRect = mosaicEl.getBoundingClientRect();
+  // In place: openDetail's onfinish closure holds this same object.
+  Object.assign(layout, computeDetailLayout(itemEl, containerRect, data, layout));
+  const { targetRect } = layout;
+
+  const info = mosaicEl.querySelector('.detail-info');
+  if (info) positionDetailInfo(info, layout, containerRect.width);
+
+  if (detailFullscreen && !activeDetail._galleryOverlay) {
+    setRect(itemEl, detailFullscreenRect(targetRect.w / targetRect.h, containerRect));
+    return;
+  }
+  setRect(itemEl, targetRect);
+
+  if (activeDetail._galleryOverlay) {
+    // Collapse the backdrop first: it is part of scrollHeight itself, so a
+    // narrower window (shorter doc) would otherwise never shrink it.
+    const backdrop = activeDetail._galleryBackdrop;
+    backdrop.style.height = '0px';
+    const { from, to } = galleryFullscreenRects(activeDetail._galleryImg);
+    activeDetail._galleryFromRect = from;
+    setRect(activeDetail._galleryOverlay, to);
+    backdrop.style.height = `${mosaicEl.scrollHeight}px`;
+  }
 }
 
 /**
@@ -2250,20 +2367,17 @@ function closeDetail(instant = false) {
     itemEl.style.width = '';
     itemEl.style.height = '';
     mosaicEl.querySelectorAll('.mosaic-item').forEach(el => el.classList.remove('fading-out'));
+    mosaicEl.classList.remove('detail-box');
+    layoutMosaic();
     return;
   }
 
   // ---- Reverse FLIP: absolute position → grid position ----
-  const containerRect = mosaicEl.getBoundingClientRect();
-
-  // FIRST: snapshot current absolute position (relative to mosaic)
+  // FIRST: snapshot current position. Viewport space, because the container
+  // itself shrinks back to the row-fitted box below.
   const itemRect = itemEl.getBoundingClientRect();
-  const firstRect = {
-    x: itemRect.left - containerRect.left,
-    y: itemRect.top - containerRect.top,
-    w: itemRect.width,
-    h: itemRect.height,
-  };
+  mosaicEl.classList.remove('detail-box');
+  layoutMosaic();
 
   // Remove placeholder + detail-active simultaneously so the grid sees the same
   // number of items as before (placeholder gone, itemEl back in flow).
@@ -2278,17 +2392,11 @@ function closeDetail(instant = false) {
 
   // LAST: measure grid position
   const gridRect = itemEl.getBoundingClientRect();
-  const lastRect = {
-    x: gridRect.left - containerRect.left,
-    y: gridRect.top - containerRect.top,
-    w: gridRect.width,
-    h: gridRect.height,
-  };
 
   // Uniform scale for reverse animation
-  const s = firstRect.w / lastRect.w;
-  const dx = firstRect.x - lastRect.x;
-  const dy = firstRect.y - lastRect.y;
+  const s = itemRect.width / gridRect.width;
+  const dx = itemRect.left - gridRect.left;
+  const dy = itemRect.top - gridRect.top;
 
   itemEl.animate([
     { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
@@ -2635,18 +2743,17 @@ async function navigateDetail(direction) {
     // Remove old detail info
     if (info) info.remove();
 
-    // Compute layout for the new item before touching its classes
+    // Compute layout for the new item before touching its classes. Navigating
+    // before the open FLIP landed: grow to the full box first (see openDetail).
+    // The old item has no layout anymore, so the relayout inside is a no-op.
+    expandDetailBox();
     const containerRect = mosaicEl.getBoundingClientRect();
     const layout = computeDetailLayout(nextEl, containerRect, nextData);
-    const { targetRect } = layout;
 
     // Pull nextEl out of grid flow while still invisible (detail-fading = opacity:0),
     // THEN remove fading-out — it never appears at its grid position.
     nextEl.classList.add('detail-active', 'detail-fading');
-    nextEl.style.left = `${targetRect.x}px`;
-    nextEl.style.top = `${targetRect.y}px`;
-    nextEl.style.width = `${targetRect.w}px`;
-    nextEl.style.height = `${targetRect.h}px`;
+    setRect(nextEl, layout.targetRect);
     nextEl._detailLayout = layout;
     // Now safe — nextEl is already absolutely positioned and invisible via detail-fading
     nextEl.classList.remove('fading-out');

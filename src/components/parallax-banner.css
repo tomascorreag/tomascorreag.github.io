@@ -2,7 +2,8 @@
  *
  * The root also carries the slot's own class (.game-banner, .article-banner,
  * .m-game-banner, .deck-card-media-el), which sets width and background.
- * Aspect ratio comes inline from the scene's view size. */
+ * The default aspect ratio comes inline from the scene's view size; a slot
+ * may override it (the deck card fills its box) and .pb-stage crops to fit. */
 
 .parallax-banner {
   position: relative;

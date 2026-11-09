@@ -59,22 +59,52 @@ export function getActiveConfig() {
   return CRT_CONFIG;
 }
 
-/**
- * Injects CRT config as CSS custom properties and listens for
- * viewport changes that cross a tier boundary.
- *
- * Without the resize listener, rotating a tablet or resizing the
- * browser would lock the user into the wrong CRT settings — like
- * a quality setting that only applies on launch, not at runtime.
- */
 let lastTier = null;
 
+/**
+ * Rounds a CSS px length to a whole number of device pixels. At fractional
+ * DPR (1.25, 1.5, browser zoom) a 2px band covers 2.5 device px and the
+ * repeating gradient beats against the pixel grid (moiré). Unchanged at DPR
+ * 1 and 2.
+ */
+function snapToDevicePx(px) {
+  const dpr = window.devicePixelRatio || 1;
+  return Math.max(1, Math.round(px * dpr)) / dpr;
+}
+
+function setScanlineSize(root, config) {
+  root.style.setProperty('--scanline-spacing', `${snapToDevicePx(config.scanlineSpacing)}px`);
+  root.style.setProperty('--scanline-size', `${snapToDevicePx(config.scanlineSize)}px`);
+}
+
+/**
+ * Calls onChange whenever devicePixelRatio changes (zoom, moving the window
+ * to another display). A resolution query only matches one value, so it's
+ * re-armed with the new DPR after each change.
+ */
+function watchDevicePixelRatio(onChange) {
+  const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+  mq.addEventListener('change', () => {
+    onChange();
+    watchDevicePixelRatio(onChange);
+  }, { once: true });
+}
+
+/**
+ * Injects CRT config as CSS custom properties, re-applies them when the tier
+ * changes on resize, and re-snaps scanline sizes when the DPR changes.
+ *
+ * Only the desktop app and desktop decks call this (main.js). The one
+ * resize-sensitive tier input is isMobileDevice(), and crossing it also makes
+ * main.js reload into the mobile app, so the tier listener is mostly a
+ * fallback for the 400ms before that reload.
+ */
 export function injectCRTVariables() {
   const currentTier = getDeviceTier();
 
   // Set up resize listener on first call.
-  // Debounced — getDeviceTier() calls isMobileDevice() which reads window.innerWidth,
-  // and a tier change is only meaningful after the resize settles.
+  // Debounced — getDeviceTier() calls isMobileDevice() which reads the viewport
+  // width, and a tier change is only meaningful after the resize settles.
   if (lastTier === null) {
     let resizeTimer;
     window.addEventListener('resize', () => {
@@ -87,6 +117,7 @@ export function injectCRTVariables() {
         }
       }, 150);
     });
+    watchDevicePixelRatio(() => setScanlineSize(document.documentElement, getActiveConfig()));
   }
   lastTier = currentTier;
   const root = document.documentElement;
@@ -94,8 +125,7 @@ export function injectCRTVariables() {
 
   // Scanlines
   root.style.setProperty('--scanline-opacity', config.scanlineOpacity);
-  root.style.setProperty('--scanline-spacing', `${config.scanlineSpacing}px`);
-  root.style.setProperty('--scanline-size', `${config.scanlineSize}px`);
+  setScanlineSize(root, config);
 
   // Glow
   root.style.setProperty('--crt-glow-spread', config.glowSpread);

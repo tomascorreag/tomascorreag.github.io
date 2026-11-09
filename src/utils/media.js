@@ -341,6 +341,15 @@ export function createMediaElement(relativePath, opts = {}) {
  * browser re-rasterizes each frame) — fine for one visible banner, wasteful
  * for one scrolled past. The offscreen manager pauses it out of view.
  *
+ * Options (`opts`):
+ *   className   classes for the box (banner slot styling: aspect, size)
+ *   alt         accessible label
+ *   responsive  fill the container instead of the fixed pixel-perfect box
+ *   managed     register with the offscreen manager (default true)
+ *   fit         'contain' (responsive only): the caller's CSS sizes the box
+ *               and the whole frame is fitted inside it (containSprite),
+ *               instead of the sprite's width setting the height
+ *
  * Returns null when the sheet path can't be resolved (mirrors createMediaElement).
  */
 export function createSpritesheetElement(config, opts = {}) {
@@ -354,7 +363,7 @@ export function createSpritesheetElement(config, opts = {}) {
   // managed:false leaves play/pause to the caller (the portfolio deck runs
   // only the centred card's sprite; the offscreen manager would restart any
   // sprite that peeks into view).
-  const { className = '', alt = '', responsive = false, managed = true } = opts;
+  const { className = '', alt = '', responsive = false, managed = true, fit = null } = opts;
 
   const url = resolveThumbnail(file);
   if (!url) return null;
@@ -400,6 +409,9 @@ export function createSpritesheetElement(config, opts = {}) {
   if (pixelPerfect) {
     sprite.style.width = `${frameWidth * scale}px`;
     sprite.style.height = `${frameHeight * scale}px`;
+  } else if (fit === 'contain') {
+    const [aw, ah] = frameAspect.split('/').map(parseFloat);
+    containSprite(container, sprite, frameWidth || aw, frameHeight || ah, !!(frameWidth && frameHeight));
   } else {
     sprite.style.width = '100%';
     sprite.style.aspectRatio = frameAspect;
@@ -424,4 +436,37 @@ export function createSpritesheetElement(config, opts = {}) {
   if (managed) registerManagedAnimation(container, anim);
 
   return container;
+}
+
+// One observer for every contain-fit sprite box; each box maps to its resize fn.
+let spriteBoxObserver = null;
+const spriteBoxFits = new WeakMap();
+
+/**
+ * Sizes `sprite` to the largest fw×fh rectangle that fits inside `box`, and
+ * keeps it fitted on resize / rotation. With native frame dims (`snap`), the
+ * scale is floored to a whole number of device pixels per source pixel, so
+ * pixel art keeps uniform columns; it only goes fractional when even 1 device
+ * pixel per source pixel doesn't fit.
+ */
+function containSprite(box, sprite, fw, fh, snap) {
+  sprite.style.flex = '0 0 auto';
+  spriteBoxFits.set(box, (w, h) => {
+    const fitScale = Math.min(w / fw, h / fh);
+    const dpr = window.devicePixelRatio || 1;
+    const devScale = Math.floor(fitScale * dpr);
+    const s = snap && devScale >= 1 ? devScale / dpr : fitScale;
+    sprite.style.width = `${fw * s}px`;
+    sprite.style.height = `${fh * s}px`;
+  });
+  spriteBoxObserver ??= new ResizeObserver((entries) => {
+    for (const { target, contentRect } of entries) {
+      // Detached boxes report 0×0 once; drop them so the observer doesn't pin them.
+      if (!target.isConnected) { spriteBoxObserver.unobserve(target); continue; }
+      if (contentRect.width && contentRect.height) {
+        spriteBoxFits.get(target)?.(contentRect.width, contentRect.height);
+      }
+    }
+  });
+  spriteBoxObserver.observe(box);
 }

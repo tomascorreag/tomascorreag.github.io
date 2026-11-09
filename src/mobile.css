@@ -42,8 +42,6 @@ html.mobile-mode {
 
   --gutter: 16px;
   --tap: 44px;
-  --header-h: calc(60px + env(safe-area-inset-top, 0px));
-  --tabbar-h: calc(64px + env(safe-area-inset-bottom, 0px));
   --radius: 2px;                          /* deliberately sharp — CRT, not iOS */
 
   /* Page-level safe-area padding for notched devices */
@@ -253,19 +251,23 @@ html.mobile-mode {
 }
 
 /*
- * Rabbit sprite — uses idle frame (-512, 0) at 3x scale. Idle bob keeps it
- * alive without burning CPU. If the sprite ever fails to load, the empty
- * pixel-art area still reserves 96x192 so layout doesn't collapse.
+ * Rabbit sprite — uses idle frame (-512, 0) at --rabbit-scale. Idle bob keeps
+ * it alive without burning CPU. The transform scales up from the bottom, so
+ * the drawn rabbit overflows its 32x64 box upward; margin-top reserves that
+ * overflow plus the jump apex (9px × scale) so it never overlaps the text.
  */
 .m-rabbit-sprite {
+  --rabbit-scale: 3;
   display: block;
   width: 32px;
   height: 64px;
+  /* drawn (64 + 9 apex) × scale, minus the 64px box already in layout */
+  margin-top: calc(73px * var(--rabbit-scale) - 64px);
   background-image: url('./assets/spritesheets/RabbitAnimation_V1.png');
   background-repeat: no-repeat;
   background-position: -512px 0;
   image-rendering: pixelated;
-  transform: scale(3);
+  transform: scale(var(--rabbit-scale));
   transform-origin: bottom center;
   filter:
     drop-shadow(0 0 6px var(--glow))
@@ -301,8 +303,8 @@ html.mobile-mode {
 .m-tap-hint::after  { left:  calc(100% + 8px); }
 
 @keyframes m-rabbit-idle {
-  0%, 100% { transform: scale(3) translateY(0); }
-  50%      { transform: scale(3) translateY(-3px); }
+  0%, 100% { transform: scale(var(--rabbit-scale)) translateY(0); }
+  50%      { transform: scale(var(--rabbit-scale)) translateY(-3px); }
 }
 
 /*
@@ -324,11 +326,11 @@ html.mobile-mode {
 }
 
 @keyframes m-rabbit-jump-hop {
-  0%   { transform: scale(3) translateY(0); }
-  10%  { transform: scale(3) translateY(1px);  }   /* tiny crouch */
-  45%  { transform: scale(3) translateY(-9px); }   /* apex (~27px visual) */
-  85%  { transform: scale(3) translateY(0); }
-  100% { transform: scale(3) translateY(0); }
+  0%   { transform: scale(var(--rabbit-scale)) translateY(0); }
+  10%  { transform: scale(var(--rabbit-scale)) translateY(1px);  }   /* tiny crouch */
+  45%  { transform: scale(var(--rabbit-scale)) translateY(-9px); }   /* apex (~27px visual) */
+  85%  { transform: scale(var(--rabbit-scale)) translateY(0); }
+  100% { transform: scale(var(--rabbit-scale)) translateY(0); }
 }
 
 @keyframes m-pulse {
@@ -482,6 +484,15 @@ html.mobile-mode {
   margin-bottom: 0;
   margin-top: -12px;
   background: linear-gradient(to top, var(--bg), transparent);
+}
+
+/* Tablets stay on the mobile layout at any width: cap the column so text
+ * keeps a readable line length. The scroller itself stays full width, so the
+ * scrollbar and edge fades still sit at the screen edges. */
+.m-content > *,
+.m-sheet-info {
+  max-width: 720px;
+  margin-inline: auto;
 }
 
 .m-content::-webkit-scrollbar { width: 6px; }
@@ -1201,6 +1212,57 @@ html.mobile-mode {
   cursor: pointer;
 }
 .m-notice-btn:active { background: rgba(108, 255, 108, 0.1); }
+
+
+/* ============================================================================
+   Short viewports — landscape phones (~340px tall after browser chrome).
+   Header + tab bar alone took ~145px there; compact them, shrink the intro
+   rabbit, and letterbox media instead of cropping it.
+   ============================================================================ */
+
+@media (max-height: 500px) {
+  .m-intro {
+    padding-top: calc(5svh + var(--safe-t));
+    padding-bottom: calc(4svh + var(--safe-b));
+  }
+  .m-intro-terminal { font-size: 1.1rem; }
+  .m-intro-rabbit { gap: 12px; }
+  .m-rabbit-sprite { --rabbit-scale: 2; }
+
+  /* Name and role on one line */
+  .m-header {
+    display: flex;
+    align-items: baseline;
+    gap: 1em;
+    padding-top: calc(var(--safe-t) + 6px);
+    padding-bottom: 6px;
+  }
+  .m-header-role { margin-top: 0; }
+
+  .m-tabbar {
+    padding-top: 6px;
+    padding-bottom: calc(6px + var(--safe-b));
+  }
+  .m-tab { min-height: 38px; padding-block: 6px; }
+
+  /* Cap to the space between header and tab bar; contain so 16:9 art isn't
+   * cut in half by the cover crop. */
+  .m-card-media img,
+  .m-card-media video {
+    max-height: calc(100svh - 120px);
+    object-fit: contain;
+  }
+
+  .m-sheet-nav {
+    padding-top: calc(var(--safe-t) + 4px);
+    padding-bottom: 4px;
+  }
+  .m-sheet-btn { min-height: 38px; }
+  /* Whole hero visible below the ~48px nav */
+  .m-sheet-media { min-height: 30svh; max-height: calc(100svh - 80px); }
+  .m-sheet-media img,
+  .m-sheet-media video { max-height: calc(100svh - 80px); }
+}
 
 
 /* ============================================================================
