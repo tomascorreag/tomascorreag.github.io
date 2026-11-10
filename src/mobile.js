@@ -38,6 +38,7 @@ import { applyInline, parseMarkdown } from './utils/markdown.js';
 import { openImageLightbox } from './utils/imageLightbox.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createParallaxBanner } from './components/ParallaxBanner.js';
+import { createLandingBanner } from './components/LandingBanner.js';
 import { parseRoute, findItemIndex, createUrlSync } from './utils/route.js';
 
 
@@ -637,6 +638,9 @@ function buildMedia(item, { inCard = false, eager = false, sizes = '100vw' } = {
   if (item.type === 'parallax') {
     return createParallaxBanner(item.parallax, { alt: item.alt || item.title || '', sizes, lazy: !eager });
   }
+  if (item.type === 'landing') {
+    return createLandingBanner({ still: item.src, alt: item.alt || item.title || '', sizes, lazy: !eager });
+  }
   // Cards render edge-to-edge → 100vw sizes lets the browser pick the
   // smallest srcset tier that covers the screen at its pixel ratio.
   // preload is always 'metadata': full preload of off-card media was a
@@ -678,6 +682,8 @@ function renderGamesFeed() {
       ? createSpritesheetElement(game.spritesheet, { alt: game.title, className: 'm-game-banner', responsive: true, fit: 'contain' })
       : game.type === 'parallax'
         ? createParallaxBanner(game.parallax, { alt: game.title, className: 'm-game-banner', sizes: '100vw' })
+        : game.type === 'landing'
+        ? createLandingBanner({ still: game.src, alt: game.title, className: 'm-game-banner', sizes: '100vw' })
         : game.src
         ? createMediaElement(game.src, { alt: game.title, className: 'm-game-banner', sizes: '100vw' })
         : null;

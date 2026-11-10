@@ -1,0 +1,305 @@
+/* LandingBanner (src/components/LandingBanner.js + landingBannerScene.js).
+ *
+ * A mock of MapColombia's Landing.svelte. Everything inside .lb-frame is in
+ * virtual-viewport px (≥1500×750, the slot's aspect), scaled to the slot in
+ * JS. Viewport-relative geometry (vw/dvh) is set inline by the scene; the type
+ * sizes below are the landing's clamp() maxima, which a ≥1500 px viewport
+ * always reaches. Palette tokens are the landing's (app.css), quoted. */
+
+@font-face {
+  font-family: 'MotL Spectral';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/Spectral-600-motl.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'MotL Spectral';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/Spectral-400i-motl.woff2') format('woff2');
+}
+
+.landing-banner {
+  --lb-ink: #0b0d11;
+  --lb-paper: #e9e4d8;
+  --lb-paper-dim: #9b968a;
+  --lb-paper-faint: #8b8577;
+  --lb-gold: #c9a227;
+  --lb-hairline: #2a2f3a;
+  --lb-display: 'MotL Spectral', Georgia, serif;
+  --lb-mono: 'Martian Mono', monospace;
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--lb-ink);
+}
+
+/* Still thumbnail: shown until the scene is live, and the only content under
+ * reduced motion / low tier. Selector depth outranks the slot rules that
+ * target any banner <img> (cover, max-height, height:auto). */
+.landing-banner > picture {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.landing-banner > picture > img.lb-still {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+}
+
+.lb-frame {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: 50% 50%;
+  overflow: hidden;
+  background: var(--lb-ink);
+  color: var(--lb-paper);
+  font-family: var(--lb-display);
+  line-height: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: none;
+  text-align: left;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 500ms ease;
+}
+
+.landing-banner.is-live .lb-frame {
+  opacity: 1;
+}
+
+.lb-mono {
+  font-family: var(--lb-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- halves ---------- */
+.lb-half {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.lb-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+/* Landing's flank ellipses; MASK_* in landingEffects.ts mirrors them. */
+.lb-violence .lb-fx {
+  -webkit-mask-image: radial-gradient(ellipse 70% 62% at 7% 30%, #000 0%, #000 30%, transparent 74%);
+  mask-image: radial-gradient(ellipse 70% 62% at 7% 30%, #000 0%, #000 30%, transparent 74%);
+}
+
+.lb-ashes .lb-fx {
+  -webkit-mask-image: radial-gradient(ellipse 70% 62% at 93% 30%, #000 0%, #000 30%, transparent 74%);
+  mask-image: radial-gradient(ellipse 70% 62% at 93% 30%, #000 0%, #000 30%, transparent 74%);
+}
+
+/* width 50vw, padding 0 6vw 9dvh: set inline from the virtual viewport */
+.lb-content {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 2;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  transform: scale(calc(1 + var(--lb-ignite, 0) * 0.035));
+  transform-origin: left bottom;
+}
+
+.lb-ashes .lb-content {
+  left: auto;
+  right: 0;
+  align-items: flex-end;
+  text-align: right;
+  transform-origin: right bottom;
+}
+
+/* Martian Mono runs wider than the landing's IBM Plex Mono; 0.9× keeps the
+ * mono lines near their original length. */
+.lb-file {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--lb-paper-faint);
+}
+
+.lb-h2 {
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 1.02;
+  margin: 2px 0;
+  letter-spacing: -0.01em;
+}
+
+.lb-desc {
+  font-style: italic;
+  font-size: 16px;
+  color: var(--lb-paper-dim);
+  max-width: 34ch;
+  text-wrap: balance;
+}
+
+.lb-seam {
+  position: absolute;
+  left: 50%;
+  top: 225px;
+  bottom: 60px;
+  width: 1px;
+  background: var(--lb-hairline);
+}
+
+/* ---------- silhouette ---------- */
+.lb-map {
+  position: absolute;
+  z-index: 2;
+  --lb-fx: max(var(--lb-fx-v, 0), var(--lb-fx-a, 0));
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, #000 34%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, #000 34%);
+}
+
+.lb-sil,
+.lb-mapfx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lb-sil {
+  overflow: visible;
+}
+
+.lb-fill path {
+  fill: rgba(201, 162, 39, calc(0.07 + 0.05 * var(--lb-fx)));
+}
+
+.lb-mapfx {
+  -webkit-mask: var(--lb-map-mask) center / 100% 100% no-repeat;
+  mask: var(--lb-map-mask) center / 100% 100% no-repeat;
+}
+
+.lb-scars {
+  opacity: var(--lb-fx-v, 0);
+}
+
+.lb-embers {
+  opacity: var(--lb-fx-a, 0);
+}
+
+/* Not non-scaling like the landing's: the frame is scaled down, and a
+ * screen-constant 1.4 px would draw the outline proportionally heavier.
+ * 3 viewBox units = the landing's 1.4 px on its 469 px-wide map; a little
+ * over that so it survives the downscale. */
+.lb-edge {
+  fill: none;
+  stroke: var(--lb-gold);
+  stroke-width: 3.6;
+  stroke-opacity: 0.7;
+}
+
+/* Two lit sectors 180° apart, rotating (angle animated from the JS). */
+.lb-shine {
+  -webkit-mask-image: conic-gradient(from var(--lb-shine-a, 0deg) at 50% 50%,
+      transparent 0deg, rgba(0, 0, 0, 0.3) 28deg, #000 54deg, transparent 68deg,
+      transparent 180deg, rgba(0, 0, 0, 0.3) 208deg, #000 234deg, transparent 248deg,
+      transparent 360deg);
+  mask-image: conic-gradient(from var(--lb-shine-a, 0deg) at 50% 50%,
+      transparent 0deg, rgba(0, 0, 0, 0.3) 28deg, #000 54deg, transparent 68deg,
+      transparent 180deg, rgba(0, 0, 0, 0.3) 208deg, #000 234deg, transparent 248deg,
+      transparent 360deg);
+}
+
+.lb-shine path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lb-halo {
+  stroke: var(--lb-gold);
+  stroke-width: 12;
+  stroke-opacity: 0.25;
+}
+
+.lb-core {
+  stroke: var(--lb-paper);
+  stroke-width: 3;
+  stroke-opacity: 0.9;
+}
+
+/* ---------- masthead ---------- */
+/* top: 8dvh, set inline */
+.lb-masthead {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.lb-eyebrow {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--lb-gold);
+}
+
+.lb-h1 {
+  font-size: 68px;
+  font-weight: 600;
+  line-height: 1.04;
+  margin: 8px 0 6px;
+  letter-spacing: -0.015em;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.6);
+}
+
+.lb-sub {
+  font-style: italic;
+  font-size: 17px;
+  color: var(--lb-paper-dim);
+  max-width: 46ch;
+  text-wrap: balance;
+  text-shadow: 0 1px 14px rgba(0, 0, 0, 0.7);
+}
+
+/* ---------- footer ---------- */
+.lb-footer {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  text-align: center;
+  font-size: 8px;
+  color: var(--lb-paper-faint);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
+}
+
+.lb-gold {
+  color: var(--lb-gold);
+}
