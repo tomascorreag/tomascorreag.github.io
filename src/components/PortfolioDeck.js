@@ -35,6 +35,7 @@ import '../article.css'; // shared .article-* markdown styles
 import './portfolio-deck.css';
 import { createMediaElement, createSpritesheetElement } from '../utils/media.js';
 import { createParallaxBanner } from './ParallaxBanner.js';
+import { createLandingBanner, LANDING_VIEW } from './LandingBanner.js';
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
 import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
@@ -85,6 +86,9 @@ function buildItemMedia(item, { className = '', alt = item.title || '', lazy = t
   }
   if (item.type === 'parallax' && item.parallax) {
     return createParallaxBanner(item.parallax, { className, alt, lazy, sizes, managed });
+  }
+  if (item.type === 'landing') {
+    return createLandingBanner({ still: item.src, className, alt, lazy, sizes, managed });
   }
   if (item.src) {
     return createMediaElement(item.src, { className, alt, lazy, sizes, video });
@@ -226,6 +230,10 @@ function applyMediaAspect(box, item, mediaEl) {
     // Layered scene: its aspect is the scene's view, not any one layer image.
     const [w, h] = item.parallax.view;
     set(w, h);
+    return;
+  }
+  if (item.type === 'landing') {
+    set(...LANDING_VIEW);
     return;
   }
   if (!mediaEl) return;

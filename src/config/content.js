@@ -272,6 +272,8 @@ export const GENERAL_CONTENT = {
  *     to `page`). Lets a curated deck show extra sections the main site omits.
  *   - type: 'parallax' + parallax: <scene> → the banner is a layered animated
  *     scene (components/ParallaxBanner.js) instead of the `src` still.
+ *   - type: 'landing' → the banner is the live MapColombia landing mock
+ *     (components/LandingBanner.js); `src` stays as its still.
  */
 import { ARBO_SPLASH } from './arboSplash.js';
 
@@ -466,6 +468,9 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
   },
   {
     id: 'scars-of-violence',
+    // Live banner: a scaled mock of the MapColombia landing page
+    // (components/LandingBanner.js). `src` is its still and placeholder.
+    type: 'landing',
     src: 'artifacts/MemoryOfTheLand_thumb.jpg',
     // kindLabel: deck-card corner chip. Without it this entry (it lives in
     // GAMES) would read "GAME" — wrong register for a memory artifact.

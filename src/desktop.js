@@ -17,6 +17,7 @@ import './style.css';
 import { Rabbit } from './components/Rabbit.js';
 import { ParticleMorph, prewarmSampleCache } from './components/ParticleMorph.js';
 import { createParallaxBanner } from './components/ParallaxBanner.js';
+import { createLandingBanner } from './components/LandingBanner.js';
 import { TYPING_CONFIG, RABBIT_CONFIG, TIMING, MOSAIC_CONFIG, injectCSSVariables } from './config/animations.js';
 import { injectCRTVariables, startGlowNoise } from './config/crt.js';
 import { PARTICLE_CONFIG } from './config/particles.js';
@@ -976,6 +977,9 @@ async function renderGames() {
       // Card slot is a fixed 256px column (style.css .game-card > :first-child).
       // Lite: at that size particles, light effects and the shine barely show.
       card.appendChild(createParallaxBanner(game.parallax, { className: 'game-banner', alt: game.title, sizes: '256px', lite: true }));
+    } else if (game.type === 'landing') {
+      // Same 256px slot; lite = half-res fields at 30 fps.
+      card.appendChild(createLandingBanner({ still: game.src, className: 'game-banner', alt: game.title, sizes: '256px', lite: true }));
     } else if (game.src) {
       const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner', sizes: '55vw' });
       if (banner) card.appendChild(banner);
@@ -1103,6 +1107,8 @@ function buildArticleContent(itemData) {
       ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true })
       : itemData.type === 'parallax'
         ? createParallaxBanner(itemData.parallax, { className: 'article-banner', alt: itemData.title || '', sizes: '55vw', lazy: false })
+        : itemData.type === 'landing'
+        ? createLandingBanner({ still: itemData.src, className: 'article-banner', alt: itemData.title || '', sizes: '55vw', lazy: false })
         : createMediaElement(itemData.src, {
         alt: itemData.title || '',
         className: 'article-banner',

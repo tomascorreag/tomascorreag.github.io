@@ -27,7 +27,9 @@
 
 import { createMediaElement, registerManagedAnimation } from '../utils/media.js';
 import { dimsFor, resolveThumbnail } from '../config/content.js';
-import { deviceTier, prefersReducedMotion } from '../config/device.js';
+import { deviceTier, prefersReducedMotion, isMobileDevice } from '../config/device.js';
+import { pointer, layoutEpoch, RECT_TTL } from '../utils/pointer.js';
+import { createFrameGate, FPS_FULL, FPS_LITE } from '../utils/frameGate.js';
 import './parallax-banner.css';
 
 const SMOOTHSTEP = 'cubic-bezier(0.3333, 0, 0.6667, 1)';
@@ -42,41 +44,7 @@ const SHINE_RANGE = [-0.35, 1.35];
 const PARTICLE_DPR_CAP = 1.5;  // soft dots: extra resolution buys nothing
 const CANVAS_MARGIN = 160;     // canvas px of particle room beyond the view
 
-/* ── Shared pointer + observers (one set for all banners) ───────────────── */
-
-const pointer = { x: 0, y: 0, active: false };
-let pointerHooked = false;
-// Bumped on any scroll (capture: the site scrolls inner panels, not the
-// window) or resize; banners re-measure their rect when it changes.
-let layoutEpoch = 0;
-const RECT_TTL = 500;
-
-function hookPointer() {
-  if (pointerHooked) return;
-  pointerHooked = true;
-  const bump = () => { layoutEpoch++; };
-  window.addEventListener('scroll', bump, { passive: true, capture: true });
-  window.addEventListener('resize', bump, { passive: true });
-  // Any mouse event with a position counts, not only moves: the click that
-  // opens a page, and the mouseover browsers send when the page (or content
-  // under a still cursor) changes, tell us where the cursor is before it moves.
-  const track = (e) => {
-    if (e.pointerType && e.pointerType !== 'mouse') return;
-    pointer.x = e.clientX;
-    pointer.y = e.clientY;
-    pointer.active = true;
-  };
-  for (const type of ['pointermove', 'pointerdown', 'mouseover']) {
-    window.addEventListener(type, track, { passive: true, capture: true });
-  }
-  // No reset on mouseleave/blur: the scene holds the last pointer position
-  // rather than drifting back to centre when the cursor leaves the window.
-}
-
-// Listen from module load, not from the first banner: the cursor position
-// often arrives (load-time mouseover, the click that opens a page) before
-// any banner exists.
-if (typeof window !== 'undefined') hookPointer();
+/* ── Shared observers (one set for all banners; pointer in utils/pointer.js) ── */
 
 const instances = new WeakMap();
 // Attached instances, for the DPR watcher (a WeakMap can't be iterated).
@@ -610,7 +578,7 @@ export function createParallaxBanner(scene, opts = {}) {
     // the cursor's x across this wrap (0 = left edge, 1 = right edge), and
     // `translate` centres the stripe there. The stripe is 35% of the wrap,
     // so wrap fraction f = translate f / 0.35 of its own width, minus half.
-    if (node.shine.follow === 'pointer' && finePointer()) {
+    if (node.shine.follow === 'pointer' && finePointer() && !isMobileDevice()) {
       stripe.style.transform = 'skewX(-20deg)';
       stripe.style.translate = `calc(var(--pb-sx, -1) * ${pct(100 / 0.35)} - 50%) 0`;
       shineFollowers.push({ wrap, sx: -1 });
@@ -779,10 +747,13 @@ export function createParallaxBanner(scene, opts = {}) {
 
   /* ── Per-frame loop: particles + pointer smoothing ── */
 
-  hookPointer();
   observers();
 
   const clock = anims[0];
+  // Mobile shell (same test as main.js routing): no pointer interaction; the
+  // parallax follows the banner's scroll position instead (vertical only).
+  const scrollDriven = isMobileDevice();
+  const gate = createFrameGate(lite ? FPS_LITE : FPS_FULL);
   let raf = 0;
   let visible = false;
   let lastClock = null;
@@ -815,9 +786,9 @@ export function createParallaxBanner(scene, opts = {}) {
   let rectAt = 0;
   function bannerRect() {
     const now = performance.now();
-    if (!rect || rectEpoch !== layoutEpoch || now - rectAt > RECT_TTL) {
+    if (!rect || rectEpoch !== layoutEpoch() || now - rectAt > RECT_TTL) {
       rect = root.getBoundingClientRect();
-      rectEpoch = layoutEpoch;
+      rectEpoch = layoutEpoch();
       rectAt = now;
     }
     return rect;
@@ -831,7 +802,14 @@ export function createParallaxBanner(scene, opts = {}) {
   function updatePointer(dt, instant) {
     let tx = 0;
     let ty = 0;
-    if (pointer.active) {
+    if (scrollDriven) {
+      // Banner centre at the viewport's bottom edge → +1, at its top → −1:
+      // layers drift up faster than the page as it scrolls, so nearer
+      // layers read as nearer.
+      const r = bannerRect();
+      const vh = window.innerHeight || 1;
+      ty = Math.max(-1, Math.min(1, (r.top + r.height / 2 - vh / 2) / (vh / 2)));
+    } else if (pointer.active) {
       const r = bannerRect();
       tx = Math.max(-1, Math.min(1, (pointer.x - (r.left + r.width / 2)) / (window.innerWidth / 2)));
       ty = Math.max(-1, Math.min(1, (pointer.y - (r.top + r.height / 2)) / (window.innerHeight / 2)));
@@ -867,7 +845,7 @@ export function createParallaxBanner(scene, opts = {}) {
 
   // rAF doesn't fire in hidden tabs, so tab switches need no handling here;
   // the clock (paused by the offscreen manager) absorbs the gap.
-  function tick() {
+  function tick(frameTime) {
     raf = 0;
     if (!visible || !root.isConnected) return;
     raf = requestAnimationFrame(tick);
@@ -878,8 +856,12 @@ export function createParallaxBanner(scene, opts = {}) {
     // If the cursor isn't known yet, its first move eases in as usual.
     if (!primed) {
       primed = true;
-      if (pointer.active) updatePointer(0, true);
+      if (pointer.active || scrollDriven) updatePointer(0, true);
     }
+
+    // Frame cap: skipped frames leave lastClock alone, so the next rendered
+    // frame's dt covers them and the simulation keeps real time.
+    if (!gate.due(frameTime)) return;
 
     const now = clock.currentTime ?? 0;
     const running = clock.playState === 'running';
