@@ -36,8 +36,6 @@ import { observeScrollReveal } from './utils/scrollReveal.js';
  * or null if particles are disabled for this tier.
  */
 function getParticleConfig() {
-  // Reduced motion takes the no-particle path (instant swaps).
-  if (prefersReducedMotion()) return null;
   const tierOverrides = PARTICLE_CONFIG.tiers?.[deviceTier];
   // If the tier explicitly disables particles, return null
   if (tierOverrides && tierOverrides.enabled === false) return null;
@@ -144,10 +142,21 @@ injectCRTVariables();
 // Get CRT container for spawning elements inside it
 const crtScreen = document.getElementById('crt-screen');
 
-// True when the full set of decorative animations should run: not low tier
-// and no OS reduced-motion request.
+// True when the full set of decorative animations should run (not low tier).
+// Reduced motion keeps them: CSS drops their slide offsets, leaving the fades.
 function fullMotion() {
-  return deviceTier !== 'low' && !prefersReducedMotion();
+  return deviceTier !== 'low';
+}
+
+// Reduced motion: geometry tweens (detail FLIP, fullscreen zoom) become a
+// plain opacity fade at the final rect. Returns the Animation for onfinish.
+const REDUCED_FADE_MS = 250;
+function reducedFade(el, out = false) {
+  return el.animate(out ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1 }], {
+    duration: REDUCED_FADE_MS,
+    easing: 'ease',
+    fill: out ? 'forwards' : 'none',
+  });
 }
 
 // Alias for cleaner code
@@ -442,8 +451,7 @@ function getRandomDelay(base, varianceAmount) {
 }
 
 function sleep(ms) {
-  // Reduced motion = permanent skip: text appears at once, no typing cadence.
-  if (skipTyping || prefersReducedMotion()) return Promise.resolve();
+  if (skipTyping) return Promise.resolve();
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -918,8 +926,8 @@ async function renderMosaic(category) {
   // Per-item diagonal reveal — thumbs cascade in top-left → bottom-right.
   // Items were born with .reveal (opacity 0 + offset); this computes their
   // positional delays and triggers the transition to .revealed. Skipped for
-  // General (has its own stagger-reveal), low tier (perf) and reduced motion —
-  // those items were built without .reveal, so this is a no-op for them.
+  // General (has its own stagger-reveal) and low tier (perf) — those items
+  // were built without .reveal, so this is a no-op for them.
   if (!isGeneral) {
     applyDiagonalReveal(mosaicEl);
     // Each video starts as its own tile begins to fade in, so they play while
@@ -1463,7 +1471,7 @@ function renderGeneralContent() {
     wrapper.appendChild(contactRow);
   }
 
-  // Stagger reveal on mid/high tier without reduced motion — mark each
+  // Stagger reveal on mid/high tier — mark each
   // top-level block. JS triggers .visible on each after the mosaic fades in.
   if (fullMotion()) {
     const staggerTargets = [gcName, gcTitle, gcSubtitle, summary, divider1, skillsSection, divider2, toolsRow];
@@ -1647,6 +1655,7 @@ function enterDetailFullscreen() {
   itemEl.classList.add('detail-transitioning');
   void itemEl.offsetWidth; // force reflow so browser commits "from" state before animating
   setRect(itemEl, fsRect);
+  if (prefersReducedMotion()) reducedFade(itemEl);
 
   const info = mosaicEl.querySelector('.detail-info');
   if (info) { info.classList.remove('visible'); info.style.pointerEvents = 'none'; }
@@ -1736,6 +1745,7 @@ function enterGalleryImageFullscreen(imgEl) {
   // FLIP: commit "from" state then animate to "to"
   void overlay.offsetWidth;
   setRect(overlay, to);
+  if (prefersReducedMotion()) reducedFade(overlay);
 
   // Fade out main detail image alongside the info panel
   const { el: itemEl } = activeDetail;
@@ -1776,11 +1786,16 @@ function exitDetailFullscreen() {
     // Block re-click during exit animation
     overlay.style.pointerEvents = 'none';
 
-    // Reverse FLIP: animate overlay back to where the side image was
-    overlay.style.left = `${fromRect.x}px`;
-    overlay.style.top = `${fromRect.y}px`;
-    overlay.style.width = `${fromRect.w}px`;
-    overlay.style.height = `${fromRect.h}px`;
+    // Reverse FLIP: animate overlay back to where the side image was.
+    // Reduced motion: fade it out in place instead (the timeout cleans up).
+    if (prefersReducedMotion()) {
+      reducedFade(overlay, true);
+    } else {
+      overlay.style.left = `${fromRect.x}px`;
+      overlay.style.top = `${fromRect.y}px`;
+      overlay.style.width = `${fromRect.w}px`;
+      overlay.style.height = `${fromRect.h}px`;
+    }
 
     // Restore main detail image opacity (fades in while overlay retreats)
     if (activeDetail) activeDetail.el.style.opacity = '';
@@ -1816,6 +1831,7 @@ function exitDetailFullscreen() {
   itemEl.style.top = `${targetRect.y}px`;
   itemEl.style.width = `${targetRect.w}px`;
   itemEl.style.height = `${targetRect.h}px`;
+  if (prefersReducedMotion()) reducedFade(itemEl);
 
   const info = mosaicEl.querySelector('.detail-info');
   if (info) { info.classList.add('visible'); info.style.pointerEvents = ''; }
@@ -1952,12 +1968,11 @@ function openDetail(itemEl, itemData) {
   const dx = firstRect.x - shiftedRect.x;
   const dy = firstRect.y - shiftedRect.y;
 
-  const anim = itemEl.animate([
+  const anim = prefersReducedMotion() ? reducedFade(itemEl) : itemEl.animate([
     { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
     { transform: 'none', transformOrigin: 'top left' },
   ], {
-    // WAAPI ignores the CSS reduced-motion block; 0 still fires onfinish.
-    duration: prefersReducedMotion() ? 0 : 400,
+    duration: 400,
     easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
     fill: 'none',
   });
@@ -2404,14 +2419,18 @@ function closeDetail(instant = false) {
   const dx = itemRect.left - gridRect.left;
   const dy = itemRect.top - gridRect.top;
 
-  itemEl.animate([
-    { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
-    { transform: 'none', transformOrigin: 'top left' },
-  ], {
-    duration: prefersReducedMotion() ? 0 : 400,
-    easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-    fill: 'none',
-  });
+  if (prefersReducedMotion()) {
+    reducedFade(itemEl);
+  } else {
+    itemEl.animate([
+      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, transformOrigin: 'top left' },
+      { transform: 'none', transformOrigin: 'top left' },
+    ], {
+      duration: 400,
+      easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      fill: 'none',
+    });
+  }
 
   // Fade siblings back in with a delay so they appear as the FLIP lands,
   // not the moment it starts. 150ms delay + 300ms CSS transition = visible at ~450ms,
@@ -3285,7 +3304,7 @@ async function startRabbitTransition() {
 // Run sequence, then spawn rabbit
 async function main() {
   terminal = new Terminal(terminalElement);
-  // Subtle random dips in glow intensity (skipped under reduced motion).
+  // Subtle random dips in glow intensity.
   startGlowNoise();
   try {
     // Preload rabbit spritesheet before starting

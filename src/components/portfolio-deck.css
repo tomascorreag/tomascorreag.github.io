@@ -768,20 +768,27 @@
   outline-offset: 2px;
 }
 
+/* Reduced motion: the carousel and document open/close become fades. The
+   track jumps and the slides crossfade; the overlay fades instead of the
+   clip-path unroll. .no-anim (low tier, deep-link load) still wins on specificity. */
 @media (prefers-reduced-motion: reduce) {
-  .deck-track,
-  .deck-slide,
-  .deck-doc-overlay {
+  .deck-track {
     transition: none;
+  }
+
+  .deck-slide {
+    transition: opacity 400ms ease;
+  }
+
+  .deck-doc-overlay,
+  .deck-doc-overlay.open {
+    clip-path: none;
+    transition: opacity 240ms ease;
   }
 
   /* Without the sweep the wipe line would just flash; hide it (as .no-anim does). */
   .deck-doc-wipe {
     display: none;
-  }
-
-  .deck::before {
-    animation: none;
   }
 }
 

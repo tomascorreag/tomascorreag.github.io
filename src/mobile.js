@@ -48,12 +48,6 @@ import { parseRoute, findItemIndex, createUrlSync } from './utils/route.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const isVideoSrc = (src) => typeof src === 'string' && /\.(mp4|webm|mov|m4v)$/i.test(src);
-// Live value: follows OS setting changes made while the page is open.
-const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-let prefersReducedMotion = reducedMotionQuery.matches;
-const onReducedMotionChange = (e) => { prefersReducedMotion = e.matches; };
-if (reducedMotionQuery.addEventListener) reducedMotionQuery.addEventListener('change', onReducedMotionChange);
-else reducedMotionQuery.addListener?.(onReducedMotionChange); // Safari < 14
 
 // Unload videos in a subtree about to be discarded and drop them from the
 // media manager's registry (otherwise held until the next registration).
@@ -177,12 +171,7 @@ function showDesktopNotice() {
       try { sessionStorage.setItem(NOTICE_KEY, '1'); } catch { /* ignore */ }
       document.removeEventListener('keydown', onKey);
       overlay.classList.add('fading');
-      if (prefersReducedMotion) {
-        overlay.remove();
-        resolve();
-      } else {
-        setTimeout(() => { overlay.remove(); resolve(); }, 250);
-      }
+      setTimeout(() => { overlay.remove(); resolve(); }, 250);
     };
     // Enter on the focused button already fires `click`; this catches Escape
     // and Enter when focus drifted (e.g. external keyboard on a tablet).
@@ -308,10 +297,10 @@ function buildIntroLine(text, lineClass) {
  * (900ms) must match the `.m-rabbit-sprite.jumping` animation in mobile.css
  * — when the class comes off the sprite returns to `m-rabbit-idle`.
  *
- * Silently no-ops under prefers-reduced-motion. Returns a cancel function.
+ * Returns a cancel function.
  */
 function startRabbitRandomJumps(sprite) {
-  if (prefersReducedMotion || !sprite) return () => {};
+  if (!sprite) return () => {};
 
   const JUMP_DURATION = 900;   // ms, matches CSS
   let cancelled = false;
@@ -390,7 +379,7 @@ async function runIntro() {
   });
 
   intro.classList.add('fading');
-  await sleep(prefersReducedMotion ? 0 : 300);
+  await sleep(300);
   intro.remove();
 }
 
@@ -717,7 +706,6 @@ function renderGamesFeed() {
 // Stagger animation — assigns increasing animation-delay to .m-fade kids
 // ---------------------------------------------------------------------------
 function scheduleFadeStagger(root) {
-  if (prefersReducedMotion) return;
   const kids = [...root.querySelectorAll('.m-fade'), ...(root.classList.contains('m-fade') ? [root] : [])];
   kids.forEach((el, i) => {
     el.style.animationDelay = `${Math.min(i * 40, 400)}ms`;
@@ -989,9 +977,8 @@ function closeSheet() {
     el.remove();
   };
   el.addEventListener('transitionend', cleanup);
-  // Fallback in case transitionend never fires (e.g. reduced motion where
-  // transform transition is suppressed but opacity still runs, or no
-  // transition properties at all).
+  // Fallback in case transitionend never fires (no transition properties
+  // changed, or the tab is hidden).
   const fallback = setTimeout(cleanup, 400);
 
   // Re-expose the shell to AT + tab order, restore focus to whatever

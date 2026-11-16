@@ -10,7 +10,6 @@
 
 import { Sprite } from './Sprite.js';
 import { RABBIT_CONFIG } from '../config/animations.js';
-import { prefersReducedMotion } from '../config/device.js';
 
 export class Rabbit extends Sprite {
   constructor(options = {}) {
@@ -73,17 +72,6 @@ export class Rabbit extends Sprite {
     this.element.classList.add('crt-effects');
 
     this.updatePosition();
-
-    // Reduced motion: skip the drop, land at the bottom immediately.
-    if (prefersReducedMotion()) {
-      this.element.classList.remove('spawning');
-      this.isSpawning = false;
-      const visualHeight = RABBIT_CONFIG.height * this.scale;
-      this.y = window.innerHeight - visualHeight;
-      this.updatePosition();
-      this.refreshBottomCenter();
-      return this;
-    }
 
     // .spawning is already on the element (createElement), so the drop
     // distance must be set in this same task, before the first style recalc
@@ -196,17 +184,6 @@ export class Rabbit extends Sprite {
 
     this.reveal();
 
-    // Reduced motion: skip the fall, land at the bottom immediately.
-    if (prefersReducedMotion()) {
-      this.isSpawning = false;
-      const visualHeight = RABBIT_CONFIG.height * this.scale;
-      this.y = window.innerHeight - visualHeight;
-      this.updatePosition();
-      this.element.style.backgroundPosition = `0px 0`;
-      this.refreshBottomCenter();
-      return;
-    }
-
     // Start tracking mouse for glow during drop
     this.earlyMouseHandler = (e) => {
       this.lastMouseX = e.clientX;
@@ -279,15 +256,6 @@ export class Rabbit extends Sprite {
         this.element.classList.add('flipped');
       } else {
         this.element.classList.remove('flipped');
-      }
-
-      // Reduced motion: hop instantly to the destination, no arc animation.
-      if (prefersReducedMotion()) {
-        this.x = this.x - RABBIT_CONFIG.jumpDistance * direction;
-        this.updatePosition();
-        this.refreshBottomCenter();
-        this.isJumping = false;
-        return resolve();
       }
 
       // Reset animation by removing and re-adding class

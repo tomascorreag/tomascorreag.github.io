@@ -468,10 +468,6 @@ div.article-banner {
     transform: none;
     transition: opacity 400ms ease;
   }
-
-  .article-banner-wrap::after {
-    animation: none;
-  }
 }
 
 /* ── Image lightbox (src/utils/imageLightbox.js) ──
@@ -512,11 +508,15 @@ div.article-banner {
   display: block;
 }
 
-/* Reduced motion: near-instant zoom. Not `none` — the JS cleanup listens for
-   transitionend (it also has a timeout fallback). */
+/* Reduced motion: no zoom. The overlay jumps to its rect and fades in/out
+   (imageLightbox.js toggles .shown and skips the reverse rect on close). */
 @media (prefers-reduced-motion: reduce) {
-  .img-lightbox-backdrop,
   .img-lightbox-overlay {
-    transition-duration: 0.01ms;
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+
+  .img-lightbox-overlay.shown {
+    opacity: 1;
   }
 }

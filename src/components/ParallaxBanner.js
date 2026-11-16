@@ -382,6 +382,8 @@ class Emitter {
  */
 export function createParallaxBanner(scene, opts = {}) {
   const { className = '', alt = '', sizes = '100vw', lazy = true, managed = true } = opts;
+  // Reduced motion drops only the pointer/scroll parallax (the vestibular
+  // trigger); the idle loop, particles and lights still play.
   const reduced = prefersReducedMotion();
   // Lite: layers + pointer parallax only. No particles, light effects, logo
   // shine, and no per-layer idle loop. For small slots (the loop moves ~1 px
@@ -391,8 +393,8 @@ export function createParallaxBanner(scene, opts = {}) {
   // zoom) those layers are re-rendered independently and can be out of step
   // for a frame or two, flashing the bright plate along the foreground's edge.
   // Without the loop the whole scene paints as one image and zooms as one.
-  const lite = !reduced && (opts.lite || deviceTier === 'low');
-  const extras = !reduced && !lite;
+  const lite = opts.lite || deviceTier === 'low';
+  const extras = !lite;
   const [VW, VH] = scene.view;
   const loopMs = scene.loopSeconds * 1000;
 
@@ -743,7 +745,7 @@ export function createParallaxBanner(scene, opts = {}) {
   if (lite) anims.push(root.animate([], { duration: loopMs, iterations: Infinity }));
 
   if (managed && anims.length) registerManagedAnimation(root, anims);
-  if (reduced || anims.length === 0) return root;
+  if (anims.length === 0) return root;
 
   /* ── Per-frame loop: particles + pointer smoothing ── */
 

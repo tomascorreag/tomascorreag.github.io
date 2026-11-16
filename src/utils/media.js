@@ -1,5 +1,5 @@
 import { variantsFor, resolveThumbnail } from '../config/content.js';
-import { getSaveData, prefersReducedMotion } from '../config/device.js';
+import { getSaveData } from '../config/device.js';
 
 /* ────────────────────────────────────────────────────────────────────────
  * Offscreen media manager
@@ -424,11 +424,6 @@ export function createSpritesheetElement(config, opts = {}) {
 
   const fromPct = (first / (frames - 1)) * 100;
   const toPct = ((first + count) / (frames - 1)) * 100;
-  // Reduced motion: hold the first frame, no loop.
-  if (prefersReducedMotion()) {
-    sprite.style.backgroundPosition = `${fromPct}% 0`;
-    return container;
-  }
   const anim = sprite.animate(
     [{ backgroundPosition: `${fromPct}% 0` }, { backgroundPosition: `${toPct}% 0` }],
     { duration: (count / fps) * 1000, iterations: Infinity, easing: `steps(${count})` }
