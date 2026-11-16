@@ -10,7 +10,9 @@
  * rect — the browser tweens the gap. Same idea as a tween between two transforms.
  * ──────────────────────────────────────────────────────────────────────── */
 
-const MARGIN = 24;        // gap (px) between the zoomed image and the viewport edge
+import { prefersReducedMotion } from '../config/device.js';
+
+const MARGIN = 24;       // gap (px) between the zoomed image and the viewport edge
 const ANIM_MS = 300;      // keep in sync with .img-lightbox-overlay transition (src/article.css)
 
 // Only one lightbox at a time. Also lets the Escape handler know it's the owner
@@ -71,6 +73,7 @@ export function openImageLightbox(imgEl) {
   // starts transparent (CSS) and fades in over the same reflow.
   void overlay.offsetWidth;
   backdrop.style.opacity = '1';
+  overlay.classList.add('shown'); // fade-in under reduced motion (article.css)
   placeAt(to);
 
   // Follow window resize / rotation while open: refit instantly (transition
@@ -98,10 +101,14 @@ export function openImageLightbox(imgEl) {
     cancelAnimationFrame(resizeFrame);
 
     // Re-read the source rect at close time so the reverse FLIP lands on the
-    // image even if the page scrolled while the lightbox was open.
-    const back = imgEl.getBoundingClientRect();
+    // image even if the page scrolled while the lightbox was open. Reduced
+    // motion fades out in place instead.
     backdrop.style.opacity = '0';
-    placeAt({ x: back.left, y: back.top, w: back.width, h: back.height });
+    overlay.classList.remove('shown');
+    if (!prefersReducedMotion()) {
+      const back = imgEl.getBoundingClientRect();
+      placeAt({ x: back.left, y: back.top, w: back.width, h: back.height });
+    }
 
     const cleanup = () => {
       overlay.removeEventListener('transitionend', cleanup);

@@ -1269,23 +1269,14 @@ html.mobile-mode {
    Reduced-motion fallbacks
    ============================================================================ */
 
+/* Deliberate animations stay (intro typing, cursor, rabbit idle/hops, hints).
+ * Only slide offsets go: the sheet and content fade without moving. */
 @media (prefers-reduced-motion: reduce) {
-  .m-notice-overlay { animation: none; transition: opacity 1ms linear; }
-
-  /* Intro: drop clip-path + animation, show everything instantly */
-  .m-intro-terminal .body {
-    clip-path: none;
-    animation: none;
-  }
-  .m-intro-terminal .line-1 .cursor { opacity: 0; animation: none; }
-  .m-intro-terminal .cursor { animation: none; opacity: 1; }
-  .m-intro-rabbit { animation: none; opacity: 1; transform: none; }
-
-  .m-rabbit-sprite,
-  .m-rabbit-sprite.jumping { animation: none; }
-  .m-tap-hint { animation: none; opacity: 0.9; }
-  .m-swipe-hint { animation: none; opacity: 0; }
-  .m-content > .m-fade { animation: none; opacity: 1; transform: none; }
-  .m-sheet { transition: opacity 200ms ease; }
+  .m-content > .m-fade { animation-name: m-fade-in-still; }
+  .m-sheet { transition: opacity 280ms ease; }
   .m-sheet-entering, .m-sheet-exiting { transform: none; }
+}
+
+@keyframes m-fade-in-still {
+  from { opacity: 0; }
 }

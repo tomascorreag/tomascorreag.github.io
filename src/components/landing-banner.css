@@ -38,8 +38,8 @@
   background: var(--lb-ink);
 }
 
-/* Still thumbnail: shown until the scene is live, and the only content under
- * reduced motion / low tier. Selector depth outranks the slot rules that
+/* Still thumbnail: shown until the scene is live (and if its chunk fails to
+ * load). Selector depth outranks the slot rules that
  * target any banner <img> (cover, max-height, height:auto). */
 .landing-banner > picture {
   position: absolute;

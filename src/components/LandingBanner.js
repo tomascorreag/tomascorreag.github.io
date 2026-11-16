@@ -6,12 +6,11 @@
  * once with the still thumbnail inside, and loads the scene
  * (landingBannerScene.js + the vendored canvas effects) as a separate chunk
  * only when the banner is near the viewport. The scene then fades in over the
- * still. Reduced motion keeps the still and never loads it; low-tier devices
- * (all phones) get the lite scene.
+ * still. Low-tier devices (all phones) get the lite scene.
  */
 
 import { createMediaElement } from '../utils/media.js';
-import { deviceTier, prefersReducedMotion } from '../config/device.js';
+import { deviceTier } from '../config/device.js';
 import './landing-banner.css';
 
 /** Reference frame the mock is laid out in: the landing at a 1500×750 viewport. */
@@ -40,8 +39,6 @@ export function createLandingBanner(opts = {}) {
 
   const stillEl = still && createMediaElement(still, { alt: '', lazy, sizes, className: 'lb-still' });
   if (stillEl) root.appendChild(stillEl);
-
-  if (prefersReducedMotion()) return root;
 
   // Low tier (every phone, weak desktops) gets lite, like ParallaxBanner.
   const liteMode = lite || deviceTier === 'low';

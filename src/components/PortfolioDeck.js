@@ -44,7 +44,10 @@ import { attachVideoControls } from './VideoControls.js';
 import { createHistorySync } from '../utils/historySync.js';
 import { observeScrollReveal } from '../utils/scrollReveal.js';
 
-const reduceMotion = prefersReducedMotion() || deviceTier === 'low';
+// Low tier drops the deck animations outright (.no-anim). Reduced motion keeps
+// fades (portfolio-deck.css media query) but has no slide to wait out.
+const noAnim = deviceTier === 'low';
+const reduceMotion = prefersReducedMotion() || noAnim;
 
 // URL of the normal site = current path minus the `?p=` query. On the user
 // site that's just "/", but using pathname keeps it correct under a subpath.
@@ -259,8 +262,8 @@ function applyMediaAspect(box, item, mediaEl) {
   }
 }
 
-/** Make any `.article-reveal` children visible immediately (reduced motion /
- *  low tier, where the deck runs without animation). */
+/** Make any `.article-reveal` children visible immediately (low tier, where
+ *  the deck runs without animation). */
 function revealAll(root) {
   root.querySelectorAll('.article-reveal').forEach((node) => node.classList.add('revealed'));
 }
@@ -474,7 +477,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   let docReveal = null;   // scroll-reveal observer for the open doc
 
   // ── Scaffold ──
-  const deck = el('div', { class: `deck${reduceMotion ? ' no-anim' : ''}${isMobile ? ' is-mobile' : ''}` });
+  const deck = el('div', { class: `deck${noAnim ? ' no-anim' : ''}${isMobile ? ' is-mobile' : ''}` });
 
   // `crt-effects` gets the deck's copy of the CRT glow/RGB-split rule in
   // portfolio-deck.css (style.css isn't loaded on mobile); it mirrors the
@@ -698,7 +701,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     // ways. The overlay is the scroll container.
     docReveal?.disconnect();
     docReveal = null;
-    if (reduceMotion) revealAll(docContent);
+    if (noAnim) revealAll(docContent);
     else docReveal = observeScrollReveal(docContent, overlay);
     if (entry.item.hasAudio) {
       const wrap = docContent.querySelector('.article-banner-wrap');
@@ -805,7 +808,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     clearTimeout(wipeTimer);
     wipe.classList.remove('lit');
     void deck.offsetWidth; // commit the no-transition state before re-enabling
-    if (!reduceMotion) deck.classList.remove('no-anim');
+    if (!noAnim) deck.classList.remove('no-anim');
   } else {
     goTo(0);
   }

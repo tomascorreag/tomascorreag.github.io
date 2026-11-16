@@ -7,7 +7,7 @@
  * Similar pattern to animations.js - values injected as CSS custom properties.
  */
 
-import { getDeviceTier, prefersReducedMotion, reducedMotionQuery } from './device.js';
+import { getDeviceTier } from './device.js';
 
 export const CRT_CONFIG = Object.freeze({
   // Scanlines
@@ -167,17 +167,9 @@ export function injectCRTVariables() {
 let glowNoiseTimer = null;
 let glowNoiseFrame = null;
 let glowNoiseActive = false;
-let glowNoiseMotionHooked = false;
 
 export function startGlowNoise() {
-  // Follow the OS reduced-motion toggle at runtime: off when set, back on when cleared.
-  if (!glowNoiseMotionHooked) {
-    glowNoiseMotionHooked = true;
-    reducedMotionQuery.addEventListener('change', (e) => {
-      if (e.matches) stopGlowNoise(); else startGlowNoise();
-    });
-  }
-  if (glowNoiseActive || prefersReducedMotion()) return;
+  if (glowNoiseActive) return;
 
   const config = getActiveConfig();
   const { glowNoiseMin: min, glowNoiseFrequency: freq,

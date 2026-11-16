@@ -1789,48 +1789,27 @@
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────────────────
- * Everything that animates in still ends visible; it just gets there at once.
- * Looping blinks stop (cursor stays solid). One-shot animations/transitions
- * are cut to 0.01ms instead of `none` because JS waits on their end events:
- * Rabbit.js listens for animationend (rabbit-spawn-drop, rabbit-jump-sprite)
- * and desktop.js for transitionend (mosaic fades, detail FLIP). !important is
- * needed to beat the per-item transition-delay desktop.js sets inline for the
- * mosaic stagger. */
+ * Deliberate animations stay (typing, cursor blink, rabbit, particle morph,
+ * frame border sweep, banners). What goes is UI movement: slide offsets, the
+ * frame's geometry tween and the fullscreen zooms. Opacity fades are kept, and
+ * desktop.js swaps the detail FLIP / zoom for a WAAPI fade (reducedFade).
+ * Zoom geometry is `none`, not 0.01ms: an instant transitionend would let the
+ * cleanup remove the gallery overlay before its fade-out plays; the 350ms
+ * timeouts in exitDetailFullscreen clean up instead. */
 @media (prefers-reduced-motion: reduce) {
-  .cursor,
-  .general-contact-typeout.typing::after {
-    animation: none;
+  .mosaic-frame {
+    transition: none;
   }
 
-  .rabbit.spawning,
-  .rabbit.spawning::after,
-  .rabbit.dropping,
-  .rabbit.dropping::after,
-  .rabbit.jumping,
-  .rabbit.jumping::after {
-    animation-duration: 0.01ms !important;
+  .mosaic-item.detail-active.detail-transitioning {
+    transition: opacity 250ms ease;
   }
 
-  .mosaic-frame,
-  .mosaic-frame::before,
-  .mosaic-frame::after,
-  .mosaic-handle,
-  .mosaic-grid,
-  .mosaic-item,
-  .mosaic-item.reveal,
-  .stagger-reveal,
-  .crt-scrollbar,
-  .detail-info,
-  .detail-nav,
-  .detail-nav-arrows,
-  .mosaic-item.detail-active,
-  .mosaic-item.detail-active.detail-transitioning,
   .gallery-fs-overlay {
-    transition-duration: 0.01ms !important;
-    transition-delay: 0s !important;
+    transition: none;
   }
 
-  /* Reveal offsets: skip the slide, keep the fade target. */
+  /* Reveal offsets: skip the slide, keep the fade (and its stagger). */
   .mosaic-item.reveal,
   .stagger-reveal:not(.visible) {
     transform: none;
