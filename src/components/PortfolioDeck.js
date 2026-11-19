@@ -33,7 +33,7 @@ import { resolvePage } from '../config/portfolio.js';
 // and loads it alongside the dynamic import (same pattern as mobile.css).
 import '../article.css'; // shared .article-* markdown styles
 import './portfolio-deck.css';
-import { createMediaElement, createSpritesheetElement } from '../utils/media.js';
+import { createMediaElement, createSpritesheetElement, createTitleArt } from '../utils/media.js';
 import { createParallaxBanner } from './ParallaxBanner.js';
 import { createLandingBanner, LANDING_VIEW } from './LandingBanner.js';
 import { parseMarkdown, applyInline } from '../utils/markdown.js';
@@ -340,7 +340,11 @@ function buildDocument(item) {
   const pageMd = item.deckPage ?? item.page;
   if (pageMd) {
     const body = el('div', { class: 'article-body' });
-    body.appendChild(parseMarkdown(pageMd, { createMediaElement: createDocMedia, iconMap: ICONS }));
+    body.appendChild(parseMarkdown(pageMd, {
+      createMediaElement: createDocMedia,
+      iconMap: ICONS,
+      ctaArt: () => createTitleArt(item.spritesheet),
+    }));
     // Embedded images are click-to-zoom, mirroring the desktop detail view.
     // Bind the whole <figure> (floated images wrap text + a caption, so the bare
     // <img> is an unreliable hit target). Video figures have no <img> → skipped.

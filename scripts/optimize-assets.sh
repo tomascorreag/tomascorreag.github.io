@@ -129,7 +129,9 @@ if command -v ffprobe >/dev/null 2>&1; then
 fi
 
 if [[ -d "$MASTERS_DIR" ]]; then
-  for tool in cwebp avifenc; do
+  img_tools=(cwebp)
+  [[ "$GEN_AVIF" == "1" ]] && img_tools+=(avifenc)
+  for tool in "${img_tools[@]}"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       echo "ERROR: $tool not found (macOS: brew install webp libavif)." >&2
       exit 1
@@ -533,8 +535,10 @@ encode_mp4() {
     "$dst"
 }
 
-# BSD stat (macOS) uses -f %z; GNU stat (Linux, git-bash) uses -c %s.
-file_size() { stat -f %z "$1" 2>/dev/null || stat -c %s "$1" 2>/dev/null || echo 0; }
+# wc -c, not stat: BSD wants `stat -f %z`, but GNU stat (Linux, git-bash)
+# reads `-f` as --file-system, prints a multi-line report AND fails, so the
+# old `stat -f %z || stat -c %s` chain returned garbage there.
+file_size() { local n; n="$(wc -c < "$1" 2>/dev/null)" || n=0; echo "${n//[[:space:]]/}"; }
 
 convert_video() {
   local src="$1"

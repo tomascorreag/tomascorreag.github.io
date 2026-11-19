@@ -23,6 +23,7 @@
  *   https://tomascorreag.github.io/?p=65f2    UCL application
  *   https://tomascorreag.github.io/?p=65f2v   UCL application (alias, same deck)
  *   https://tomascorreag.github.io/?p=0c3d    OceanX challenge
+ *   https://tomascorreag.github.io/?p=2b86    UAL MA Internet Equalities application
  * Rules:
  *   - Never rename or delete these slugs or the PAGE_ALIASES entry.
  *   - Never remove the `id` of a project they list from content.js (the deck
@@ -95,6 +96,20 @@ export const PORTFOLIO_PAGES = {
     // post-mortem, i.e. the evidence that I finish things.
     intro: 'Curated for the **OceanX Science Impact Challenge**\nTurning large, uncertain public datasets into things you can navigate — and shipping them. Select any piece to read more',
     items: ['scars-of-violence', 'paramo', 'arbo'],
+    outro: true,
+  },
+
+  // UAL CCI MA Internet Equalities — application portfolio (Fall 2027 entry).
+  // Shared at: https://tomascorreag.github.io/?p=2b86
+  // PERMANENT: do not rename or delete this slug.
+  '2b86': {
+    title: 'Tomás Correa — Selected Work',
+    // Arc, in order: a public archive turned into an open, navigable map
+    // (data, power, who gets seen) → a game whose rules argue about unequal
+    // power over land → shipped commercial production and its post-mortem
+    // (evidence of delivery) → a film about stigma, gender, and sexuality.
+    intro: 'Curated for **UAL MA Internet Equalities**\nPublic records, game systems, and film used to show who harm lands on and who carries its cost. Select any piece to read more',
+    items: ['scars-of-violence', 'paramo', 'arbo', 'frenesi'],
     outro: true,
   },
 };

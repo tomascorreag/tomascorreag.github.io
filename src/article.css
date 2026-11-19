@@ -445,6 +445,112 @@ div.article-banner {
   border-color: var(--text-primary);
 }
 
+/* ---- Call-to-action button: [[LABEL]](url) ----
+ * Title sprite (transparent, from parseMarkdown's ctaArt) above a big label,
+ * inside a theme-coloured outline. Idle: a slow glow pulse. Hover/focus:
+ * fill tint, stronger glow, a 2px lift, arrow nudge. Reduced motion keeps the
+ * colour changes and drops the pulse, lift and nudge. */
+.article-cta {
+  align-self: center;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0.5rem;
+  padding: 1rem 1.75rem 1.1rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  border: 2px solid var(--text-primary);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  box-shadow: 0 0 6px var(--glow-color), inset 0 0 6px var(--glow-color);
+  animation: article-cta-pulse 2.4s ease-in-out infinite;
+  transition:
+    background-color var(--timing-fast) ease,
+    box-shadow var(--timing-fast) ease,
+    translate var(--timing-fast) ease,
+    scale var(--timing-fast) ease;
+}
+
+/* Native frame is 256×64: 256px wide = 1:1 source pixels. */
+.article-cta-art {
+  width: 256px;
+  max-width: 100%;
+}
+
+.article-cta-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: clamp(1rem, 2vw, 1.3rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 8px var(--glow-color);
+  transition: letter-spacing var(--timing-normal) ease;
+}
+
+.article-cta-arrow {
+  font-size: 0.8em;
+  transition: transform var(--timing-fast) ease;
+}
+
+.article-cta:hover,
+.article-cta:focus-visible {
+  animation: none;
+  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  box-shadow: 0 0 18px var(--glow-color), inset 0 0 12px var(--glow-color);
+  /* `translate`/`scale`, not `transform`: .article-reveal owns transform. */
+  translate: 0 -2px;
+  outline: none;
+}
+
+.article-cta:focus-visible {
+  outline: 1px dashed var(--text-primary);
+  outline-offset: 4px;
+}
+
+.article-cta:hover .article-cta-label,
+.article-cta:focus-visible .article-cta-label {
+  letter-spacing: 0.2em;
+}
+
+.article-cta:hover .article-cta-arrow,
+.article-cta:focus-visible .article-cta-arrow {
+  transform: translateX(3px);
+}
+
+.article-cta:active {
+  translate: 0 0;
+  scale: 0.98;
+}
+
+@keyframes article-cta-pulse {
+  50% {
+    box-shadow: 0 0 14px var(--glow-color), inset 0 0 9px var(--glow-color);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-cta,
+  .article-cta:hover,
+  .article-cta:focus-visible,
+  .article-cta:active {
+    animation: none;
+    translate: none;
+    scale: none;
+  }
+
+  .article-cta-label,
+  .article-cta:hover .article-cta-label,
+  .article-cta:focus-visible .article-cta-label {
+    letter-spacing: 0.12em;
+  }
+
+  .article-cta:hover .article-cta-arrow,
+  .article-cta:focus-visible .article-cta-arrow {
+    transform: none;
+  }
+}
+
 /* ---- Scroll-triggered reveal ---- */
 /* Same pattern as .stagger-reveal: the hidden state is on :not(.revealed)
  * so when .revealed is added, opacity reverts to each element's own natural
