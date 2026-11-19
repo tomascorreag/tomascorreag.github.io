@@ -4,6 +4,8 @@ const HEADING_RE = /^##\s+(.+)$/;
 const DIVIDER_RE = /^-{3,}$/;
 const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)(?:\{(left|right|center)\})?$/;
 const LINK_LINE_RE = /^\[([^\]]+)\]\(([^)]+)\)$/;
+// Call-to-action button: [[PLAY NOW]](url). Its art comes from opts.ctaArt.
+const CTA_RE = /^\[\[([^\]]+)\]\]\(([^)]+)\)$/;
 const CAPTION_RE = /^\*([^*]+)\*$/;
 
 function isVideoPath(src) {
@@ -51,7 +53,12 @@ export function applyInline(text) {
   return html;
 }
 
-export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
+/**
+ * `ctaArt` (optional): () => Element|null, the art shown inside a
+ * [[LABEL]](url) call-to-action (e.g. the item's title sprite). Called once
+ * per CTA; null or absent → a text-only button.
+ */
+export function parseMarkdown(mdString, { createMediaElement, iconMap, ctaArt }) {
   const fragment = document.createDocumentFragment();
   const lines = mdString.split('\n');
 
@@ -190,6 +197,35 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap }) {
       } else {
         container.appendChild(figure);
       }
+      i++;
+      continue;
+    }
+
+    match = line.match(CTA_RE);
+    if (match) {
+      flushParagraph();
+      closeFloatGroup();
+      const [, label, url] = match;
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'article-cta article-reveal';
+      const art = ctaArt?.();
+      if (art) {
+        // Decorative: the label carries the accessible name.
+        art.removeAttribute('role');
+        art.removeAttribute('aria-label');
+        art.setAttribute('aria-hidden', 'true');
+        art.classList.add('article-cta-art');
+        a.appendChild(art);
+      }
+      const text = document.createElement('span');
+      text.className = 'article-cta-label';
+      text.innerHTML = `<span class="article-cta-arrow" aria-hidden="true">▶</span>`;
+      text.append(label);
+      a.appendChild(text);
+      container.appendChild(a);
       i++;
       continue;
     }

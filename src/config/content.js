@@ -400,6 +400,9 @@ export const GAMES = [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],
     page: `
+![Rain over frailejones on the mountain slopes](Games/Paramo/day_frailejon.mp4)
+*Rain over frailejones on the mid-slopes: isometric tiles with elevation, vegetation, and terrain variety.*
+
 ## About the Project
 
 A mix of sandbox and environmental strategy, built in Godot 4. You play a field coordinator protecting a Colombian páramo, a high mountain ecosystem that acts as a water factory for millions of beings downstream. A glacial lake sits at the summit and it, along with its surrounding ecosystem, must be protected.
@@ -417,9 +420,6 @@ Three things keep a run going. **Water** comes from the ecosystem itself, **fund
 
 The intended aesthetic experience for the player is one of insufficiency, of feeling an abundance in opportunity being trampled by social forces beyond their control. This includes asymmetric imbalances such as environmental timescales vs. industrial timescales and local environmental projects vs global climate change. The rules and procedures of the game aim to express this rhetoric to the player.
 
-![Páramo isometric tile system](Games/Paramo/Large.jpg)
-*Isometric tile grid with elevation, vegetation, and terrain variety.*
-
 ---
 
 ## My Role
@@ -427,6 +427,9 @@ The intended aesthetic experience for the player is one of insufficiency, of fee
 Solo project (2026-present). The design, the code, the pixel art, and the writing are all mine, built in Godot 4 with isometric pixel art.
 
 I have consulted with guardians and inhabitants of real páramos in Colombia, seeking guidance both on the technical aspects of the game design and on the message they want to send. In the future I want to work more closely with them, on projects we create together from the start.
+
+![Field journal entries for the frailejón and the piojo](Games/Paramo/journal.jpg)
+*The field journal: species entries for the frailejón and the piojo, with reference photos and specimens.*
 
 ---
 
@@ -445,8 +448,8 @@ The rules carry the smaller arguments:
 - **Climate is a ceiling, not an enemy.** There's no way to beat it, only to adapt.
 - **The land remembers.** Damage is partly permanent and the páramo can only lose; the question is how much you slow the loss. The end screen shows what was lost, not a score.
 
-![Páramo mountain at dusk](Games/Paramo/Small.jpg)
-*The mountain at dusk: stream, vegetation gradients, and atmospheric fog.*
+![Night near the summit lake, snow on the upper terraces](Games/Paramo/lake_night.mp4)
+*Night near the summit lake, where snow covers the upper terraces.*
 
 ---
 
@@ -459,11 +462,14 @@ Godot 4, isometric pixel art. Every system is data-driven, so new content is con
 - **Fog-of-war and visibility:** monitoring stations, ranger patrols, and directional audio cues
 - **Two interaction tiers:** field presence (planting, firefighting) and station management (legal action, hiring, strategy)
 
+![The field coordinator crossing the midday grassland beside a stream](Games/Paramo/grass_midday.mp4)
+*Field presence: the coordinator crossing the grassland at midday, beside a stream.*
+
 *Work in progress (2026-present), targeting a vertical-slice release: procedural levels with a different mountain every playthrough, the core threat and tool sets, and the full resource loop.*
 
 ---
 
-[Play|website](https://tomascorreag.github.io/Paramo/)
+[[PLAY NOW]](https://tomascorreag.github.io/Paramo/)
 `,
   },
   {

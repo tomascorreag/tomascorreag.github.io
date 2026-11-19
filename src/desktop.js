@@ -24,7 +24,7 @@ import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier, getSaveData, prefersReducedMotion } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia } from './utils/media.js';
+import { createMediaElement, createSpritesheetElement, createTitleArt, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
@@ -1183,6 +1183,7 @@ function buildArticleContent(itemData) {
       // but sizes only needs an upper bound to beat the 100vw default).
       createMediaElement: (src, o) => createMediaElement(src, { sizes: '55vw', ...o }),
       iconMap: CONTACT_ICONS,
+      ctaArt: () => createTitleArt(itemData.spritesheet),
     });
     body.appendChild(fragment);
     wrapper.appendChild(body);
@@ -2123,6 +2124,7 @@ function appendDetailBody(container, itemData) {
       // but sizes only needs an upper bound to beat the 100vw default).
       createMediaElement: (src, o) => createMediaElement(src, { sizes: '55vw', ...o }),
       iconMap: CONTACT_ICONS,
+      ctaArt: () => createTitleArt(itemData.spritesheet),
     });
     body.appendChild(fragment);
     // The detail panel has no scroll-reveal observer (unlike the article page)

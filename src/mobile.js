@@ -30,6 +30,7 @@ import { ICONS } from './config/icons.js';
 import {
   createMediaElement,
   createSpritesheetElement,
+  createTitleArt,
   pauseManagedVideos,
   releaseMedia,
   resumeManagedVideos,
@@ -929,6 +930,7 @@ function renderSheetInfo(info, item) {
       // Sheet body spans ~full viewport width.
       createMediaElement: (src, o) => createMediaElement(src, { sizes: '100vw', ...o }),
       iconMap: ICONS,
+      ctaArt: () => createTitleArt(item.spritesheet),
     }));
     // The sheet fades in as a whole (no scroll-reveal observer), so reveal the
     // markdown blocks immediately — otherwise .article-reveal keeps them hidden.

@@ -433,6 +433,19 @@ export function createSpritesheetElement(config, opts = {}) {
   return container;
 }
 
+/**
+ * The item's title sprite on a transparent background, for a markdown
+ * call-to-action button (parseMarkdown's `ctaArt`). Sized by CSS
+ * (.article-cta-art), so the fixed pixel-perfect box is dropped (no `scale`).
+ * Null when the item has no spritesheet.
+ */
+export function createTitleArt(spritesheet) {
+  if (!spritesheet) return null;
+  return createSpritesheetElement(
+    { ...spritesheet, background: 'transparent', scale: undefined },
+  );
+}
+
 // One observer for every contain-fit sprite box; each box maps to its resize fn.
 let spriteBoxObserver = null;
 const spriteBoxFits = new WeakMap();
