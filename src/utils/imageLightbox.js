@@ -11,6 +11,7 @@
  * ──────────────────────────────────────────────────────────────────────── */
 
 import { prefersReducedMotion } from '../config/device.js';
+import { cloneMediaForZoom } from './media.js';
 
 const MARGIN = 24;       // gap (px) between the zoomed image and the viewport edge
 const ANIM_MS = 300;      // keep in sync with .img-lightbox-overlay transition (src/article.css)
@@ -29,8 +30,8 @@ function containRect(ar, vw, vh) {
 }
 
 /**
- * Opens the lightbox for `imgEl` (the rendered <img> in the document).
- * No-op if a lightbox is already open or the image has no measurable size.
+ * Opens the lightbox for `imgEl` (the rendered <img> or <video> in the
+ * document). No-op if a lightbox is already open or it has no measurable size.
  */
 export function openImageLightbox(imgEl) {
   if (activeClose) return;
@@ -51,13 +52,7 @@ export function openImageLightbox(imgEl) {
   overlay.style.width = `${from.width}px`;
   overlay.style.height = `${from.height}px`;
 
-  const img = document.createElement('img');
-  // currentSrc = the variant the browser actually picked for a <picture>
-  // (avif/webp); falls back to .src for a bare <img>. Avoids a refetch.
-  img.src = imgEl.currentSrc || imgEl.src;
-  img.alt = imgEl.alt || '';
-  img.decoding = 'async';
-  overlay.appendChild(img);
+  overlay.appendChild(cloneMediaForZoom(imgEl));
 
   document.body.appendChild(backdrop);
   document.body.appendChild(overlay);

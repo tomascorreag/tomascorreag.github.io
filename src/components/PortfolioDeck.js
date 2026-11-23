@@ -43,6 +43,7 @@ import { deviceTier, prefersReducedMotion, getSaveData } from '../config/device.
 import { attachVideoControls } from './VideoControls.js';
 import { createHistorySync } from '../utils/historySync.js';
 import { observeScrollReveal } from '../utils/scrollReveal.js';
+import { markBusy } from '../utils/frameGate.js';
 
 // Low tier drops the deck animations outright (.no-anim). Reduced motion keeps
 // fades (portfolio-deck.css media query) but has no slide to wait out.
@@ -347,9 +348,9 @@ function buildDocument(item) {
     }));
     // Embedded images are click-to-zoom, mirroring the desktop detail view.
     // Bind the whole <figure> (floated images wrap text + a caption, so the bare
-    // <img> is an unreliable hit target). Video figures have no <img> → skipped.
+    // <img> is an unreliable hit target). Video figures zoom too.
     body.querySelectorAll('.article-figure').forEach((fig) => {
-      const img = fig.querySelector('img');
+      const img = fig.querySelector('img, video');
       if (!img) return;
       fig.classList.add('zoomable');
       fig.addEventListener('click', () => openImageLightbox(img));
@@ -577,9 +578,11 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   // `calc()` still keeps slide `index` centred while neighbours peek at the
   // edges; `var(--slide-w)` stays a var so the responsive width is honoured.
   let announce = false; // set after mount: the first slide isn't announced
-  function goTo(next) {
+  function goTo(next, { immediate = false } = {}) {
     const prevIndex = index;
+    cancelWarm();
     index = Math.max(0, Math.min(total - 1, next));
+    markSeen(); // on screen from now on: painted the normal way
     track.style.transform =
       `translateX(calc(${-index} * var(--slide-w) + (100% - var(--slide-w)) * 0.5))`;
     prevBtn.disabled = index === 0;
@@ -608,24 +611,27 @@ export function mountDeck(slug, { isMobile = false } = {}) {
       else s.setAttribute('aria-hidden', 'true');
     });
     if (announce) status.textContent = `${index + 1} of ${total}: ${slideTitle(index)}`;
-    syncSlideMedia();
+    syncSlideMedia({ immediate });
   }
 
   // Only the centred card's media plays. Card videos and sprite loops are
   // built outside the shared media manager (it would play anything that peeks
-  // into view), so the deck is their only owner. Others pause right away. The
-  // centred video starts once the slide has settled, because starting playback
-  // (first decode, first GPU upload) during the slide drops frames: on a cold
-  // GPU cache, measured in Chrome, it froze one transition for ~200 ms. Sprite
-  // loops are cheap to resume, so they start immediately.
+  // into view), so the deck is their only owner.
+  // During a slide nothing changes play state: the arriving card stays frozen
+  // and the leaving one keeps running, and the swap happens once the slide has
+  // settled. Starting or stopping media mid-slide drops frames on a cold GPU
+  // cache: a video's first decode + upload froze one transition for ~200 ms
+  // (measured in Chrome), and playing a layered banner (ARBO: ~20 animations
+  // with filters and masks) creates, rasters and uploads its layers at once.
+  // Meanwhile markBusy holds every thumbnail loop at FPS_BUSY, so the leaving
+  // card's canvases yield frame budget to the slide.
   const SLIDE_MS = 560; // keep in sync with .deck-track / .deck-slide transitions
   const saveData = getSaveData();
   let playTimer = null;
   const spriteAnims = (s) =>
     s.querySelector('.deck-card-media')?.getAnimations({ subtree: true }).filter(isScriptAnimation) ?? [];
 
-  function syncSlideMedia({ immediate = false } = {}) {
-    clearTimeout(playTimer);
+  function applySlideMedia() {
     playTimer = null;
     const visible = !docOpen && !document.hidden;
     let current = null;
@@ -641,10 +647,97 @@ export function mountDeck(slug, { isMobile = false } = {}) {
       }
     });
     // Data saver: no autoplay (createMediaElement's rule).
-    if (!current || saveData || !visible) return;
-    const start = () => { if (current.paused) current.play().catch(() => {}); };
-    if (immediate || reduceMotion) start();
-    else playTimer = setTimeout(start, SLIDE_MS);
+    if (current && !saveData && visible && current.paused) current.play().catch(() => {});
+    scheduleWarm();
+  }
+
+  // ── Raster warm-up ──
+  // Only the centred slide and its neighbours are ever on screen, so a slide
+  // two or more away gets its first paint while the track is sliding it in.
+  // That paint decodes and uploads all of its images at once. A Chrome trace of
+  // a first pass showed it as the one bad transition: ARBO (~15 AVIF layers)
+  // entering as the new neighbour cost ~13 ms of decode + ~9 ms of upload on
+  // the raster/GPU threads and dropped 4 frames; later passes had none of it.
+  // (ParallaxBanner's img.decode() at build doesn't cover it: raster decoded
+  // again.) So while the deck sits idle, each far slide is drawn once over the
+  // centred one at near-zero opacity, which leaves its images decoded and
+  // uploaded. One slide at a time, spaced out; any navigation cancels.
+  const WARM_OPACITY = '0.001'; // > 0 so it is painted; rounds to 0 in 8-bit
+  const WARM_HOLD_MS = 150;     // a few frames: long enough for raster to run
+  const WARM_GAP_MS = 250;
+  const WARM_AFTER_LOAD_MS = 600; // ParallaxBanner's is-ready fade (500 ms) + slack
+  const cold = new Set(slideEls.keys());
+  let warmReady = false;
+  let warmTimer = 0;
+  let warming = null; // { slide, timer }
+
+  const markSeen = () => { for (const i of [index - 1, index, index + 1]) cold.delete(i); };
+
+  function endWarm() {
+    if (!warming) return;
+    const { slide, timer } = warming;
+    clearTimeout(timer);
+    warming = null;
+    // Back to the stylesheet pose without animating there.
+    slide.style.transition = 'none';
+    slide.style.transform = slide.style.opacity = slide.style.pointerEvents = '';
+    void slide.offsetWidth;
+    slide.style.transition = '';
+  }
+
+  function cancelWarm() {
+    clearTimeout(warmTimer);
+    warmTimer = 0;
+    endWarm();
+  }
+
+  function scheduleWarm(delay = WARM_GAP_MS) {
+    // Low tier jumps between slides (no motion to hitch), so warming would only
+    // spend decode time and GPU memory.
+    if (noAnim || !warmReady || warming || !cold.size) return;
+    clearTimeout(warmTimer);
+    warmTimer = setTimeout(warmNext, delay);
+  }
+
+  function warmNext() {
+    warmTimer = 0;
+    // Only while settled: no slide in flight, nothing covering the deck.
+    if (destroyed || warming || playTimer || docOpen || document.hidden || !cold.size) return;
+    // Nearest first: the slide that next becomes a neighbour.
+    let k = -1;
+    for (const c of cold) if (k < 0 || Math.abs(c - index) < Math.abs(k - index)) k = c;
+    cold.delete(k);
+    const slide = slideEls[k];
+    // Over the centred slot at full size (scale 1, the active pose), the
+    // largest it is ever drawn. Warming at the inactive 0.82 left a 4 ms
+    // decode for when the card later grows to 1 (trace: 1 dropped frame).
+    // Assumption under test: Chrome serves the smaller side-card draw from the
+    // full-size decode rather than decoding again.
+    const dx = (index - k) * slide.offsetWidth;
+    slide.style.transition = 'none';
+    slide.style.pointerEvents = 'none';
+    slide.style.opacity = WARM_OPACITY;
+    slide.style.transform = `translateX(${dx}px)`;
+    warming = {
+      slide,
+      timer: setTimeout(() => {
+        endWarm();
+        scheduleWarm();
+      }, WARM_HOLD_MS),
+    };
+  }
+
+  function syncSlideMedia({ immediate = false } = {}) {
+    clearTimeout(playTimer);
+    playTimer = null;
+    // Hidden / covered (pausing is all that happens) and reduced motion (no
+    // slide to wait out): apply now.
+    if (immediate || reduceMotion || docOpen || document.hidden) {
+      applySlideMedia();
+      return;
+    }
+    markBusy(SLIDE_MS);
+    playTimer = setTimeout(applySlideMedia, SLIDE_MS);
   }
 
   function pauseSlideMedia() {
@@ -697,6 +790,7 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   function openDoc(i) {
     const entry = page.slides[i];
     if (!entry) return;
+    cancelWarm();
     openIndex = i;
     docControls?.destroy(); // stale bar from a previously opened doc
     docControls = null;
@@ -715,6 +809,8 @@ export function mountDeck(slug, { isMobile = false } = {}) {
     // The overlay (.deck-doc-overlay) is the scroll container, not docContent —
     // reset it so the previous doc's scroll position doesn't carry over.
     overlay.scrollTop = 0;
+    // The doc banner (a fresh scene) starts its loops during the wipe.
+    markBusy(WIPE_MS);
     flashWipe();
     wipe.classList.add('at-bottom'); // edge sweeps top → bottom with the clip
     overlay.classList.add('open');
@@ -807,14 +903,14 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   const linked = slideIndexOf(parseDocRoute()?.id);
   if (linked >= 0) {
     deck.classList.add('no-anim');
-    goTo(linked);
+    goTo(linked, { immediate: true });
     openDoc(linked);
     clearTimeout(wipeTimer);
     wipe.classList.remove('lit');
     void deck.offsetWidth; // commit the no-transition state before re-enabling
     if (!noAnim) deck.classList.remove('no-anim');
   } else {
-    goTo(0);
+    goTo(0, { immediate: true });
   }
   announce = true;
   // After the opening view: a linked document is the baseline, so its entry
@@ -868,9 +964,24 @@ export function mountDeck(slug, { isMobile = false } = {}) {
   document.fonts?.ready.then(settle);
   document.fonts?.addEventListener('loadingdone', settle);
 
+  // Warm-up starts once the cards' images are in (window load waits for the
+  // eagerly inserted <img>s) and the parallax layers have faded in: an image
+  // that hasn't arrived, or a layer still at opacity 0, has nothing to warm.
+  const loaded = document.readyState === 'complete'
+    ? Promise.resolve()
+    : new Promise((r) => window.addEventListener('load', r, { once: true }));
+  Promise.all([loaded, document.fonts?.ready]).then(() => {
+    setTimeout(() => {
+      if (destroyed) return;
+      warmReady = true;
+      scheduleWarm(0);
+    }, WARM_AFTER_LOAD_MS);
+  });
+
   return {
     destroy() {
       destroyed = true;
+      cancelWarm();
       cancelAnimationFrame(settleRaf);
       ro.disconnect();
       document.fonts?.removeEventListener('loadingdone', settle);

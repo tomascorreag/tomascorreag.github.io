@@ -79,7 +79,7 @@ export const PORTFOLIO_PAGES = {
     // Arc, in order: shipped commercial craft (with its post-mortem as a
     // section of the ARBO document) → the solo work that came out of it
     // (procedural argument, memory cartography, film) → art.
-    intro: 'Curated for **UCL MA Digital Media: Production**\nFour years of shipped production, the post-mortem that followed, and the solo work it led to. Select any piece to read more',
+    intro: 'Curated for **UCL MA Digital Media: Production**\nGames, artefacts, and film exploring memory, environment and identity in Colombia and abroad, from four years of shipped studio production to solo work. Select any piece to read more',
     items: ['arbo', 'paramo', 'scars-of-violence', 'frenesi', 'ardo'],
     outro: true,
   },
@@ -108,7 +108,7 @@ export const PORTFOLIO_PAGES = {
     // (data, power, who gets seen) → a game whose rules argue about unequal
     // power over land → shipped commercial production and its post-mortem
     // (evidence of delivery) → a film about stigma, gender, and sexuality.
-    intro: 'Curated for **UAL MA Internet Equalities**\nPublic records, game systems, and film used to show who harm lands on and who carries its cost. Select any piece to read more',
+    intro: 'Curated for **UAL MA Internet Equalities**\nDigital artefacts, games and film exploring memory, environment and identity in Colombia, built to be read and played freely online. Select any piece to read more',
     items: ['scars-of-violence', 'paramo', 'arbo', 'frenesi'],
     outro: true,
   },

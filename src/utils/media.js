@@ -240,6 +240,15 @@ export function releaseMedia(root) {
  * Returns null when the path isn't in the asset glob (mirrors the
  * `if (url)` guards that existed before this helper was introduced).
  */
+// WebKit (Safari, and every iOS browser) decodes VP9 WebM but ignores its
+// alpha plane, so a transparent .alpha.webm would render on black. No
+// canPlayType() query distinguishes alpha support, hence the UA check:
+// AppleWebKit without a Chromium token. iOS Chrome/Firefox (CriOS/FxiOS)
+// carry no "Chrome/" token and are WebKit underneath, so they match too.
+const IS_WEBKIT = typeof navigator !== 'undefined'
+  && /AppleWebKit/.test(navigator.userAgent)
+  && !/Chrome\/|Chromium\/|Edg\/|Android/.test(navigator.userAgent);
+
 export function createMediaElement(relativePath, opts = {}) {
   const {
     alt = '',
@@ -306,6 +315,10 @@ export function createMediaElement(relativePath, opts = {}) {
   video.preload = saveData ? 'none' : preload;
   if (variants.poster) video.poster = variants.poster;
   for (const src of variants.sources) {
+    if (src.alpha && IS_WEBKIT) continue;
+    // Transparent media drop the figure frame (article.css); WebKit gets the
+    // flattened mp4 instead, which keeps it.
+    if (src.alpha) video.classList.add('media-alpha');
     const source = document.createElement('source');
     source.type = src.type;
     source.src = src.url;
@@ -320,6 +333,42 @@ export function createMediaElement(relativePath, opts = {}) {
     });
   }
   if (autoplay) registerManagedVideo(video, effectiveAutoplay);
+  return video;
+}
+
+/**
+ * Copy of a rendered <img> or <video> for a click-to-zoom overlay.
+ *
+ * Uses currentSrc, the variant the browser already picked (avif/webp, or the
+ * alpha webm), so nothing is refetched. A video copy starts at the source's
+ * current time and only plays if the source is playing, so a video the user
+ * paused stays on the same frame. The copy is not registered with the
+ * offscreen manager: it lives only while the overlay is open.
+ */
+export function cloneMediaForZoom(el) {
+  if (el.tagName !== 'VIDEO') {
+    const img = document.createElement('img');
+    img.src = el.currentSrc || el.src;
+    img.alt = el.alt || '';
+    img.decoding = 'async';
+    return img;
+  }
+  const video = document.createElement('video');
+  video.muted = true;
+  video.loop = el.loop;
+  video.playsInline = true;
+  if (el.poster) video.poster = el.poster;
+  if (el.currentSrc) {
+    video.src = el.currentSrc;
+  } else {
+    // Not loaded yet (preload none under Save-Data): let the copy pick a source.
+    for (const s of el.querySelectorAll('source')) video.appendChild(s.cloneNode());
+  }
+  const playing = !el.paused;
+  video.addEventListener('loadedmetadata', () => {
+    video.currentTime = el.currentTime;
+    if (playing) video.play().catch(() => {});
+  }, { once: true });
   return video;
 }
 
@@ -382,29 +431,11 @@ export function createSpritesheetElement(config, opts = {}) {
   container.setAttribute('role', 'img');
   if (alt) container.setAttribute('aria-label', alt);
 
-  if (pixelPerfect) {
-    // Sprite is sized to an exact integer multiple of the native frame and
-    // centered (via the flex centering above) inside a 2:1 banner box that
-    // matches the other thumbnails. Pick the box edge the sprite sits flush
-    // against from its native aspect: a wide frame (≥2:1, e.g. the 4:1 title)
-    // fills the box width with solid-colour breathing room above/below; a
-    // square/tall frame (e.g. the 1:1 run cycle) fills the box height with
-    // pillarbox room left/right. The centering offset stays integer either
-    // way, so pixel-perfectness is preserved.
-    let w, h;
-    if (frameWidth >= 2 * frameHeight) {
-      w = frameWidth * scale;
-      h = w / 2;
-    } else {
-      h = frameHeight * scale;
-      w = h * 2;
-    }
-    container.style.flex = '0 0 auto';
-    container.style.width = `${w}px`;
-    container.style.height = `${h}px`;
-    container.style.aspectRatio = 'auto';
-  }
-
+  // Pixel-perfect: the box itself is sized by the caller's CSS slot (desktop
+  // .game-card, a fixed 2:1 px box); the sprite is an exact integer multiple of
+  // the native frame, centered by the flex centering above with the box
+  // background as breathing room. Keep the slot's px dims so (box - sprite)/2
+  // stays integer, or the sprite lands on half pixels.
   const sprite = document.createElement('div');
   if (pixelPerfect) {
     sprite.style.width = `${frameWidth * scale}px`;
