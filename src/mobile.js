@@ -37,6 +37,7 @@ import {
 } from './utils/media.js';
 import { applyInline, parseMarkdown } from './utils/markdown.js';
 import { openImageLightbox } from './utils/imageLightbox.js';
+import { mountMediaCompare } from './utils/galleryZoom.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createParallaxBanner } from './components/ParallaxBanner.js';
 import { createLandingBanner } from './components/LandingBanner.js';
@@ -852,6 +853,8 @@ async function renderSheetItem(index) {
   }
   activeSheet.videoControls?.destroy();
   activeSheet.videoControls = null;
+  activeSheet.compare?.destroy();
+  activeSheet.compare = null;
 
   // Info panel first, so the text never waits on the splat module import.
   releaseVideos(info);
@@ -911,6 +914,10 @@ async function renderSheetItem(index) {
       const video = media.querySelector('video');
       if (video) activeSheet.videoControls = attachVideoControls(video, media, { reveal: 'tap' });
     }
+    // Before/after slider over the item's media (content.js `compare`).
+    if (item.compare) {
+      activeSheet.compare = mountMediaCompare(media, media.querySelector('img, video'), item.compare);
+    }
   }
 }
 
@@ -960,6 +967,7 @@ function closeSheet() {
   // Destroy immediately (not in the deferred cleanup) — re-mutes the video so
   // no audio plays over the exit transition.
   videoControls?.destroy();
+  activeSheet.compare?.destroy();
 
   el.classList.add('m-sheet-exiting');
   activeSheet = null;
@@ -1010,6 +1018,9 @@ function attachSwipe(el, { onHorizontal, threshold = 48, offAxis = 0.6 } = {}) {
     // A second finger means pinch/zoom, not a swipe — cancel for the rest of
     // this gesture (touchstart fires per finger, so this catches it).
     if (e.touches.length > 1 || zoomed()) { active = false; return; }
+    // Horizontal drags that belong to a control, not the sheet: the compare
+    // slider's line and a scrolling :::gallery strip.
+    if (e.target.closest?.('.compare-handle, .article-gallery-track')) { active = false; return; }
     const t = e.touches[0]; if (!t) return;
     startX = t.clientX; startY = t.clientY; active = true;
   }, { passive: true });

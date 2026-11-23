@@ -4,9 +4,94 @@ const HEADING_RE = /^##\s+(.+)$/;
 const DIVIDER_RE = /^-{3,}$/;
 const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)(?:\{(left|right|center)\})?$/;
 const LINK_LINE_RE = /^\[([^\]]+)\]\(([^)]+)\)$/;
-// Call-to-action button: [[PLAY NOW]](url). Its art comes from opts.ctaArt.
+// Call-to-action button: [[PLAY NOW]](url) or [[STEAM|steam]](url) (icon key
+// from opts.iconMap). Its art comes from opts.ctaArt.
 const CTA_RE = /^\[\[([^\]]+)\]\]\(([^)]+)\)$/;
 const CAPTION_RE = /^\*([^*]+)\*$/;
+// Horizontal gallery: image lines between `:::gallery` and `:::`. A line with
+// several images is one slide, its images stacked top to bottom.
+const GALLERY_OPEN_RE = /^:::gallery$/;
+const GALLERY_CLOSE_RE = /^:::$/;
+const GALLERY_IMAGE_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
+
+/**
+ * Scrollable strip of slides with prev/next arrows. A slide is a column of
+ * one or more plain .article-figure elements, so every host view's figure
+ * click-to-zoom binding applies to each image on its own. Native scroll-snap
+ * does the paging; the arrows only call scrollBy, so touch swipe and trackpad
+ * scroll keep working.
+ * @param {Array<Array<[string, string]>>} slides - per slide, its [alt, spec] images
+ */
+function buildGallery(slides, createMediaElement) {
+  const root = document.createElement('div');
+  root.className = 'article-gallery article-reveal';
+
+  const track = document.createElement('div');
+  track.className = 'article-gallery-track';
+  track.tabIndex = 0;
+  track.setAttribute('role', 'group');
+  track.setAttribute('aria-label', 'Image gallery');
+
+  for (const images of slides) {
+    const slide = document.createElement('div');
+    slide.className = 'article-gallery-slide';
+    if (images.length > 1) slide.classList.add('article-gallery-slide--stack');
+    for (const [alt, spec] of images) {
+      // `painted.jpg|source.jpg`: the second path is the "before" image the
+      // zoom views show under a comparison slider (utils/galleryZoom.js).
+      const [src, compare] = spec.split('|').map((s) => s.trim());
+      const fig = document.createElement('figure');
+      fig.className = 'article-figure article-gallery-fig';
+      if (compare) fig.dataset.compare = compare;
+      fig.dataset.src = src; // the loupe looks up an optional `<name>_hires` copy
+      const cls = isVideoPath(src) ? 'article-block-video' : 'article-block-image';
+      const m = createMediaElement(src, { alt, className: cls });
+      if (m) fig.appendChild(m);
+      slide.appendChild(fig);
+    }
+    track.appendChild(slide);
+  }
+
+  const makeBtn = (dir, label, text) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `article-gallery-btn article-gallery-btn--${dir < 0 ? 'prev' : 'next'}`;
+    b.setAttribute('aria-label', label);
+    b.textContent = text;
+    b.addEventListener('click', (e) => {
+      // The host views bind clicks on their panels (close, zoom); keep the
+      // arrow click to the gallery.
+      e.stopPropagation();
+      const slide = track.querySelector('.article-gallery-slide');
+      const gap = parseFloat(getComputedStyle(track).columnGap) || 0;
+      const step = slide ? slide.getBoundingClientRect().width + gap : track.clientWidth;
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      track.scrollBy({ left: dir * step, behavior: reduce ? 'auto' : 'smooth' });
+    });
+    return b;
+  };
+  const prev = makeBtn(-1, 'Previous image', '<');
+  const next = makeBtn(1, 'Next image', '>');
+
+  // Disable an arrow at its end. 1px slack absorbs subpixel scroll positions.
+  const sync = () => {
+    const max = track.scrollWidth - track.clientWidth;
+    prev.disabled = track.scrollLeft <= 1;
+    next.disabled = track.scrollLeft >= max - 1;
+  };
+  track.addEventListener('scroll', sync, { passive: true });
+  // Widths are 0 until the slide images load and the panel is laid out.
+  new ResizeObserver(sync).observe(track);
+  track.addEventListener('load', sync, true);
+
+  track.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') { prev.click(); e.preventDefault(); e.stopPropagation(); }
+    else if (e.key === 'ArrowRight') { next.click(); e.preventDefault(); e.stopPropagation(); }
+  });
+
+  root.append(prev, track, next);
+  return root;
+}
 
 function isVideoPath(src) {
   const ext = src.split('.').pop().toLowerCase();
@@ -108,6 +193,32 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap, ctaArt })
       continue;
     }
 
+    if (GALLERY_OPEN_RE.test(line)) {
+      flushParagraph();
+      closeFloatGroup();
+      const items = [];
+      i++;
+      while (i < lines.length && !GALLERY_CLOSE_RE.test(lines[i].trim())) {
+        const images = [...lines[i].matchAll(GALLERY_IMAGE_RE)].map((m) => [m[1], m[2]]);
+        if (images.length) items.push(images);
+        i++;
+      }
+      i++; // past the closing :::
+      if (items.length) {
+        const gallery = buildGallery(items, createMediaElement);
+        container.appendChild(gallery);
+        const capMatch = i < lines.length && lines[i].trim().match(CAPTION_RE);
+        if (capMatch) {
+          const cap = document.createElement('p');
+          cap.className = 'article-row-caption';
+          cap.textContent = `> ${capMatch[1]}`;
+          container.appendChild(cap);
+          i++;
+        }
+      }
+      continue;
+    }
+
     if (DIVIDER_RE.test(line)) {
       flushParagraph();
       closeFloatGroup();
@@ -205,28 +316,46 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap, ctaArt })
     if (match) {
       flushParagraph();
       closeFloatGroup();
-      const [, label, url] = match;
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.className = 'article-cta article-reveal';
-      const art = ctaArt?.();
-      if (art) {
-        // Decorative: the label carries the accessible name.
-        art.removeAttribute('role');
-        art.removeAttribute('aria-label');
-        art.setAttribute('aria-hidden', 'true');
-        art.classList.add('article-cta-art');
-        a.appendChild(art);
+      // Consecutive CTA lines share one centred, wrapping row.
+      const run = [];
+      while (i < lines.length) {
+        const m = lines[i].trim().match(CTA_RE);
+        if (!m) break;
+        run.push(m);
+        i++;
       }
-      const text = document.createElement('span');
-      text.className = 'article-cta-label';
-      text.innerHTML = `<span class="article-cta-arrow" aria-hidden="true">▶</span>`;
-      text.append(label);
-      a.appendChild(text);
-      container.appendChild(a);
-      i++;
+      const row = document.createElement('div');
+      row.className = 'article-ctas article-reveal';
+      for (const [, labelPart, url] of run) {
+        // `[[LABEL|icon]](url)`: the icon replaces the ▶ arrow.
+        const pipeIdx = labelPart.indexOf('|');
+        const label = pipeIdx >= 0 ? labelPart.slice(0, pipeIdx) : labelPart;
+        const icon = pipeIdx >= 0 ? iconMap?.[labelPart.slice(pipeIdx + 1)] : null;
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'article-cta';
+        // Title art only on a lone CTA: repeated in a row it would just echo.
+        const art = run.length === 1 ? ctaArt?.() : null;
+        if (art) {
+          // Decorative: the label carries the accessible name.
+          art.removeAttribute('role');
+          art.removeAttribute('aria-label');
+          art.setAttribute('aria-hidden', 'true');
+          art.classList.add('article-cta-art');
+          a.appendChild(art);
+        }
+        const text = document.createElement('span');
+        text.className = 'article-cta-label';
+        text.innerHTML = icon
+          ? `<span class="article-cta-arrow article-cta-icon" aria-hidden="true">${icon}</span>`
+          : `<span class="article-cta-arrow" aria-hidden="true">▶</span>`;
+        text.append(label);
+        a.appendChild(text);
+        row.appendChild(a);
+      }
+      container.appendChild(row);
       continue;
     }
 

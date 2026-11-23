@@ -345,6 +345,298 @@ div.article-banner {
   text-align: center;
 }
 
+/* ---- Horizontal gallery (:::gallery block) ---- */
+/* Arrows sit either side of a scroll-snapping strip. Slides share one height
+ * so mixed aspect ratios line up; the strip scrolls natively (touch, trackpad)
+ * and the arrows just page it. */
+.article-gallery {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  min-width: 0;
+}
+
+.article-gallery-track {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.article-gallery-track::-webkit-scrollbar {
+  display: none;
+}
+
+.article-gallery-track:focus-visible {
+  outline: 1px dashed color-mix(in srgb, var(--text-primary) 50%, transparent);
+  outline-offset: 2px;
+}
+
+/* A slide is a column of figures (one, or a stack such as wide shot over
+ * close-up), centred on each other; the widest sets the slide's width. */
+.article-gallery-slide {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  scroll-snap-align: center;
+  --md-gallery-h: clamp(180px, 30vh, 340px);
+}
+
+.article-gallery-slide--stack {
+  --md-gallery-h: clamp(130px, 21vh, 250px);
+}
+
+.article-gallery-fig {
+  margin: 0;
+}
+
+.article-gallery-fig picture {
+  display: block;
+  height: 100%;
+}
+
+.article-gallery-fig img,
+.article-gallery-fig video {
+  height: var(--md-gallery-h);
+  max-height: none;
+  width: auto;
+  max-width: none;
+  /* Transparent renders: a frame would box in the empty corners. */
+  border: none;
+}
+
+/* Gallery strip arrows and the zoom-view arrows share the CRT look: theme
+ * colour (--text-primary, terminal green by default) with its glow. */
+.article-gallery-btn,
+.zoom-nav-btn {
+  flex: 0 0 auto;
+  font-family: 'Martian Mono', monospace;
+  font-size: 1.1em;
+  color: var(--text-primary);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--text-primary) 60%, transparent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5em 0.4em;
+  transition: filter 150ms, opacity 150ms;
+}
+
+.article-gallery-btn:hover,
+.zoom-nav-btn:hover {
+  filter: brightness(1.5);
+}
+
+.article-gallery-btn:disabled,
+.zoom-nav-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.article-gallery-btn:focus-visible,
+.zoom-nav-btn:focus-visible {
+  outline: 1px dashed var(--text-primary);
+  outline-offset: 2px;
+}
+
+/* Strip arrows: a framed, glowing key-cap so they read as controls next to
+ * the images, not as stray glyphs. */
+.article-gallery-btn {
+  align-self: center;
+  font-size: clamp(1.2rem, 1.8vw, 1.6rem);
+  line-height: 1;
+  padding: 0.55em 0.45em;
+  border: 1px solid color-mix(in srgb, var(--text-primary) 55%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 8%, rgba(0, 0, 0, 0.5));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--text-primary) 30%, transparent),
+    inset 0 0 6px color-mix(in srgb, var(--text-primary) 15%, transparent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--text-primary) 80%, transparent);
+  transition: filter 150ms, opacity 150ms, background-color 150ms, box-shadow 150ms;
+}
+
+.article-gallery-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text-primary) 18%, rgba(0, 0, 0, 0.5));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--text-primary) 55%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--text-primary) 25%, transparent);
+}
+
+.article-gallery-btn:disabled {
+  box-shadow: none;
+}
+
+/* Zoomed gallery: arrows at the screen sides, above the zoomed image.
+ * --zoom-nav-top is the vertical centre of the visible area (set in JS for the
+ * desktop detail view, whose overlay lives in scrolled content space). */
+.zoom-nav-btn {
+  position: absolute;
+  top: var(--zoom-nav-top, 50%);
+  transform: translateY(-50%);
+  z-index: 11;
+  /* The desktop detail grid is pointer-events: none (clicks fall through to
+   * its nav bar); interactive children opt back in. */
+  pointer-events: auto;
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  padding: 0.6em 0.5em;
+}
+
+.zoom-nav-btn--prev { left: 0.25rem; }
+.zoom-nav-btn--next { right: 0.25rem; }
+
+/* Lightbox (deck, mobile sheet): fixed to the viewport, above its overlay. */
+.zoom-nav-btn.zoom-nav-btn--fixed {
+  position: fixed;
+  z-index: calc(var(--z-lightbox-image) + 1);
+}
+
+/* ---- Before/after comparison slider (utils/compareSlider.js) ---- */
+/* .compare-frame is sized by JS to the host media's own layout box; the
+ * "before" layer fills it and is clipped to the left of the line. The before
+ * <img> gets width/height/object-fit inline, copied from the host media. */
+.compare-frame {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.compare-before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: inset(0 calc(100% - var(--compare-pos, 50%)) 0 0);
+}
+
+.compare-before picture,
+.compare-before img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Wide transparent hit area; the visible line is its ::before. */
+.compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--compare-pos, 50%);
+  width: 32px;
+  transform: translateX(-50%);
+  z-index: 3;
+  cursor: ew-resize;
+  touch-action: none;
+  outline: none;
+  pointer-events: auto; /* see .zoom-nav-btn */
+}
+
+.compare-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--text-primary) 70%, transparent);
+}
+
+.compare-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0.3em 0.45em;
+  font-family: 'Martian Mono', monospace;
+  font-size: 0.7rem;
+  line-height: 1;
+  letter-spacing: -0.1em;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.75);
+  border: 1px solid var(--text-primary);
+  white-space: nowrap;
+  transition: transform 120ms ease;
+}
+
+.compare-handle:hover .compare-knob,
+.compare-handle.dragging .compare-knob {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+
+.compare-handle:focus-visible .compare-knob {
+  outline: 1px dashed var(--text-primary);
+  outline-offset: 3px;
+}
+
+.compare-label {
+  position: absolute;
+  bottom: 0.5rem;
+  z-index: 2;
+  padding: 0.15em 0.45em;
+  font-family: 'Martian Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.compare-label--left { left: 0.5rem; }
+.compare-label--right { right: 0.5rem; }
+
+/* Hover magnifier on the "after" side. JS sets size, translate (top-left at
+ * the cursor minus the radius), background-size/position. It grows out of
+ * the cursor when shown and shrinks back into it when hidden: `scale` and
+ * opacity transition, `visibility` flips only after the shrink so a hidden
+ * lens takes no paint. Position (translate) is not transitioned, so the lens
+ * tracks the cursor 1:1. */
+.compare-loupe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  border-radius: 50%;
+  border: 2px solid var(--text-primary);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--text-primary) 60%, transparent),
+    0 6px 24px rgba(0, 0, 0, 0.6);
+  background-color: #000;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  scale: 0.2;
+  transition:
+    scale 160ms cubic-bezier(0.4, 0, 1, 1),
+    opacity 140ms ease-in,
+    visibility 0s linear 160ms;
+  will-change: translate, scale;
+}
+
+.compare-loupe.on {
+  visibility: visible;
+  opacity: 1;
+  scale: 1;
+  transition:
+    scale 260ms cubic-bezier(0.18, 1.3, 0.4, 1),
+    opacity 160ms ease-out,
+    visibility 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compare-loupe,
+  .compare-loupe.on {
+    transition: opacity 120ms linear, visibility 0s linear 120ms;
+    scale: 1;
+  }
+
+  .compare-loupe.on { transition: opacity 120ms linear, visibility 0s; }
+}
+.loupe-on,
+.loupe-on * { cursor: none !important; }
+
 /* Narrow screens (deck/mobile/portrait): rows and floats both read worse small
  * than as clean full-width blocks — collapse them. Floats also drop the 25cqw
  * height cap (a full-width image limited to 1/4-column height would be a sliver). */
@@ -387,6 +679,12 @@ div.article-banner {
   width: auto;
   max-width: 45%;
   margin-top: 0.25rem;
+  /* Stay above the wrapping paragraphs. Their block boxes run underneath the
+   * float, and .article-reveal.revealed's transform makes each one a stacking
+   * context that paints over the earlier float, so the paragraph, not the
+   * figure, got the clicks (no zoom, no zoom-in cursor). */
+  position: relative;
+  z-index: 1;
 }
 
 /* Float images are sized by HEIGHT = 1/4 of the doc column width (25cqw of the
@@ -452,29 +750,77 @@ div.article-banner {
 }
 
 /* ---- Call-to-action button: [[LABEL]](url) ----
- * Title sprite (transparent, from parseMarkdown's ctaArt) above a big label,
- * inside a theme-coloured outline. Idle: a slow glow pulse. Hover/focus:
- * fill tint, stronger glow, a 2px lift, arrow nudge. Reduced motion keeps the
- * colour changes and drops the pulse, lift and nudge. */
-.article-cta {
+ * Title sprite (transparent, from parseMarkdown's ctaArt) above a big label.
+ * Chrome: the gallery frame's 2px border and its CRT post-processing, with
+ * the gallery arrows' key-cap fill and hover glow (.article-gallery-btn).
+ * Motion uses the gallery zoom window's --ease-smooth curve (no overshoot):
+ * hover scale-up and arrow nudge, press scale-down. Reduced motion keeps only
+ * the colour changes. */
+/* Row of one or more CTAs (consecutive [[…]] lines). The row carries the
+ * reveal transform, so each button's translate/scale still compose. */
+.article-ctas {
   align-self: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 1rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.article-cta {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
-  margin: 1rem 0 0.5rem;
   padding: 1rem 1.75rem 1.1rem;
+  font-family: 'Martian Mono', monospace;
   color: var(--text-primary);
   text-decoration: none;
-  border: 2px solid var(--text-primary);
-  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
-  box-shadow: 0 0 6px var(--glow-color), inset 0 0 6px var(--glow-color);
-  animation: article-cta-pulse 2.4s ease-in-out infinite;
+  position: relative; /* anchors the ::after scanline layer */
+  /* Transparent spacer: the visible 2px line is ::before, so it can take the
+   * frame's blur without blurring the label. */
+  border: 2px solid transparent;
+  background-color: color-mix(in srgb, var(--text-primary) 8%, rgba(0, 0, 0, 0.5));
+  /* Colour changes match the gallery arrows (150ms); scale uses the gallery
+   * zoom window's 300ms --ease-smooth: no overshoot or bounce. */
   transition:
-    background-color var(--timing-fast) ease,
-    box-shadow var(--timing-fast) ease,
-    translate var(--timing-fast) ease,
-    scale var(--timing-fast) ease;
+    background-color 150ms,
+    box-shadow 150ms,
+    scale 300ms var(--ease-smooth);
+}
+
+/* The border, rendered like the gallery frame's inner line
+ * (.mosaic-frame.crt-effects::after): 2px --text-primary through
+ * blur(--crt-blur) brightness(1 + glow). .article-page already applies
+ * brightness(1 + 0.4·glow) to everything here, so divide that back out to
+ * land on the frame's net brightness. No glow halo: the frame has none. */
+.article-cta::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--text-primary);
+  pointer-events: none;
+  filter: blur(var(--crt-blur, 0.4px))
+    brightness(calc((1 + var(--crt-glow-brightness, 1)) / (1 + 0.4 * var(--crt-glow-brightness, 1))));
+}
+
+/* Scanlines OVER the whole button (border, art, label): the exact
+ * .crt-overlay pattern that covers the gallery frame (black at
+ * --scanline-opacity, --scanline-* geometry from config/crt.js). inset -2px
+ * reaches over the border; pointer-events none keeps the link clickable. */
+.article-cta::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent var(--scanline-spacing, 4px),
+      rgba(0, 0, 0, var(--scanline-opacity, 0.06)) var(--scanline-spacing, 4px),
+      rgba(0, 0, 0, var(--scanline-opacity, 0.06)) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px)));
 }
 
 /* Native frame is 256×64: 256px wide = 1:1 source pixels. */
@@ -490,22 +836,33 @@ div.article-banner {
   font-size: clamp(1rem, 2vw, 1.3rem);
   font-weight: 700;
   letter-spacing: 0.12em;
-  text-shadow: 0 0 8px var(--glow-color);
-  transition: letter-spacing var(--timing-normal) ease;
+  text-shadow: 0 0 8px color-mix(in srgb, var(--text-primary) 80%, transparent);
 }
 
 .article-cta-arrow {
   font-size: 0.8em;
-  transition: transform var(--timing-fast) ease;
+  transition: transform 300ms var(--ease-smooth);
 }
 
+.article-cta-icon {
+  display: inline-flex;
+  font-size: 1em;
+  filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
+.article-cta-icon svg {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+/* Hover = the gallery arrows' hover chrome, plus a stepped scale-up.
+ * `scale`, not `transform`: .article-reveal owns transform. */
 .article-cta:hover,
 .article-cta:focus-visible {
-  animation: none;
-  background: color-mix(in srgb, var(--text-primary) 14%, transparent);
-  box-shadow: 0 0 18px var(--glow-color), inset 0 0 12px var(--glow-color);
-  /* `translate`/`scale`, not `transform`: .article-reveal owns transform. */
-  translate: 0 -2px;
+  background-color: color-mix(in srgb, var(--text-primary) 18%, rgba(0, 0, 0, 0.5));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--text-primary) 55%, transparent),
+    inset 0 0 8px color-mix(in srgb, var(--text-primary) 25%, transparent);
+  scale: 1.04;
   outline: none;
 }
 
@@ -514,25 +871,13 @@ div.article-banner {
   outline-offset: 4px;
 }
 
-.article-cta:hover .article-cta-label,
-.article-cta:focus-visible .article-cta-label {
-  letter-spacing: 0.2em;
-}
-
 .article-cta:hover .article-cta-arrow,
 .article-cta:focus-visible .article-cta-arrow {
-  transform: translateX(3px);
+  transform: translateX(4px);
 }
 
 .article-cta:active {
-  translate: 0 0;
-  scale: 0.98;
-}
-
-@keyframes article-cta-pulse {
-  50% {
-    box-shadow: 0 0 14px var(--glow-color), inset 0 0 9px var(--glow-color);
-  }
+  scale: 0.97;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -541,14 +886,7 @@ div.article-banner {
   .article-cta:focus-visible,
   .article-cta:active {
     animation: none;
-    translate: none;
     scale: none;
-  }
-
-  .article-cta-label,
-  .article-cta:hover .article-cta-label,
-  .article-cta:focus-visible .article-cta-label {
-    letter-spacing: 0.12em;
   }
 
   .article-cta:hover .article-cta-arrow,

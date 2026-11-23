@@ -12,6 +12,7 @@
 
 import { prefersReducedMotion } from '../config/device.js';
 import { cloneMediaForZoom } from './media.js';
+import { galleryOf, slideMedia, revealSlide, mountMediaCompare, createZoomArrows } from './galleryZoom.js';
 
 const MARGIN = 24;       // gap (px) between the zoomed image and the viewport edge
 const ANIM_MS = 300;      // keep in sync with .img-lightbox-overlay transition (src/article.css)
@@ -33,13 +34,15 @@ function containRect(ar, vw, vh) {
  * Opens the lightbox for `imgEl` (the rendered <img> or <video> in the
  * document). No-op if a lightbox is already open or it has no measurable size.
  */
-export function openImageLightbox(imgEl) {
+export function openImageLightbox(firstImgEl) {
   if (activeClose) return;
 
+  // Both change when the gallery arrows step to another slide.
+  let imgEl = firstImgEl;
   const from = imgEl.getBoundingClientRect();
   if (!from.width || !from.height) return;
 
-  const ar = from.width / from.height;
+  let ar = from.width / from.height;
   const to = containRect(ar, window.innerWidth, window.innerHeight);
 
   const backdrop = document.createElement('div');
@@ -71,6 +74,34 @@ export function openImageLightbox(imgEl) {
   overlay.classList.add('shown'); // fade-in under reduced motion (article.css)
   placeAt(to);
 
+  // Before/after slider (figure names a compare image) and, inside a
+  // :::gallery strip, side arrows that step through it. A step swaps the
+  // media, scrolls the strip so the close animation returns to the new slide,
+  // and refits the overlay to the new aspect ratio (its transition animates).
+  let compare = mountMediaCompare(overlay, imgEl, null, { loupe: true });
+  const gallery = galleryOf(imgEl);
+  let index = gallery?.index ?? 0;
+  function step(dir) {
+    if (!gallery || closing) return;
+    const next = slideMedia(gallery, index + dir);
+    if (!next) return;
+    index += dir;
+    revealSlide(gallery, index);
+    imgEl = next;
+    const r = next.getBoundingClientRect();
+    if (r.width && r.height) ar = r.width / r.height;
+    compare?.destroy();
+    overlay.replaceChildren(cloneMediaForZoom(next));
+    compare = mountMediaCompare(overlay, next, null, { loupe: true });
+    placeAt(containRect(ar, window.innerWidth, window.innerHeight));
+    arrows.update(index, gallery.slides.length);
+  }
+  const arrows = gallery ? createZoomArrows(step, 'zoom-nav-btn--fixed') : null;
+  if (arrows) {
+    arrows.update(index, gallery.slides.length);
+    document.body.append(arrows.prev, arrows.next);
+  }
+
   // Follow window resize / rotation while open: refit instantly (transition
   // off for the write, flushed, then restored) once per frame.
   let resizeFrame = 0;
@@ -94,6 +125,8 @@ export function openImageLightbox(imgEl) {
     document.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', onResize);
     cancelAnimationFrame(resizeFrame);
+    compare?.destroy();
+    arrows?.destroy();
 
     // Re-read the source rect at close time so the reverse FLIP lands on the
     // image even if the page scrolled while the lightbox was open. Reduced
@@ -115,6 +148,15 @@ export function openImageLightbox(imgEl) {
   }
 
   function onKey(e) {
+    if (gallery && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      // Capture phase: keep the host view (deck slides) from also navigating.
+      // A focused compare handle moves its line instead.
+      if (e.target.closest?.('.compare-handle')) return;
+      e.stopPropagation();
+      e.preventDefault();
+      step(e.key === 'ArrowLeft' ? -1 : 1);
+      return;
+    }
     if (e.key !== 'Escape') return;
     // Pre-empt any host-view Escape handler (e.g. the deck's close-doc) so the
     // first Escape only dismisses the lightbox.
