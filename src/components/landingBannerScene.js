@@ -29,7 +29,8 @@
  * Clock: an empty Web Animation on the root, like ParallaxBanner. Whoever
  * pauses it (offscreen manager, portfolio deck slide sync) freezes the scene.
  * Rendering is capped by utils/frameGate.js: 120 fps, lite 30 fps (lite's
- * flanks alternate, so 15 fps each).
+ * flanks alternate, so 15 fps each). When the gate is throttled below its
+ * nominal rate (page busy, frame governor), full mode alternates flanks too.
  */
 
 import { COLOMBIA_VIEWBOX, COLOMBIA_PATH } from '../vendor/memory-of-the-land/colombiaOutline.ts';
@@ -377,17 +378,20 @@ export function mountLandingScene(root, { lite = false, managed = true } = {}) {
     if (!gate.due(frameTime)) return;
     const now = clock.currentTime ?? 0;
     const running = clock.playState === 'running';
-    const dt = lastClock == null ? 0 : Math.min(Math.max(0, (now - lastClock) / 1000), 0.05);
+    const dt = lastClock == null ? 0 : Math.min(Math.max(0, (now - lastClock) / 1000), 0.075); // > 1/15 s: the governor's lowest cap runs at real speed
     lastClock = now;
     if (!running || dt === 0) return;
 
     if (interactive && pointer.active) retarget(pointer.x, pointer.y);
     else autoTarget(now / 1000);
 
+    // Throttled (page busy, or the frame governor stepped down): stagger the
+    // flanks like lite does, halving the peak work of any one frame.
+    const alternate = lite || gate.throttled;
     flankTurn ^= 1;
     for (let i = 0; i < flankFields.length; i++) {
       igniteNow[i] += (igniteTarget[i] - igniteNow[i]) * Math.min(1, dt * 6);
-      if (lite) {
+      if (alternate) {
         flankDt[i] += dt;
         if (i === flankTurn) {
           flankFields[i].render(Math.min(flankDt[i], 0.1), igniteNow[i]);
@@ -395,6 +399,7 @@ export function mountLandingScene(root, { lite = false, managed = true } = {}) {
         }
       } else {
         flankFields[i].render(dt, igniteNow[i]);
+        flankDt[i] = 0; // no stale time carried into the next throttled stretch
       }
       // quantised + diffed: igniteNow never quite lands on its target
       const v = igniteNow[i].toFixed(3);

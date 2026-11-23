@@ -24,7 +24,7 @@ import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier, getSaveData, prefersReducedMotion } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement, createTitleArt, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia } from './utils/media.js';
+import { createMediaElement, createSpritesheetElement, createTitleArt, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia, cloneMediaForZoom } from './utils/media.js';
 import { parseMarkdown, applyInline } from './utils/markdown.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
@@ -494,6 +494,8 @@ function preloadThumbnails() {
   // actually render. variantsFor lists modern formats first (avif) with the
   // original as fallback — source[0] is ~universal on modern devices.
   const images = Object.values(CATEGORIES).flat()
+    // Landing banners render a live scene, not their still (LandingBanner.js).
+    .filter((item) => item.type !== 'landing')
     .map((item) => variantsFor(item.src))
     .filter((variants) => variants?.kind === 'image');
   if (images.length === 0) return;
@@ -569,6 +571,23 @@ function fadeOutMosaic() {
     const fallback = setTimeout(done, MOSAIC_CONFIG.fadeDuration + 50);
     mosaicEl.addEventListener('transitionend', onEnd);
   });
+}
+
+/**
+ * Called by a view render before its fade-out. An open detail fades out with
+ * the mosaic as it is and is closed after the fade: closing it first snaps the
+ * grid back, so the old category's grid flashed during the fade. The nav bar
+ * lives in crtScreen, outside #mosaic, so it gets its own fade (and stops
+ * taking clicks); closeDetail() removes it afterwards.
+ */
+function fadeOutDetail() {
+  if (!activeDetail) return;
+  if (!mosaicHasContent) { closeDetail(true); return; }
+  const nav = crtScreen.querySelector('.detail-nav');
+  if (nav) {
+    nav.classList.remove('visible');
+    nav.style.pointerEvents = 'none';
+  }
 }
 
 /** Empties the mosaic, unloading its videos first so they stop downloading. */
@@ -815,8 +834,7 @@ async function renderMosaic(category) {
   // Leaving any scrolling view — the thumbnail grid / General don't use it.
   unmountScrollbar();
 
-  // Close any open detail before switching categories
-  if (activeDetail) closeDetail(true);
+  fadeOutDetail();
 
   // Store items array for keyboard detail navigation
   currentCategoryItems = items;
@@ -861,6 +879,17 @@ async function renderMosaic(category) {
         sizes: `${Math.min((item.cols || 1) * 6.3, 55).toFixed(1)}vw`,
       });
       if (!media) continue; // skip items with unresolved thumbnails
+      // Drop the tile's placeholder fill once the media can paint, so
+      // transparent thumbnails (eye, flesh) sit on the page background.
+      // Opaque media cover the tile (object-fit: cover), so they look the same.
+      const mediaEl = media.tagName === 'PICTURE' ? media.querySelector('img') : media;
+      const markLoaded = () => div.classList.add('media-loaded');
+      if (mediaEl.tagName === 'IMG') {
+        if (mediaEl.complete && mediaEl.naturalWidth) markLoaded();
+        else mediaEl.addEventListener('load', markLoaded, { once: true });
+      } else {
+        mediaEl.addEventListener('loadedmetadata', markLoaded, { once: true });
+      }
       // Videos wait for their tile's reveal (timed below, once the diagonal
       // delays are known); placeholder delay until then.
       if (willReveal && media.tagName === 'VIDEO') deferManagedVideo(media, 60000);
@@ -955,7 +984,7 @@ async function renderMosaic(category) {
 
 async function renderGames() {
   const gen = ++renderGen;
-  if (activeDetail) closeDetail(true);
+  fadeOutDetail();
   currentCategoryItems = [];
 
   if (mosaicHasContent) {
@@ -982,12 +1011,12 @@ async function renderGames() {
       const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
       if (banner) card.appendChild(banner);
     } else if (game.type === 'parallax') {
-      // Card slot is a fixed 256px column (style.css .game-card > :first-child).
+      // Card slot is a fixed 320px column (style.css .game-card > :first-child).
       // Lite: at that size particles, light effects and the shine barely show.
-      card.appendChild(createParallaxBanner(game.parallax, { className: 'game-banner', alt: game.title, sizes: '256px', lite: true }));
+      card.appendChild(createParallaxBanner(game.parallax, { className: 'game-banner', alt: game.title, sizes: '320px', lite: true }));
     } else if (game.type === 'landing') {
-      // Same 256px slot; lite = half-res fields at 30 fps.
-      card.appendChild(createLandingBanner({ still: game.src, className: 'game-banner', alt: game.title, sizes: '256px', lite: true }));
+      // Same 320px slot; lite = half-res fields at 30 fps.
+      card.appendChild(createLandingBanner({ still: game.src, className: 'game-banner', alt: game.title, sizes: '320px', lite: true }));
     } else if (game.src) {
       const banner = createMediaElement(game.src, { alt: game.title, className: 'game-banner', sizes: '55vw' });
       if (banner) card.appendChild(banner);
@@ -1061,7 +1090,7 @@ async function renderGames() {
 async function openArticlePage(itemData, returnTo) {
   if (activeArticle) return;
   const gen = ++renderGen;
-  if (activeDetail) closeDetail(true);
+  fadeOutDetail();
 
   activeArticle = { data: itemData, returnTo, observer: null };
   syncUrl();
@@ -1735,12 +1764,7 @@ function enterGalleryImageFullscreen(imgEl) {
   overlay.className = 'gallery-fs-overlay';
   setRect(overlay, from);
 
-  const overlayImg = document.createElement('img');
-  // currentSrc = the variant the browser actually picked (avif/webp) for a
-  // <picture>; falls back to .src for a bare <img>. Avoids refetching the png.
-  overlayImg.src = imgEl.currentSrc || imgEl.src;
-  overlayImg.decoding = 'async';
-  overlay.appendChild(overlayImg);
+  overlay.appendChild(cloneMediaForZoom(imgEl));
   mosaicEl.appendChild(overlay);
 
   // FLIP: commit "from" state then animate to "to"
@@ -2134,9 +2158,9 @@ function appendDetailBody(container, itemData) {
     // Make embedded images zoomable, mirroring the main thumbnail + gallery
     // side-image fullscreen behaviour. Bind on the whole <figure> (not the bare
     // <img>) so floated images with wrapping text + caption are a reliable hit
-    // target. Video figures have no <img> and are skipped.
+    // target. Video figures zoom too (the overlay plays a time-synced copy).
     body.querySelectorAll('.article-figure').forEach((fig) => {
-      const img = fig.querySelector('img');
+      const img = fig.querySelector('img, video');
       if (!img) return;
       fig.classList.add('zoomable');
       fig.addEventListener('click', () => enterGalleryImageFullscreen(img));
@@ -2706,6 +2730,10 @@ async function navigateDetail(direction) {
 
   // closeDetail() can run during the fade-out await (Escape/back/nav click).
   const startSession = activeDetail.sessionId;
+  // The session this call owns: startSession, then the one it creates for
+  // nextEl. The finally checks against this, not startSession, or a
+  // successful navigation never releases isNavigating.
+  let ownSession = startSession;
 
   try {
     // Reset fullscreen before navigating — restore targetRect so we
@@ -2791,6 +2819,7 @@ async function navigateDetail(direction) {
     resumeManagedVideos(v => nextEl.contains(v));
 
     const sessionId = ++detailSessionId;
+    ownSession = sessionId;
     activeDetail = { el: nextEl, data: nextData, viewer: null, videoControls: null, sessionId, placeholder: null };
     syncUrl();
     mosaicFocusIndex = nextIdx;
@@ -2822,7 +2851,7 @@ async function navigateDetail(direction) {
   } finally {
     // closeDetail already reset the flag if this detail was closed mid-await;
     // a newer navigation in a reopened detail may own it now.
-    if (!activeDetail || activeDetail.sessionId === startSession) isNavigating = false;
+    if (!activeDetail || activeDetail.sessionId === ownSession) isNavigating = false;
   }
 }
 

@@ -748,6 +748,12 @@
   transition: opacity 300ms ease;
 }
 
+/* Loading placeholder only: cleared once the media can paint (desktop.js), so
+ * transparent thumbnails show the page background through their alpha. */
+.mosaic-item.media-loaded {
+  background: transparent;
+}
+
 /* Per-item reveal used on mosaic render — diagonal stagger from top-left.
  * JS adds .reveal on each item (opacity 0 + tiny offset), then adds .revealed
  * on the next frame with a computed transition-delay per item. */
@@ -857,17 +863,25 @@
   display: flex;
   align-items: flex-start;
   gap: clamp(1rem, 2.5vw, 2rem);
-  margin-bottom: 3rem;
+  /* tight enough that all four cards (~180px each, the thumbnail height)
+     fit a 1080p screen without scrolling */
+  margin-bottom: 1.5rem;
   font-family: 'Martian Mono', monospace;
   color: #e0e0e0;
 }
 
 /* Banner is the first child of the card (a <picture>/<video>/<div> depending
    on media type). Give it a small fixed width on the left; the info column
-   takes the rest. */
+   takes the rest. 16:9, narrower than the 2:1 the banners are authored at:
+   parallax (ARBO) cover-crops its sides, images/video object-fit: cover,
+   the landing mock relays itself out at the slot's aspect (no crop).
+   Explicit px height, not aspect-ratio: parallax/landing roots set an inline
+   aspect-ratio that would win over a stylesheet one. Keep both dims px with
+   an even difference to the sprites: pixel-perfect spritesheets (Páramo
+   256×64, Matrix 128×128) center inside and need integer offsets. */
 .game-card > :first-child {
-  flex: 0 0 256px;
-  aspect-ratio: 2 / 1;
+  flex: 0 0 320px;
+  height: 180px;
   overflow: hidden;
 }
 
@@ -892,15 +906,19 @@
     0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
+.game-card:last-child {
+  margin-bottom: 0;
+}
+
 .game-info h2 {
-  margin: 0 0 0.75rem;
-  font-size: clamp(1.25rem, 4vw, 2rem);
+  margin: 0 0 0.4rem;
+  font-size: clamp(1.1rem, 2.6vw, 1.5rem);
   font-weight: 200;
   color: var(--text-primary);
 }
 
 .game-info p {
-  margin: 0 0 1.25rem;
+  margin: 0 0 0.75rem;
   font-size: clamp(0.65rem, 1.3vw, 0.9rem);
   font-weight: 250;
   line-height: 1.7;
@@ -1775,7 +1793,8 @@
     height 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.gallery-fs-overlay img {
+.gallery-fs-overlay img,
+.gallery-fs-overlay video {
   width: 100%;
   height: 100%;
   object-fit: contain;

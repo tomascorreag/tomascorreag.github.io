@@ -191,7 +191,13 @@ export function variantsFor(relativePath) {
 
   if (VIDEO_EXTS.has(ext)) {
     const sources = [];
-    // Preferred first: webm (smaller), then mp4 (universal).
+    // Transparent variant first: foo.alpha.webm (VP9 + alpha plane). Only
+    // Chromium/Firefox composite that alpha; createMediaElement drops it on
+    // WebKit, which then falls through to the opaque foo.mp4 (flattened onto
+    // the site background).
+    const alphaUrl = tryResolve(`${basePath}.alpha`, 'webm');
+    if (alphaUrl) sources.push({ type: MIME_BY_EXT.webm, url: alphaUrl, alpha: true });
+    // Then webm (smaller), then mp4 (universal).
     for (const vext of ['webm', 'mp4']) {
       const url = tryResolve(basePath, vext);
       if (url) sources.push({ type: MIME_BY_EXT[vext], url });
@@ -622,13 +628,13 @@ export const CATEGORIES = {
     //   title: 'Crystal', description: '...', type: 'splat',
     //   splat: { file: 'crystal.spz' } },
     {
-      id: 'flesh', src: '3d-assets/fleshThumb.jpg', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
+      id: 'flesh', src: '3d-assets/fleshThumb.mp4', alt: 'Procedural raw flesh material', cols: 4, rows: 2,
       title: 'Procedural Raw Flesh Material',
       description: 'A raw-flesh material I built and sell for Blender, realistic living tissue with full control over its look.',
       page: `
 ## About
 
-![Raw flesh material: wet, fresh tissue](3d-assets/flesh_details/var1_comp.jpg){right}
+![Raw flesh material: wet, fresh tissue](3d-assets/flesh_details/var1_comp.mp4){right}
 
 Realistic raw, living tissue with fine control over colour, wetness, and surface detail. Surface wetness, colour, and subsurface depth are all art-directable. It is one of my commercial materials and a consistent best-seller, with over 1,000 sales on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
@@ -646,11 +652,11 @@ Designed and built entirely by me in **Blender (Cycles)**. I also package and se
 
 I built it as a product: a fully parametric organic-tissue material other artists can buy and reuse. I also use it in my own work, for example it can be seen in *Ardo*, in the **3D Art** section.
 
-![Flesh material variation](3d-assets/flesh_details/var2_comp.jpg)
-![Flesh material variation](3d-assets/flesh_details/var3_comp.jpg)
+![Flesh material variation](3d-assets/flesh_details/var2_comp.mp4)
+![Flesh material variation](3d-assets/flesh_details/var3_comp.mp4)
 
-![Flesh material variation](3d-assets/flesh_details/var4_comp.jpg)
-![Flesh material variation](3d-assets/flesh_details/var5_comp.jpg)
+![Flesh material variation](3d-assets/flesh_details/var4_comp.mp4)
+![Flesh material variation](3d-assets/flesh_details/var5_comp.mp4)
 `,
     },
     {
@@ -856,7 +862,7 @@ Built end-to-end on my own in **Blender**, including two of my own custom assets
 
 I sculpted the head from scratch. The screaming expression took most of the passes. A face that extreme slips into caricature very easily, and it had to stay believable for the image to land. Another important focus was on the lighting and post-processing: fire wants to dominate every frame it's in, and I wanted the stillness of the night to survive beside it, so the intensity of the flames and the calm of the dark could share one frame without either flattening the other. I created some of my procedural assets for this piece, including the material for the burning flesh and the parametric assets for the eyes.
 
-![Procedural Flesh material](3d-assets/flesh_details/var1_comp.jpg){right}
+![Procedural Flesh material](3d-assets/flesh_details/var1_comp.mp4){right}
 *Flesh: a fully parametric skin-and-tissue material.*
 
 The skin is driven by my **Flesh** material, raw, living tissue with warmth, wetness, and pore-level detail, all built procedurally rather than from photographs.

@@ -6,6 +6,12 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "set BROWSER=none&& npx vite --port 5173 --strictPort"],
       "port": 5173
+    },
+    {
+      "name": "preview",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npx vite preview --port 4173 --strictPort"],
+      "port": 4173
     }
   ]
 }

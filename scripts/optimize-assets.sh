@@ -548,6 +548,17 @@ convert_video() {
   local webm="${base}.webm"
   local mp4="${base}.mp4"
 
+  # ── Alpha pairs: foo.alpha.webm (VP9 + alpha) + foo.mp4 (flattened) ───
+  # Both are hand-encoded from the same RGBA render. Deriving anything here
+  # would be wrong: a VP9 foo.webm made from the flattened mp4 would win over
+  # the mp4 in Safari (generational loss for nothing), and the inversion
+  # guard doesn't apply (the alpha plane makes the webm legitimately larger).
+  # Only the poster is generated (from the mp4, i.e. the flattened frame).
+  if [[ -f "${base}.alpha.webm" ]]; then
+    ensure_poster "$base"
+    return 0
+  fi
+
   # ── Bloated-master handling ───────────────────────────────────────────
   # A "master" is a source file (either container) whose bitrate or
   # resolution is way past web-appropriate (e.g. a raw render export).
@@ -770,6 +781,9 @@ fi
 while IFS= read -r -d '' file; do
   case "$(lower "${file##*.}")" in
     mp4|mov|m4v|webm)
+      # foo.alpha.webm is the transparent half of an alpha pair; convert_video
+      # handles the pair via foo.mp4 (see "Alpha pairs" there).
+      [[ "$file" == *.alpha.webm ]] && continue
       if is_video_source "$file"; then
         convert_video "$file"
       fi

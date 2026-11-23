@@ -936,8 +936,8 @@ function renderSheetInfo(info, item) {
     // markdown blocks immediately — otherwise .article-reveal keeps them hidden.
     body.querySelectorAll('.article-reveal').forEach((el) => el.classList.add('revealed'));
     body.querySelectorAll('.article-figure').forEach((fig) => {
-      const img = fig.querySelector('img');
-      if (!img) return; // skip video figures
+      const img = fig.querySelector('img, video');
+      if (!img) return;
       fig.classList.add('zoomable');
       fig.addEventListener('click', () => openImageLightbox(img));
     });
