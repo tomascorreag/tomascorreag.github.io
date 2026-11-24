@@ -401,7 +401,7 @@ export const GAMES = [
     },
     title: 'Páramo',
     date: '2026–present',
-    description: 'Páramo is a WIP environmental strategy game I\'m designing and developing entirely on my own, set on a threatened ecosystem in the Andes.',
+    description: 'Páramo is a WIP environmental strategy game set on a threatened ecosystem in the Andes. I\'m developing it on my own, designing it in consultation with the communities involved.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],
@@ -572,21 +572,30 @@ I've also made the entire repository public with an open-source license, to cont
     spritesheet: {
       file: 'Games/Matrix/Neo_run_spriteSheet.png',
       frames: 8, first: 0, count: 8, fps: 10,
-      // Pixel-perfect: native frame is 64×64; render at integer 2× = 128×128.
-      frameWidth: 64, frameHeight: 64, scale: 2,
+      // Pixel-perfect: native frame is 64×64; render at integer 3× = 192×192
+      // in the 180px-tall Games list slot. Opaque rows are 5–62, so shifting
+      // up 2 native px (6px) crops only empty rows (12px top, 0 bottom).
+      frameWidth: 64, frameHeight: 64, scale: 3, shiftY: -2,
       frameAspect: '1 / 1',
       background: 'transparent',
+      // Detail banner: the 1:1 frame at full column width is too big; draw it
+      // at half the column width instead.
+      bannerScale: 0.5,
+      // Detail banner through the terminal CRT preset (styleSpriteBanner).
+      crt: true,
     },
     title: 'The Matrix',
     date: '2024',
-    description: 'The Matrix is a short, playable 2D platformer demo I built on my own in Unity, styled after the look of an old CRT television.',
+    description: 'The Matrix is a short, playable 2D sample scene I built on my own in Unity, styled after the look of an old CRT television.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/the-matrix-vertical-slice/' },
     ],
+    // Only the CTA at the end of the page, none under the banner.
+    headerCta: false,
     page: `
 ## About the Project
 
-A short, playable slice of a 2D platformer set in the world of *The Matrix*: you run and jump as Neo through a side-scrolling level, the whole screen dressed in the glow and scanlines of an old CRT television.
+A short, playable 2D sample scene set in the world of *The Matrix*: you run and jump as Neo through a side-scrolling level, the whole screen dressed in the glow and scanlines of an old CRT television.
 
 Built as an exercise in pixel art and post-processing effects.
 
@@ -598,7 +607,7 @@ Built on my own in **Unity**:
 
 - A custom **CRT screen shader** that gives the whole game the look of an old television: scanlines, glow, and curved glass
 - **Pixel-art character animation**, driven by hand-made sprite sheets in Aseprite.
-- The platformer movement and the level itself
+- The character movement and the level itself
 
 ---
 

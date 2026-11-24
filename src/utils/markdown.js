@@ -57,7 +57,11 @@ function buildGallery(slides, createMediaElement) {
     b.type = 'button';
     b.className = `article-gallery-btn article-gallery-btn--${dir < 0 ? 'prev' : 'next'}`;
     b.setAttribute('aria-label', label);
-    b.textContent = text;
+    // Face takes the CRT preset; the button keeps scanlines + scale (as CTAs).
+    const face = document.createElement('span');
+    face.className = 'article-gallery-btn-face crt';
+    face.textContent = text;
+    b.appendChild(face);
     b.addEventListener('click', (e) => {
       // The host views bind clicks on their panels (close, zoom); keep the
       // arrow click to the gallery.
@@ -91,6 +95,66 @@ function buildGallery(slides, createMediaElement) {
 
   root.append(prev, track, next);
   return root;
+}
+
+/**
+ * The page's `[[LABEL|icon]](url)` CTA lines, in order, as [labelPart, url].
+ * Lets a view repeat a page's own buttons elsewhere (e.g. under the banner)
+ * without a second copy of the labels/URLs to keep in sync.
+ */
+export function extractCtas(mdString = '') {
+  return mdString
+    .split('\n')
+    .map((l) => l.trim().match(CTA_RE))
+    .filter(Boolean)
+    .map((m) => [m[1], m[2]]);
+}
+
+/**
+ * Row of CTA buttons (.article-ctas). `specs`: [labelPart, url] pairs, where
+ * labelPart is `LABEL` or `LABEL|iconKey`. `ctaArt` (optional) supplies the
+ * title art, used only on a lone button. `reveal` adds the scroll-reveal class
+ * (markdown body); a header copy shows immediately.
+ */
+export function buildCtaRow(specs, { iconMap, ctaArt, reveal = true } = {}) {
+  const row = document.createElement('div');
+  row.className = reveal ? 'article-ctas article-reveal' : 'article-ctas';
+  for (const [labelPart, url] of specs) {
+    // `[[LABEL|icon]](url)`: the icon replaces the ▶ arrow.
+    const pipeIdx = labelPart.indexOf('|');
+    const label = pipeIdx >= 0 ? labelPart.slice(0, pipeIdx) : labelPart;
+    const icon = pipeIdx >= 0 ? iconMap?.[labelPart.slice(pipeIdx + 1)] : null;
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.className = 'article-cta';
+    // The face carries the CRT filter (.crt); the link itself keeps the
+    // scale animation and the scanline layer, which must sit outside the
+    // blur or it smears into flat grey.
+    const face = document.createElement('span');
+    face.className = 'article-cta-face crt';
+    // Title art only on a lone CTA: repeated in a row it would just echo.
+    const art = specs.length === 1 ? ctaArt?.() : null;
+    if (art) {
+      // Decorative: the label carries the accessible name.
+      art.removeAttribute('role');
+      art.removeAttribute('aria-label');
+      art.setAttribute('aria-hidden', 'true');
+      art.classList.add('article-cta-art');
+      face.appendChild(art);
+    }
+    const text = document.createElement('span');
+    text.className = 'article-cta-label';
+    text.innerHTML = icon
+      ? `<span class="article-cta-arrow article-cta-icon" aria-hidden="true">${icon}</span>`
+      : `<span class="article-cta-arrow" aria-hidden="true">▶</span>`;
+    text.append(label);
+    face.appendChild(text);
+    a.appendChild(face);
+    row.appendChild(a);
+  }
+  return row;
 }
 
 function isVideoPath(src) {
@@ -321,41 +385,10 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap, ctaArt })
       while (i < lines.length) {
         const m = lines[i].trim().match(CTA_RE);
         if (!m) break;
-        run.push(m);
+        run.push([m[1], m[2]]);
         i++;
       }
-      const row = document.createElement('div');
-      row.className = 'article-ctas article-reveal';
-      for (const [, labelPart, url] of run) {
-        // `[[LABEL|icon]](url)`: the icon replaces the ▶ arrow.
-        const pipeIdx = labelPart.indexOf('|');
-        const label = pipeIdx >= 0 ? labelPart.slice(0, pipeIdx) : labelPart;
-        const icon = pipeIdx >= 0 ? iconMap?.[labelPart.slice(pipeIdx + 1)] : null;
-        const a = document.createElement('a');
-        a.href = url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.className = 'article-cta';
-        // Title art only on a lone CTA: repeated in a row it would just echo.
-        const art = run.length === 1 ? ctaArt?.() : null;
-        if (art) {
-          // Decorative: the label carries the accessible name.
-          art.removeAttribute('role');
-          art.removeAttribute('aria-label');
-          art.setAttribute('aria-hidden', 'true');
-          art.classList.add('article-cta-art');
-          a.appendChild(art);
-        }
-        const text = document.createElement('span');
-        text.className = 'article-cta-label';
-        text.innerHTML = icon
-          ? `<span class="article-cta-arrow article-cta-icon" aria-hidden="true">${icon}</span>`
-          : `<span class="article-cta-arrow" aria-hidden="true">▶</span>`;
-        text.append(label);
-        a.appendChild(text);
-        row.appendChild(a);
-      }
-      container.appendChild(row);
+      container.appendChild(buildCtaRow(run, { iconMap, ctaArt }));
       continue;
     }
 
@@ -381,7 +414,8 @@ export function parseMarkdown(mdString, { createMediaElement, iconMap, ctaArt })
         a.rel = 'noopener noreferrer';
         a.className = 'article-link';
         const icon = iconMap[iconKey] ?? iconMap.website;
-        a.innerHTML = `${icon}<span>${label}</span>`;
+        // Face carries the CRT filter; scanlines stay on the link (see .article-cta).
+        a.innerHTML = `<span class="article-link-face crt">${icon}<span>${label}</span></span>`;
         div.appendChild(a);
         i++;
       }

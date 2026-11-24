@@ -474,20 +474,12 @@
  */
 
 /* --- Text CRT: terminal + nav-menu + mosaic-frame (+ the .detail-nav in it) ---
- * Deck headings use a copy of this rule in portfolio-deck.css (the deck also
- * runs on mobile, which doesn't load this file). Keep the two in sync. */
+ * The text-shadow half lives in the shared CRT presets (article.css); this is
+ * the filter half, applied on the opaque container: the terminal reference. */
 .terminal.crt-effects,
 .nav-menu.crt-effects,
 .mosaic-frame.crt-effects {
   filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
-  text-shadow:
-    /* RGB split — red left, blue right */
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)),
-    var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)),
-    /* Glow — 3 layers that stack for intensity > 1 */
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 /* The terminal is the full-viewport backdrop for the whole session, and a
@@ -907,6 +899,8 @@
   flex: 1 1 auto;
   min-width: 0;
   padding: 0;
+  /* .crt titles inside divide this back out (see .crt in article.css). */
+  --crt-ambient: calc(1 + 0.4 * var(--crt-glow-brightness, 1));
   filter: brightness(calc(1 + 0.4 * var(--crt-glow-brightness, 1)));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
@@ -1127,6 +1121,10 @@
    * subtree every scrolled frame. Children blur first, panel brightness
    * after = the original chain order, so the look is unchanged. */
   filter: brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
+  /* A .crt inside (the name) gets the terminal pass: this opaque panel
+   * already composites and brightens, so the child only adds the blur. */
+  --crt-ambient: calc(1 + 1 * var(--crt-glow-brightness, 1));
+  --crt-under: transparent;
 
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
@@ -1137,8 +1135,11 @@
 }
 
 /* The blur half of the split above — applied per section, not on the
- * scrolling panel (see the filter comment in .general-content). */
-.general-content > * {
+ * scrolling panel (see the filter comment in .general-content). The header
+ * blurs per child instead, so the .crt name takes only the preset's full
+ * blur (stacked blurs would compound) while title/subtitle keep 0.5x. */
+.general-content > :not(.general-header),
+.general-header > :not(.crt) {
   filter: blur(calc(var(--crt-blur, 0.4px) * 0.5));
 }
 
@@ -1155,15 +1156,7 @@
   font-weight: 200;
   margin: 0;
   line-height: 1.1;
-
-  /* No separate blur pass — parent .general-content already blurs at 0.5x */
-  /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
-  text-shadow:
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
-    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 1)),
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+  /* CRT look comes from the .crt preset (class set in desktop.js). */
 }
 
 .general-title {

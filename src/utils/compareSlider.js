@@ -18,6 +18,9 @@
 const KEY_STEP = 0.05;
 const LOUPE_PX = 220;      // lens diameter cap (CSS px)
 const LOUPE_HANDLE_GAP = 6; // cursor this close to the line shows no lens (the handle's grab zone)
+const LOUPE_HIDE_MS = 120;  // matches the .compare-loupe shrink transition in article.css
+const LINE_FADE_MS = 90;    // matches the .compare-intro / .compare-out fades in article.css
+const MIN_SLIDE_MS = 150;
 
 /**
  * @param {HTMLElement} host - Positioned box whose media fills it.
@@ -26,13 +29,20 @@ const LOUPE_HANDLE_GAP = 6; // cursor this close to the line shows no lens (the 
  *   loupe: mouse-hover magnifier over the right-hand ("after") side. `src` is
  *   a higher-resolution copy of the base image at the same framing; without
  *   it the lens magnifies the base image's own pixels.
- * @returns {{ destroy(): void }}
+ *   intro: `{ ms }`: the line fades in at the left edge and slides to `start`,
+ *   all within `ms` (the caller's open transition, so it plays alongside it).
+ *   Skipped under prefers-reduced-motion.
+ * @returns {{ destroy(): void, leave(ms: number): void }} leave: the intro in
+ *   reverse (slide to the left edge, fade out) over `ms`, then destroy.
  */
-export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['source', 'painted'], loupe = null } = {}) {
+export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['source', 'painted'], loupe = null, intro = null } = {}) {
   // The host's own media (read before anything is added). Hosts can be larger
   // than it (the mobile sheet's media box has a min-height), so everything
   // lives in a frame sized to this element's layout box.
   const base = host.querySelector('img, video');
+  // One slider per host: --compare-pos lives on the host, so a previous one
+  // still playing leave() (closed and reopened quickly) must go first.
+  host._compareSlider?.destroy();
   host.classList.add('has-compare');
 
   const frame = document.createElement('div');
@@ -100,8 +110,47 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
     if (r.width) set((x - r.left) / r.width);
   };
 
+  /*
+   * Intro: the line fades in at the left edge (the whole render painted), then
+   * eases across to `start`, wiping the source image in, timed to fit the
+   * host's open transition. leave() plays it backwards. Any drag or key press
+   * takes over from the intro at once.
+   */
+  let introTimer = 0, introRaf = 0;
+  // True from mount until the intro's slide ends (or a drag/key cuts it): the
+  // host is still mid-transition, so the loupe stays off.
+  let introActive = false;
+  const cancelIntro = () => {
+    clearTimeout(introTimer);
+    cancelAnimationFrame(introRaf);
+    frame.classList.remove('compare-intro');
+    introActive = false;
+  };
+  // pos from -> to over ms; ease-out going in, ease-in going out (mirrored).
+  const slide = (from, to, ms, easeIn, done) => {
+    const t0 = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - t0) / ms);
+      const e = easeIn ? t ** 3 : 1 - (1 - t) ** 3;
+      set(from + (to - from) * e);
+      if (t < 1) introRaf = requestAnimationFrame(tick);
+      else done?.();
+    };
+    introRaf = requestAnimationFrame(tick);
+  };
+  const runIntro = (ms) => {
+    introActive = true;
+    set(0);
+    frame.classList.add('compare-intro');
+    void frame.offsetWidth; // commit opacity 0 so removing the class fades
+    frame.classList.remove('compare-intro');
+    introTimer = setTimeout(() => slide(0, start, Math.max(MIN_SLIDE_MS, ms - LINE_FADE_MS), false,
+      () => { introActive = false; }), LINE_FADE_MS);
+  };
+
   let dragging = false;
   const onDown = (e) => {
+    cancelIntro();
     e.stopPropagation();
     e.preventDefault(); // no text/image drag, no focus-scroll on touch
     dragging = true;
@@ -124,6 +173,7 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
     else if (e.key === 'Home') next = 0;
     else if (e.key === 'End') next = 1;
     if (next === null) return;
+    cancelIntro();
     e.preventDefault();
     e.stopPropagation(); // the host views use arrows for navigation
     set(next);
@@ -141,6 +191,12 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
   frame.append(handle);
   host.appendChild(frame);
   place();
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (intro && !reduced) runIntro(intro.ms);
+  else if (intro) { // no slide, but the host's (fade) transition still runs
+    introActive = true;
+    introTimer = setTimeout(() => { introActive = false; }, intro.ms);
+  }
 
   /*
    * Loupe: a circle following the mouse over the "after" side, showing the
@@ -167,9 +223,17 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
     // The cursor would sit in the middle of the lens; hide it page-wide, since
     // the element under the mouse is often a backdrop, not the host.
     const root = document.documentElement;
-    const hide = () => { el.classList.remove('on'); root.classList.remove('loupe-on'); };
+    // While the shrink-out transition runs the lens keeps tracking the mouse;
+    // past it, out-of-bounds moves skip the style writes.
+    let trackUntil = 0;
+    const hide = () => {
+      if (el.classList.contains('on')) trackUntil = performance.now() + LOUPE_HIDE_MS;
+      el.classList.remove('on');
+      root.classList.remove('loupe-on');
+    };
     const onMove = (e) => {
-      if (e.pointerType !== 'mouse' || dragging || !base.naturalWidth) return hide();
+      if (e.pointerType !== 'mouse' || dragging || introActive || !base.naturalWidth) return hide();
+      const inside = el.classList.contains('on') || performance.now() < trackUntil;
       const fr = frame.getBoundingClientRect();
       const nw = base.naturalWidth, nh = base.naturalHeight;
       const s = Math.min(fr.width / nw, fr.height / nh);
@@ -178,14 +242,25 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
       const fx = e.clientX - fr.left, fy = e.clientY - fr.top;   // frame space
       const px = fx - ox, py = fy - oy;                          // content space
       const lineX = pos * fr.width;
-      if (px < 0 || py < 0 || px > cw || py > ch || fx < lineX + LOUPE_HANDLE_GAP) return hide();
-      if (!hiresRequested) requestHires();
+      const over = !(px < 0 || py < 0 || px > cw || py > ch || fx < lineX + LOUPE_HANDLE_GAP);
+      if (!over && !inside) return;
+      if (over && !hiresRequested) requestHires();
       const size = Math.min(LOUPE_PX, fr.width * 0.4, fr.height * 0.4);
       const z = loupe.zoom;
-      // Cut the lens off at the line: it only ever shows the "after" side.
-      const cut = Math.max(0, lineX + 1 - (fx - size / 2));
+      // Cut the lens off at the line and the image edges: it only ever shows
+      // the "after" side. Uncut sides get -12px so the glow shows there.
+      const lx = fx - size / 2, ly = fy - size / 2;
+      const cuts = [
+        oy - ly,                                   // top
+        lx + size - (ox + cw),                     // right
+        ly + size - (oy + ch),                     // bottom
+        Math.max(lineX + 1, ox) - lx,              // left
+      ];
       Object.assign(el.style, {
-        clipPath: cut ? `inset(-12px -12px -12px ${cut}px)` : '',
+        // No cut on any side: drop the clip instead of an all-negative inset.
+        clipPath: cuts.some((v) => v > 0)
+          ? `inset(${cuts.map((v) => (v > 0 ? `${v}px` : '-12px')).join(' ')})`
+          : '',
         width: `${size}px`,
         height: `${size}px`,
         // `translate`, not `transform`: CSS animates `scale` for the grow /
@@ -195,6 +270,7 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
         backgroundSize: `${cw * z}px ${ch * z}px`,
         backgroundPosition: `${size / 2 - px * z}px ${size / 2 - py * z}px`,
       });
+      if (!over) return hide();
       el.classList.add('on');
       root.classList.add('loupe-on');
     };
@@ -214,13 +290,32 @@ export function mountCompareSlider(host, beforeMedia, { start = 0.5, labels = ['
     };
   }
 
-  return {
-    destroy() {
+  let destroyed = false;
+  const destroy = () => {
+    if (destroyed) return;
+    destroyed = true;
+    cancelIntro();
+    lens?.destroy();
+    ro.disconnect();
+    frame.remove();
+    host.classList.remove('has-compare');
+    host.style.removeProperty('--compare-pos');
+    if (host._compareSlider === api) host._compareSlider = null;
+  };
+  const api = {
+    destroy,
+    leave(ms) {
+      if (destroyed) return;
+      cancelIntro();
       lens?.destroy();
-      ro.disconnect();
-      frame.remove();
-      host.classList.remove('has-compare');
-      host.style.removeProperty('--compare-pos');
+      handle.style.pointerEvents = 'none';
+      if (reduced || pos === 0) { destroy(); return; }
+      slide(pos, 0, Math.max(MIN_SLIDE_MS, ms - LINE_FADE_MS), true, () => {
+        frame.classList.add('compare-out');
+        introTimer = setTimeout(destroy, LINE_FADE_MS);
+      });
     },
   };
+  host._compareSlider = api;
+  return api;
 }

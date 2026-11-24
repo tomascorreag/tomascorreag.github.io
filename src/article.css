@@ -16,6 +16,53 @@
  * the deck and the mobile sheet, and mobile never loads portfolio-deck.css.
  * ────────────────────────────────────────────────────────────────────────── */
 
+/* ── CRT presets: the intro terminal's look, defined once ─────────────────
+ * Lives here because article.css is the one stylesheet every entry loads
+ * (desktop, deck, mobile). The --crt-* / --rgb-* knobs come from
+ * config/crt.js (desktop); elsewhere the var() fallbacks apply.
+ *
+ * The terminal look depends on ORDER: blurred text is composited over the
+ * dark background FIRST, then brightness(1 + glow) lifts the blend. A filter
+ * on a transparent element brightens the text before it meets the background,
+ * which reads pale and dim (checked side by side in Chromium). So .crt paints
+ * its own dark under-fill inside the filter.
+ *
+ * Containers that already filter declare, so a .crt inside them still lands
+ * on the terminal result:
+ *   --crt-ambient  their brightness factor; .crt divides it out. Exact, since
+ *                  brightness multiplies then clamps: clamp(b·clamp(a·x)) =
+ *                  clamp(ab·x) for a, b ≥ 1.
+ *   --crt-under    transparent when the container is itself opaque and does
+ *                  the compositing (terminal, General panel).
+ */
+
+/* Terminal text-shadow: R/B fringe + three stacked glows. Inherits, so it
+ * covers every glyph inside. */
+.terminal.crt-effects,
+.nav-menu.crt-effects,
+.mosaic-frame.crt-effects,
+.deck-title.crt-effects,
+.deck-card-title.crt-effects,
+.deck-outro-title.crt-effects,
+.crt {
+  text-shadow:
+    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)),
+    var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)),
+    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
+    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+}
+
+/* Full terminal pass on one element (text, borders, fills alike). The
+ * under-fill is --bg-primary pre-darkened by the brightness factor, so after
+ * the filter it matches the page around it and no box shows. */
+.crt {
+  --crt-fill: var(--crt-under, color-mix(in srgb, var(--bg-primary) calc(100% / (1 + var(--crt-glow-brightness, 1))), black));
+  background-color: var(--crt-fill);
+  filter: blur(var(--crt-blur, 0.4px))
+    brightness(calc((1 + var(--crt-glow-brightness, 1)) / var(--crt-ambient, 1)));
+}
+
 .article-page {
   pointer-events: auto;
   /* re-enable within article-mode's pointer-events: none grid */
@@ -37,6 +84,7 @@
  * (unlike brightness, which composes multiplicatively). Body text reads
  * cleaner crisp, so blur is re-applied only on .article-title/.article-heading. */
 .article-page {
+  --crt-ambient: calc(1 + 0.4 * var(--crt-glow-brightness, 1)); /* see .crt */
   filter: brightness(calc(1 + 0.4 * var(--crt-glow-brightness, 1)));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -0.5) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.2)),
@@ -82,6 +130,19 @@
       rgba(255, 255, 255, 0.08) 100%);
   animation: banner-sweep 600ms ease-out forwards;
   pointer-events: none;
+}
+
+/* CRT sprite (spritesheet.crt; styleSpriteBanner, Games list card): .crt blur
+ * and brightness with .scanlines (masked lines), nothing on the sprite itself.
+ * Transparent box, no dark under-fill: the fill only matches the page colour
+ * where the backdrop is exactly --bg-primary, so it showed as a dark square.
+ * The cost is at the sprite's soft blur edge, which is brightened before
+ * compositing; the opaque pixels come out the same. Overrides
+ * .article-banner's / .game-banner's #111 placeholder too. */
+.article-banner.crt,
+.game-banner.crt {
+  --crt-under: transparent;
+  background-color: transparent;
 }
 
 @keyframes banner-sweep {
@@ -152,23 +213,6 @@ div.article-banner {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-}
-
-.article-header-links {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.article-header-links .article-link {
-  font-size: clamp(0.7rem, 1.4vw, 0.9rem);
-  padding: 0.5em 1em;
-}
-
-.article-header-links .article-link svg {
-  width: 1.4rem;
-  height: 1.4rem;
 }
 
 .article-title {
@@ -412,25 +456,39 @@ div.article-banner {
   border: none;
 }
 
-/* Gallery strip arrows and the zoom-view arrows share the CRT look: theme
- * colour (--text-primary, terminal green by default) with its glow. */
+/* Gallery strip arrows and the zoom-view arrows: the terminal CRT preset on
+ * an inner face (<button> > <span.crt>), same split and motion as the CTA
+ * buttons: the button holds the scale (gallery window's 300ms
+ * --ease-smooth) and the scanlines, the face the blur/brightness. */
 .article-gallery-btn,
 .zoom-nav-btn {
   flex: 0 0 auto;
   font-family: 'Martian Mono', monospace;
-  font-size: 1.1em;
+  font-weight: 200;
+  line-height: 1;
   color: var(--text-primary);
-  text-shadow: 0 0 6px color-mix(in srgb, var(--text-primary) 60%, transparent);
   background: none;
   border: none;
+  padding: 0;
   cursor: pointer;
-  padding: 0.5em 0.4em;
-  transition: filter 150ms, opacity 150ms;
+  transition: scale 300ms var(--ease-smooth), opacity 150ms;
 }
 
-.article-gallery-btn:hover,
-.zoom-nav-btn:hover {
-  filter: brightness(1.5);
+.article-gallery-btn-face,
+.zoom-nav-face {
+  display: block;
+}
+
+.article-gallery-btn:hover:not(:disabled),
+.article-gallery-btn:focus-visible,
+.zoom-nav-btn:hover:not(:disabled),
+.zoom-nav-btn:focus-visible {
+  scale: 1.04;
+}
+
+.article-gallery-btn:active:not(:disabled),
+.zoom-nav-btn:active:not(:disabled) {
+  scale: 0.97;
 }
 
 .article-gallery-btn:disabled,
@@ -445,29 +503,40 @@ div.article-banner {
   outline-offset: 2px;
 }
 
-/* Strip arrows: a framed, glowing key-cap so they read as controls next to
- * the images, not as stray glyphs. */
+/* Strip arrows: a framed key-cap like the link chips (1px border, faint tint
+ * on the .crt under-fill), so they read as controls next to the images. */
 .article-gallery-btn {
+  position: relative; /* anchors the ::after scanline layer */
   align-self: center;
   font-size: clamp(1.2rem, 1.8vw, 1.6rem);
-  line-height: 1;
+}
+
+.article-gallery-btn-face {
   padding: 0.55em 0.45em;
-  border: 1px solid color-mix(in srgb, var(--text-primary) 55%, transparent);
-  background: color-mix(in srgb, var(--text-primary) 8%, rgba(0, 0, 0, 0.5));
-  box-shadow: 0 0 8px color-mix(in srgb, var(--text-primary) 30%, transparent),
-    inset 0 0 6px color-mix(in srgb, var(--text-primary) 15%, transparent);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--text-primary) 80%, transparent);
-  transition: filter 150ms, opacity 150ms, background-color 150ms, box-shadow 150ms;
+  border: 1px solid var(--text-primary);
+  background-color: color-mix(in srgb, var(--text-primary) 3%, var(--crt-fill));
+  transition: background-color 150ms, box-shadow 150ms;
 }
 
-.article-gallery-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 18%, rgba(0, 0, 0, 0.5));
-  box-shadow: 0 0 14px color-mix(in srgb, var(--text-primary) 55%, transparent),
-    inset 0 0 8px color-mix(in srgb, var(--text-primary) 25%, transparent);
+.article-gallery-btn:hover:not(:disabled) .article-gallery-btn-face,
+.article-gallery-btn:focus-visible .article-gallery-btn-face {
+  background-color: color-mix(in srgb, var(--text-primary) 9%, var(--crt-fill));
+  box-shadow: 0 0 calc(10px * var(--crt-glow-spread, 1)) var(--glow-color),
+    inset 0 0 calc(6px * var(--crt-glow-spread, 1)) var(--glow-color);
 }
 
-.article-gallery-btn:disabled {
-  box-shadow: none;
+/* Zoom arrows sit over the image: no box, so a transparent face (no dark
+ * under-fill square over the picture) with masked scanlines (.scanlines). */
+.zoom-nav-face {
+  --crt-under: transparent;
+  padding: 0.6em 0.5em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-gallery-btn,
+  .zoom-nav-btn {
+    scale: none !important;
+  }
 }
 
 /* Zoomed gallery: arrows at the screen sides, above the zoomed image.
@@ -482,7 +551,6 @@ div.article-banner {
    * its nav bar); interactive children opt back in. */
   pointer-events: auto;
   font-size: clamp(1.4rem, 2.4vw, 2rem);
-  padding: 0.6em 0.5em;
 }
 
 .zoom-nav-btn--prev { left: 0.25rem; }
@@ -587,6 +655,26 @@ div.article-banner {
 .compare-label--left { left: 0.5rem; }
 .compare-label--right { right: 0.5rem; }
 
+/* Intro / leave (compareSlider.js): the line and labels fade in at the left
+ * edge before the line slides over, and fade out after it slides back.
+ * 90ms = LINE_FADE_MS. */
+.compare-handle,
+.compare-label {
+  transition: opacity 90ms ease-out;
+}
+
+.compare-intro .compare-handle,
+.compare-intro .compare-label {
+  opacity: 0;
+  transition: none;
+}
+
+.compare-out .compare-handle,
+.compare-out .compare-label {
+  opacity: 0;
+  transition-timing-function: ease-in;
+}
+
 /* Hover magnifier on the "after" side. JS sets size, translate (top-left at
  * the cursor minus the radius), background-size/position. It grows out of
  * the cursor when shown and shrinks back into it when hidden: `scale` and
@@ -609,9 +697,9 @@ div.article-banner {
   opacity: 0;
   scale: 0.2;
   transition:
-    scale 160ms cubic-bezier(0.4, 0, 1, 1),
-    opacity 140ms ease-in,
-    visibility 0s linear 160ms;
+    scale 120ms cubic-bezier(0.4, 0, 1, 1),
+    opacity 105ms ease-in,
+    visibility 0s linear 120ms;
   will-change: translate, scale;
 }
 
@@ -620,8 +708,8 @@ div.article-banner {
   opacity: 1;
   scale: 1;
   transition:
-    scale 260ms cubic-bezier(0.18, 1.3, 0.4, 1),
-    opacity 160ms ease-out,
+    scale 195ms cubic-bezier(0.18, 1.3, 0.4, 1),
+    opacity 120ms ease-out,
     visibility 0s;
 }
 
@@ -726,17 +814,31 @@ div.article-banner {
   margin-top: 0.5rem;
 }
 
+/* Link chips (markdown `[Label|icon](url)` link rows): the small
+ * sibling of .article-cta. <a.article-link> > <span.article-link-face.crt>
+ * > [icon, label]. Same split as the CTA: the face takes the terminal CRT
+ * preset, the link holds the scanlines and the scale. Shared rules with the
+ * CTA (scanlines, hover, icon fringe) sit with the CTA block below. Light
+ * weight (200, the terminal menu's) so the CRT bloom doesn't read as bold. */
 .article-link {
   display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+  position: relative; /* anchors the ::after scanline layer */
   color: var(--text-primary);
   text-decoration: none;
   font-size: clamp(0.6rem, 1.2vw, 0.8rem);
-  font-weight: 300;
-  border: 1px solid color-mix(in srgb, var(--text-primary) 30%, transparent);
+  font-weight: 200;
+  transition: scale 300ms var(--ease-smooth);
+}
+
+.article-link-face {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.4em 0.8em;
-  transition: filter var(--timing-normal) ease, border-color var(--timing-normal) ease;
+  border: 1px solid var(--text-primary);
+  background-color: color-mix(in srgb, var(--text-primary) 3%, var(--crt-fill));
+  transition: background-color 150ms, box-shadow 150ms;
 }
 
 .article-link svg {
@@ -744,18 +846,13 @@ div.article-banner {
   height: 1.2rem;
 }
 
-.article-link:hover {
-  filter: brightness(1.5) drop-shadow(0 0 6px var(--glow-color));
-  border-color: var(--text-primary);
-}
-
 /* ---- Call-to-action button: [[LABEL]](url) ----
- * Title sprite (transparent, from parseMarkdown's ctaArt) above a big label.
- * Chrome: the gallery frame's 2px border and its CRT post-processing, with
- * the gallery arrows' key-cap fill and hover glow (.article-gallery-btn).
- * Motion uses the gallery zoom window's --ease-smooth curve (no overshoot):
- * hover scale-up and arrow nudge, press scale-down. Reduced motion keeps only
- * the colour changes. */
+ * <a.article-cta> > <span.article-cta-face.crt> > [title sprite, label].
+ * The face takes the terminal CRT preset (.crt): 2px border like the gallery
+ * frame, fill, art and label all through the same blur + brightness. The
+ * link outside it holds the scanlines (blurred, they'd smear to grey) and the
+ * motion: the gallery zoom window's --ease-smooth curve, no overshoot. Reduced
+ * motion keeps only the colour changes. */
 /* Row of one or more CTAs (consecutive [[…]] lines). The row carries the
  * reveal transform, so each button's translate/scale still compose. */
 .article-ctas {
@@ -770,50 +867,39 @@ div.article-banner {
 
 .article-cta {
   display: inline-flex;
+  position: relative; /* anchors the ::after scanline layer */
+  font-family: 'Martian Mono', monospace;
+  color: var(--text-primary);
+  text-decoration: none;
+  /* Scale uses the gallery zoom window's 300ms --ease-smooth. */
+  transition: scale 300ms var(--ease-smooth);
+}
+
+.article-cta-face {
+  flex: 1;
+  display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
   padding: 1rem 1.75rem 1.1rem;
-  font-family: 'Martian Mono', monospace;
-  color: var(--text-primary);
-  text-decoration: none;
-  position: relative; /* anchors the ::after scanline layer */
-  /* Transparent spacer: the visible 2px line is ::before, so it can take the
-   * frame's blur without blurring the label. */
-  border: 2px solid transparent;
-  background-color: color-mix(in srgb, var(--text-primary) 8%, rgba(0, 0, 0, 0.5));
-  /* Colour changes match the gallery arrows (150ms); scale uses the gallery
-   * zoom window's 300ms --ease-smooth: no overshoot or bounce. */
-  transition:
-    background-color 150ms,
-    box-shadow 150ms,
-    scale 300ms var(--ease-smooth);
-}
-
-/* The border, rendered like the gallery frame's inner line
- * (.mosaic-frame.crt-effects::after): 2px --text-primary through
- * blur(--crt-blur) brightness(1 + glow). .article-page already applies
- * brightness(1 + 0.4·glow) to everything here, so divide that back out to
- * land on the frame's net brightness. No glow halo: the frame has none. */
-.article-cta::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
   border: 2px solid var(--text-primary);
-  pointer-events: none;
-  filter: blur(var(--crt-blur, 0.4px))
-    brightness(calc((1 + var(--crt-glow-brightness, 1)) / (1 + 0.4 * var(--crt-glow-brightness, 1))));
+  /* Faint tint mixed into the .crt under-fill (--crt-fill, set by .crt on
+   * this element), so it still lands on the page colour after brightness. */
+  background-color: color-mix(in srgb, var(--text-primary) 3%, var(--crt-fill));
+  transition: background-color 150ms, box-shadow 150ms;
 }
 
 /* Scanlines OVER the whole button (border, art, label): the exact
  * .crt-overlay pattern that covers the gallery frame (black at
- * --scanline-opacity, --scanline-* geometry from config/crt.js). inset -2px
- * reaches over the border; pointer-events none keeps the link clickable. */
-.article-cta::after {
+ * --scanline-opacity, --scanline-* geometry from config/crt.js). Outside the
+ * face's filter; pointer-events none keeps the link clickable. */
+.article-cta::after,
+.article-link::after,
+.article-gallery-btn::after {
   content: '';
   position: absolute;
-  inset: -2px;
+  inset: 0;
   pointer-events: none;
   background: repeating-linear-gradient(
       0deg,
@@ -821,6 +907,29 @@ div.article-banner {
       transparent var(--scanline-spacing, 4px),
       rgba(0, 0, 0, var(--scanline-opacity, 0.06)) var(--scanline-spacing, 4px),
       rgba(0, 0, 0, var(--scanline-opacity, 0.06)) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px)));
+}
+
+/* Scanlines for content that renders above the global .crt-overlay but over
+ * an already-scanlined transparent backdrop (Games list text, CRT sprites).
+ * A mask, not an overlay: an overlay also darkens the empty backdrop, which
+ * doubles the global lines into a visible dark box. The mask dims only the
+ * element's own pixels, by the same --scanline-opacity on the same geometry.
+ * Masks apply after the element's filter, so the lines stay sharp on a
+ * blurred .crt element. */
+.scanlines {
+  --scanline-keep: rgba(0, 0, 0, calc(1 - var(--scanline-opacity, 0.06)));
+  -webkit-mask-image: repeating-linear-gradient(
+      0deg,
+      #000,
+      #000 var(--scanline-spacing, 4px),
+      var(--scanline-keep) var(--scanline-spacing, 4px),
+      var(--scanline-keep) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px)));
+  mask-image: repeating-linear-gradient(
+      0deg,
+      #000,
+      #000 var(--scanline-spacing, 4px),
+      var(--scanline-keep) var(--scanline-spacing, 4px),
+      var(--scanline-keep) calc(var(--scanline-spacing, 4px) + var(--scanline-size, 2px)));
 }
 
 /* Native frame is 256×64: 256px wide = 1:1 source pixels. */
@@ -834,20 +943,29 @@ div.article-banner {
   align-items: center;
   gap: 0.6em;
   font-size: clamp(1rem, 2vw, 1.3rem);
-  font-weight: 700;
+  /* Light, like the link chips: the CRT bloom already thickens strokes. */
+  font-weight: 200;
   letter-spacing: 0.12em;
-  text-shadow: 0 0 8px color-mix(in srgb, var(--text-primary) 80%, transparent);
 }
 
+/* No hover nudge of its own: the arrow moves only with the button's scale. */
 .article-cta-arrow {
   font-size: 0.8em;
-  transition: transform 300ms var(--ease-smooth);
 }
 
+/* The SVG icon gets no text-shadow, so give it the preset's R/B fringe and
+ * innermost glow as drop-shadows (the face's filter then blurs/brightens it). */
 .article-cta-icon {
   display: inline-flex;
   font-size: 1em;
-  filter: drop-shadow(0 0 6px var(--glow-color));
+}
+
+.article-cta-icon,
+.article-link-face svg {
+  filter:
+    drop-shadow(calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)))
+    drop-shadow(var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)))
+    drop-shadow(0 0 calc(5px * var(--crt-glow-spread, 1)) var(--glow-color));
 }
 
 .article-cta-icon svg {
@@ -855,28 +973,34 @@ div.article-banner {
   height: 1.2em;
 }
 
-/* Hover = the gallery arrows' hover chrome, plus a stepped scale-up.
+/* Hover: brighter tint and a glow in the preset's glow colour (both pass
+ * through the face's filter, like the terminal's glow), plus the scale-up.
  * `scale`, not `transform`: .article-reveal owns transform. */
 .article-cta:hover,
-.article-cta:focus-visible {
-  background-color: color-mix(in srgb, var(--text-primary) 18%, rgba(0, 0, 0, 0.5));
-  box-shadow: 0 0 14px color-mix(in srgb, var(--text-primary) 55%, transparent),
-    inset 0 0 8px color-mix(in srgb, var(--text-primary) 25%, transparent);
+.article-cta:focus-visible,
+.article-link:hover,
+.article-link:focus-visible {
   scale: 1.04;
   outline: none;
 }
 
-.article-cta:focus-visible {
+.article-cta:hover .article-cta-face,
+.article-cta:focus-visible .article-cta-face,
+.article-link:hover .article-link-face,
+.article-link:focus-visible .article-link-face {
+  background-color: color-mix(in srgb, var(--text-primary) 9%, var(--crt-fill));
+  box-shadow: 0 0 calc(10px * var(--crt-glow-spread, 1)) var(--glow-color),
+    inset 0 0 calc(6px * var(--crt-glow-spread, 1)) var(--glow-color);
+}
+
+.article-cta:focus-visible,
+.article-link:focus-visible {
   outline: 1px dashed var(--text-primary);
   outline-offset: 4px;
 }
 
-.article-cta:hover .article-cta-arrow,
-.article-cta:focus-visible .article-cta-arrow {
-  transform: translateX(4px);
-}
-
-.article-cta:active {
+.article-cta:active,
+.article-link:active {
   scale: 0.97;
 }
 
@@ -884,14 +1008,13 @@ div.article-banner {
   .article-cta,
   .article-cta:hover,
   .article-cta:focus-visible,
-  .article-cta:active {
+  .article-cta:active,
+  .article-link,
+  .article-link:hover,
+  .article-link:focus-visible,
+  .article-link:active {
     animation: none;
     scale: none;
-  }
-
-  .article-cta:hover .article-cta-arrow,
-  .article-cta:focus-visible .article-cta-arrow {
-    transform: none;
   }
 }
 

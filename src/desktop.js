@@ -24,8 +24,8 @@ import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier, getSaveData, prefersReducedMotion } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement, createTitleArt, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia, cloneMediaForZoom } from './utils/media.js';
-import { parseMarkdown, applyInline } from './utils/markdown.js';
+import { createMediaElement, createSpritesheetElement, createTitleArt, styleSpriteBanner, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia, cloneMediaForZoom } from './utils/media.js';
+import { parseMarkdown, applyInline, extractCtas, buildCtaRow } from './utils/markdown.js';
 import { galleryOf, slideMedia, revealSlide, mountMediaCompare, createZoomArrows } from './utils/galleryZoom.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
@@ -145,7 +145,7 @@ function mountDetailVideoControls(itemEl, itemData) {
 function mountDetailCompare(itemEl, itemData) {
   if (!itemData?.compare) return null;
   return mountMediaCompare(itemEl, itemEl.querySelector('img, video'), itemData.compare,
-    { loupe: true, ownSrc: itemData.src });
+    { loupe: true, ownSrc: itemData.src, intro: { ms: 400 } });
 }
 
 // Inject CSS variables from centralized config
@@ -1051,6 +1051,11 @@ async function renderGames() {
 
     if (game.type === 'spritesheet') {
       const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
+      if (banner && game.spritesheet.crt) {
+        // CRT sprite (Matrix): same look as its detail banner (article.css).
+        banner.classList.add('crt', 'scanlines');
+        banner.style.backgroundColor = '';
+      }
       if (banner) card.appendChild(banner);
     } else if (game.type === 'parallax') {
       // Card slot is a fixed 320px column (style.css .game-card > :first-child).
@@ -1065,9 +1070,12 @@ async function renderGames() {
     }
 
     const info = document.createElement('div');
-    info.className = 'game-info';
+    // .scanlines: the Games list renders above the global scanline overlay
+    // (so photo thumbnails stay clean), so the text column carries its own.
+    info.className = 'game-info scanlines';
 
     const h2 = document.createElement('h2');
+    h2.className = 'crt'; // terminal CRT preset (article.css)
     h2.textContent = game.title;
     info.appendChild(h2);
 
@@ -1183,7 +1191,7 @@ function buildArticleContent(itemData) {
 
   if (itemData.type === 'spritesheet' || itemData.type === 'parallax' || itemData.src) {
     const bannerMedia = itemData.type === 'spritesheet'
-      ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true })
+      ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true, bannerScale: itemData.spritesheet.bannerScale })
       : itemData.type === 'parallax'
         ? createParallaxBanner(itemData.parallax, { className: 'article-banner', alt: itemData.title || '', sizes: '55vw', lazy: false })
         : itemData.type === 'landing'
@@ -1200,39 +1208,30 @@ function buildArticleContent(itemData) {
       // The wrap dims its contents (brightness filter to offset CRT glow on
       // photos). The sprite title is already authored at the right brightness,
       // so clear it for sprite banners to avoid a muted look.
-      if (itemData.type === 'spritesheet') bannerWrap.style.filter = 'none';
+      if (itemData.type === 'spritesheet') styleSpriteBanner(bannerWrap, bannerMedia, itemData.spritesheet);
       bannerWrap.appendChild(bannerMedia);
       header.appendChild(bannerWrap);
     }
   }
 
-  if (itemData.title || itemData.links?.length) {
+  // Games (the items that carry `links`): repeat the page's own CTA buttons
+  // right under the banner; the originals stay at the end. Other items (the
+  // Superhive products) keep theirs at the end only. No title art: the
+  // banner above already shows it.
+  if (itemData.links?.length && itemData.headerCta !== false) {
+    const ctas = extractCtas(itemData.page);
+    if (ctas.length) header.appendChild(buildCtaRow(ctas, { iconMap: CONTACT_ICONS, reveal: false }));
+  }
+
+  // No header link chips: each page ends in its own [[CTA]] buttons, and
+  // `links` stays for the Games list cards only.
+  if (itemData.title) {
     const titleRow = document.createElement('div');
     titleRow.className = 'article-title-row';
-
-    if (itemData.title) {
-      const title = document.createElement('h1');
-      title.className = 'article-title';
-      title.textContent = itemData.title;
-      titleRow.appendChild(title);
-    }
-
-    if (itemData.links?.length) {
-      const linksEl = document.createElement('div');
-      linksEl.className = 'article-header-links';
-      for (const link of itemData.links) {
-        const a = document.createElement('a');
-        a.href = link.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.className = 'article-link';
-        const icon = CONTACT_ICONS[link.icon] ?? CONTACT_ICONS.website;
-        a.innerHTML = `${icon}<span>${link.label}</span>`;
-        linksEl.appendChild(a);
-      }
-      titleRow.appendChild(linksEl);
-    }
-
+    const title = document.createElement('h1');
+    title.className = 'article-title';
+    title.textContent = itemData.title;
+    titleRow.appendChild(title);
     header.appendChild(titleRow);
   }
 
@@ -1346,8 +1345,10 @@ function renderGeneralContent() {
   const header = document.createElement('header');
   header.className = 'general-header';
 
+  // Only the name gets the terminal CRT preset; title/subtitle keep the
+  // panel's lighter look.
   const gcName = document.createElement('h1');
-  gcName.className = 'general-name';
+  gcName.className = 'general-name crt';
   gcName.textContent = gc.name;
 
   const gcTitle = document.createElement('p');
@@ -1850,7 +1851,9 @@ function enterGalleryImageFullscreen(imgEl) {
  * @returns {{ step(dir): void, relayout(): void, destroy(): void }}
  */
 function mountGalleryZoomExtras(imgEl, overlay) {
-  let compare = mountMediaCompare(overlay, imgEl, null, { loupe: true });
+  // Intro plays alongside the overlay's 300ms zoom / resize (.gallery-fs-overlay).
+  const intro = { ms: 300 };
+  let compare = mountMediaCompare(overlay, imgEl, null, { loupe: true, intro });
   const gallery = galleryOf(imgEl);
   let index = gallery?.index ?? 0;
 
@@ -1863,7 +1866,7 @@ function mountGalleryZoomExtras(imgEl, overlay) {
     revealSlide(gallery, i);
     compare?.destroy();
     overlay.replaceChildren(cloneMediaForZoom(next));
-    compare = mountMediaCompare(overlay, next, null, { loupe: true });
+    compare = mountMediaCompare(overlay, next, null, { loupe: true, intro });
     const { from, to } = galleryFullscreenRects(next);
     activeDetail._galleryImg = next;
     activeDetail._galleryFromRect = from;
@@ -1889,16 +1892,18 @@ function mountGalleryZoomExtras(imgEl, overlay) {
   return {
     step,
     relayout,
-    destroy() {
-      compare?.destroy();
+    // Closing zoom: the slider slides back out during the 300ms fly-back.
+    destroy({ animate = false } = {}) {
+      if (animate) compare?.leave(300);
+      else compare?.destroy();
       arrows?.destroy();
     },
   };
 }
 
 /** Tears down mountGalleryZoomExtras for the active detail, if any. */
-function destroyGalleryZoomExtras() {
-  activeDetail?._galleryExtras?.destroy();
+function destroyGalleryZoomExtras(opts) {
+  activeDetail?._galleryExtras?.destroy(opts);
   if (activeDetail) activeDetail._galleryExtras = null;
 }
 
@@ -1913,7 +1918,7 @@ function exitDetailFullscreen() {
     activeDetail._galleryOverlay = null;
     activeDetail._galleryBackdrop = null;
     activeDetail._galleryFromRect = null;
-    destroyGalleryZoomExtras();
+    destroyGalleryZoomExtras({ animate: true });
     detailFullscreen = false;
 
     // Remove backdrop immediately — no animation needed
@@ -2125,6 +2130,9 @@ function openDetail(itemEl, itemData) {
 
   // Build nav bar immediately so it's visible during the FLIP animation
   buildDetailNav(itemData, layout);
+  // Compare slider too: a child of itemEl, so it rides the FLIP transform and
+  // its intro plays alongside it.
+  if (activeDetail) activeDetail.compare = mountDetailCompare(itemEl, itemData);
 
   anim.onfinish = () => {
     if (activeDetail?.sessionId === sessionId) expandDetailBox();
@@ -2133,7 +2141,6 @@ function openDetail(itemEl, itemData) {
     if (activeDetail?.sessionId === sessionId) {
       attachMediaClickHandler(itemEl);
       activeDetail.videoControls = mountDetailVideoControls(itemEl, itemData);
-      activeDetail.compare = mountDetailCompare(itemEl, itemData);
     }
 
     // If this is a splat item, mount the 3D viewer on top of the thumbnail
@@ -2490,7 +2497,10 @@ function closeDetail(instant = false) {
   // Same timing for the video controls — the bar must not flash inside the
   // thumbnail while the item shrinks back into the grid (and destroy re-mutes).
   activeDetail.videoControls?.destroy();
-  activeDetail.compare?.destroy();
+  // The slider instead slides out during the 400ms reverse FLIP (it shrinks
+  // with the item, since it's a child of it).
+  if (instant) activeDetail.compare?.destroy();
+  else activeDetail.compare?.leave(400);
 
   activeDetail = null;
   syncUrl();

@@ -86,23 +86,22 @@
   padding: clamp(0.4rem, 1.2vw, 0.75rem) clamp(0.75rem, 2vw, 1.5rem);
 }
 
-/* Deck headings take the same CRT text pass as the terminal/nav (.crt-effects
-   in style.css). The rule is copied here, not shared, because the deck also
-   opens on mobile where style.css isn't loaded. Keep it in sync with the
-   `.terminal.crt-effects, ...` rule in style.css. The --crt-* / --rgb-* vars
-   are written by crt.js on desktop only; mobile uses the var() fallbacks. */
+/* Deck headings: the terminal text-shadow comes from the shared CRT presets
+   (article.css, which the deck loads); this is the filter half. Still a
+   filter on a transparent element, so it reads slightly paler than the
+   terminal; an opaque .crt under-fill would hide the deck's baked scanline
+   floor behind each heading. */
+/* Same trade-off for every .crt in the document overlay (CTA and link-chip
+   faces, sprite banner): no opaque under-fill, so the --deck-scan lines
+   behind stay visible through the buttons. Slightly paler, no dark boxes. */
+.deck-doc {
+  --crt-under: transparent;
+}
+
 .deck-title.crt-effects,
 .deck-card-title.crt-effects,
 .deck-outro-title.crt-effects {
   filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
-  text-shadow:
-    /* RGB split — red left, blue right */
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)),
-    var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)),
-    /* Glow — 3 layers that stack for intensity > 1 */
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 /* Glow + RGB-split + blur/brightness come from .crt-effects (class added in JS);

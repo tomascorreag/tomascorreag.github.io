@@ -33,10 +33,10 @@ import { resolvePage } from '../config/portfolio.js';
 // and loads it alongside the dynamic import (same pattern as mobile.css).
 import '../article.css'; // shared .article-* markdown styles
 import './portfolio-deck.css';
-import { createMediaElement, createSpritesheetElement, createTitleArt } from '../utils/media.js';
+import { createMediaElement, createSpritesheetElement, createTitleArt, styleSpriteBanner } from '../utils/media.js';
 import { createParallaxBanner } from './ParallaxBanner.js';
 import { createLandingBanner, LANDING_VIEW } from './LandingBanner.js';
-import { parseMarkdown, applyInline } from '../utils/markdown.js';
+import { parseMarkdown, applyInline, extractCtas, buildCtaRow } from '../utils/markdown.js';
 import { openImageLightbox } from '../utils/imageLightbox.js';
 import { ICONS } from '../config/icons.js';
 import { deviceTier, prefersReducedMotion, getSaveData } from '../config/device.js';
@@ -84,9 +84,9 @@ function el(tag, opts = {}, children = []) {
  * thumbnails, splat thumbnails) goes through createMediaElement. Returns null
  * if neither is available, so callers can render a fallback.
  */
-function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true, sizes, video, managed = true } = {}) {
+function buildItemMedia(item, { className = '', alt = item.title || '', lazy = true, sizes, video, managed = true, bannerScale } = {}) {
   if (item.type === 'spritesheet' && item.spritesheet) {
-    return createSpritesheetElement(item.spritesheet, { className, alt, responsive: true, managed });
+    return createSpritesheetElement(item.spritesheet, { className, alt, responsive: true, managed, bannerScale });
   }
   if (item.type === 'parallax' && item.parallax) {
     return createParallaxBanner(item.parallax, { className, alt, lazy, sizes, managed });
@@ -278,22 +278,6 @@ function buildDateEl(date, className) {
   return el('span', { class: className, text: date });
 }
 
-/** Builds the link-button row used in the document header (games carry links). */
-function buildHeaderLinks(links) {
-  const wrap = el('div', { class: 'article-header-links' });
-  for (const link of links) {
-    const icon = ICONS[link.icon] ?? ICONS.website;
-    wrap.appendChild(
-      el('a', {
-        class: 'article-link',
-        html: `${icon}<span>${link.label}</span>`,
-        attrs: { href: link.url, target: '_blank', rel: 'noopener noreferrer' },
-      }),
-    );
-  }
-  return wrap;
-}
-
 /**
  * The full document for a project — identical structure to the Games article
  * page: banner, title + links, description, then the markdown body (or a
@@ -306,25 +290,31 @@ function buildDocument(item) {
   // ── Header: banner + title-row + description ──
   const header = el('div', { class: 'article-header' });
 
-  const banner = buildItemMedia(item, { className: 'article-banner', lazy: false, sizes: DOC_SIZES });
+  // bannerScale: same detail-banner sizing as desktop's article view (the
+  // deck cards stay full width).
+  const banner = buildItemMedia(item, { className: 'article-banner', lazy: false, sizes: DOC_SIZES, bannerScale: item.spritesheet?.bannerScale });
   if (banner) {
     const bannerWrap = el('div', { class: 'article-banner-wrap' }, banner);
     // Pixel-art sprite titles must not get the .article-page CRT blur/filter —
     // mirror the main site's detail view (desktop.js), which clears it too.
-    if (item.type === 'spritesheet') bannerWrap.style.filter = 'none';
+    if (item.type === 'spritesheet') styleSpriteBanner(bannerWrap, banner, item.spritesheet);
     header.appendChild(bannerWrap);
   }
 
-  // Title + date sit together on the left (date trails the title as a byline);
-  // links, when present, stay pinned right via the row's space-between.
+  // Games (items with `links`): the page's CTA buttons repeated under the
+  // banner, as in the desktop article view. No title art: the banner shows it.
+  if (item.links?.length && item.headerCta !== false) {
+    const ctas = extractCtas(item.deckPage ?? item.page);
+    if (ctas.length) header.appendChild(buildCtaRow(ctas, { iconMap: ICONS, reveal: false }));
+  }
+
+  // Title + date sit together on the left (date trails the title as a byline).
+  // No header link chips: the page body ends in its own [[CTA]] buttons.
   const titleGroup = el('div', { class: 'article-title-group' }, [
     item.title && el('h1', { class: 'article-title', text: item.title }),
     item.date && buildDateEl(item.date, 'article-dateline'),
   ]);
-  const titleRow = el('div', { class: 'article-title-row' }, [
-    titleGroup,
-    item.links?.length && buildHeaderLinks(item.links),
-  ]);
+  const titleRow = el('div', { class: 'article-title-row' }, [titleGroup]);
   header.appendChild(titleRow);
 
   if (item.description) {

@@ -57,7 +57,7 @@ const LOUPE_ZOOM = 4;
  * figure's data-src): a higher-resolution render at the same framing. Images
  * without one get no magnifier; magnifying their own pixels just blurs.
  */
-export function mountMediaCompare(host, mediaEl, compareSrc = null, { loupe: withLoupe = false, ownSrc = null } = {}) {
+export function mountMediaCompare(host, mediaEl, compareSrc = null, { loupe: withLoupe = false, ownSrc = null, intro = null } = {}) {
   const fig = mediaEl?.closest('.article-figure');
   const src = compareSrc ?? fig?.dataset.compare;
   if (!src) return null;
@@ -69,7 +69,7 @@ export function mountMediaCompare(host, mediaEl, compareSrc = null, { loupe: wit
     const hires = resolveThumbnail(own.replace(/\.[^.]+$/, '_hires.webp'), { quiet: true });
     if (hires) loupe = { zoom: LOUPE_ZOOM, src: hires };
   }
-  return mountCompareSlider(host, before, { loupe });
+  return mountCompareSlider(host, before, { loupe, intro });
 }
 
 /**
@@ -83,7 +83,12 @@ export function createZoomArrows(onStep, className = '') {
     b.type = 'button';
     b.className = `zoom-nav-btn zoom-nav-btn--${dir < 0 ? 'prev' : 'next'} ${className}`.trim();
     b.setAttribute('aria-label', dir < 0 ? 'Previous image' : 'Next image');
-    b.textContent = dir < 0 ? '<' : '>';
+    // Bare glyph over the image: CRT preset on a transparent face, masked
+    // scanlines (article.css .zoom-nav-face).
+    const face = document.createElement('span');
+    face.className = 'zoom-nav-face crt scanlines';
+    face.textContent = dir < 0 ? '<' : '>';
+    b.appendChild(face);
     // Zoom views close on any click that reaches their backdrop/overlay.
     b.addEventListener('pointerdown', (e) => e.stopPropagation());
     b.addEventListener('click', (e) => { e.stopPropagation(); onStep(dir); });

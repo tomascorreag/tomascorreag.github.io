@@ -78,7 +78,8 @@ export function openImageLightbox(firstImgEl) {
   // :::gallery strip, side arrows that step through it. A step swaps the
   // media, scrolls the strip so the close animation returns to the new slide,
   // and refits the overlay to the new aspect ratio (its transition animates).
-  let compare = mountMediaCompare(overlay, imgEl, null, { loupe: true });
+  const intro = { ms: ANIM_MS }; // plays alongside the zoom / refit
+  let compare = mountMediaCompare(overlay, imgEl, null, { loupe: true, intro });
   const gallery = galleryOf(imgEl);
   let index = gallery?.index ?? 0;
   function step(dir) {
@@ -92,7 +93,7 @@ export function openImageLightbox(firstImgEl) {
     if (r.width && r.height) ar = r.width / r.height;
     compare?.destroy();
     overlay.replaceChildren(cloneMediaForZoom(next));
-    compare = mountMediaCompare(overlay, next, null, { loupe: true });
+    compare = mountMediaCompare(overlay, next, null, { loupe: true, intro });
     placeAt(containRect(ar, window.innerWidth, window.innerHeight));
     arrows.update(index, gallery.slides.length);
   }
@@ -125,7 +126,7 @@ export function openImageLightbox(firstImgEl) {
     document.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', onResize);
     cancelAnimationFrame(resizeFrame);
-    compare?.destroy();
+    compare?.leave(ANIM_MS); // slides back out alongside the fly-back
     arrows?.destroy();
 
     // Re-read the source rect at close time so the reverse FLIP lands on the
