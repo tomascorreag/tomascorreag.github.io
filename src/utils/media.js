@@ -398,6 +398,9 @@ export function cloneMediaForZoom(el) {
  *   fit         'contain' (responsive only): the caller's CSS sizes the box
  *               and the whole frame is fitted inside it (containSprite),
  *               instead of the sprite's width setting the height
+ *   bannerScale responsive, non-contain only: sprite width as a fraction of
+ *               the box (default 1). Article detail banners pass the config's
+ *               `spritesheet.bannerScale`; cards and the mobile sheet don't.
  *
  * Returns null when the sheet path can't be resolved (mirrors createMediaElement).
  */
@@ -408,11 +411,14 @@ export function createSpritesheetElement(config, opts = {}) {
     // is sized to an exact integer multiple of the native frame, so every source
     // pixel maps to a uniform scale×scale block (no fractional scaling artifacts).
     scale, frameWidth, frameHeight,
+    // Pixel-perfect only: vertical offset in native px (× scale on screen),
+    // for a frame taller than its slot with uneven empty rows.
+    shiftY = 0,
   } = config;
   // managed:false leaves play/pause to the caller (the portfolio deck runs
   // only the centred card's sprite; the offscreen manager would restart any
   // sprite that peeks into view).
-  const { className = '', alt = '', responsive = false, managed = true, fit = null } = opts;
+  const { className = '', alt = '', responsive = false, managed = true, fit = null, bannerScale = 1 } = opts;
 
   const url = resolveThumbnail(file);
   if (!url) return null;
@@ -440,11 +446,14 @@ export function createSpritesheetElement(config, opts = {}) {
   if (pixelPerfect) {
     sprite.style.width = `${frameWidth * scale}px`;
     sprite.style.height = `${frameHeight * scale}px`;
+    // Fixed px: flex-centred in an overflowing slot, it would shrink instead.
+    sprite.style.flexShrink = '0';
+    if (shiftY) sprite.style.translate = `0 ${shiftY * scale}px`;
   } else if (fit === 'contain') {
     const [aw, ah] = frameAspect.split('/').map(parseFloat);
     containSprite(container, sprite, frameWidth || aw, frameHeight || ah, !!(frameWidth && frameHeight));
   } else {
-    sprite.style.width = '100%';
+    sprite.style.width = `${bannerScale * 100}%`;
     sprite.style.aspectRatio = frameAspect;
   }
   sprite.style.backgroundImage = `url("${url}")`;
@@ -475,6 +484,21 @@ export function createTitleArt(spritesheet) {
   return createSpritesheetElement(
     { ...spritesheet, background: 'transparent', scale: undefined },
   );
+}
+
+/**
+ * Detail-banner setup for a sprite title: clears the wrap's photo dimming,
+ * and for `spritesheet.crt` puts the sprite through the terminal CRT preset
+ * (.crt blur + brightness, on a transparent box) with masked .scanlines;
+ * see article.css.
+ */
+export function styleSpriteBanner(wrap, media, spritesheet) {
+  wrap.style.filter = 'none';
+  if (!spritesheet?.crt) return;
+  media.classList.add('crt', 'scanlines');
+  // The inline 'transparent' would beat .crt's under-fill, and without the
+  // fill the brightness lands before compositing (pale, dim).
+  media.style.backgroundColor = '';
 }
 
 // One observer for every contain-fit sprite box; each box maps to its resize fn.

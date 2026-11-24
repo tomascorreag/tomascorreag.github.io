@@ -364,8 +364,8 @@ A caveat the document itself opens with: I am not an academic in games design. T
 `;
 
 const ARBO_LINKS = `
-[Steam|steam](https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/)
-[Website|website](https://arbo.xyz/)
+[[STEAM|steam]](https://store.steampowered.com/app/2914810/ARBO_Arena_Tactics/)
+[[WEBSITE|website]](https://arbo.xyz/)
 `;
 
 export const GAMES = [
@@ -401,7 +401,7 @@ export const GAMES = [
     },
     title: 'Páramo',
     date: '2026–present',
-    description: 'Páramo is a WIP environmental strategy game I\'m designing and developing entirely on my own, set on a threatened ecosystem in the Andes.',
+    description: 'Páramo is a WIP environmental strategy game set on a threatened ecosystem in the Andes. I\'m developing it on my own, designing it in consultation with the communities involved.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/Paramo/' },
     ],
@@ -563,7 +563,7 @@ I've also made the entire repository public with an open-source license, to cont
 
 ---
 
-[Website|website](https://tomascorreag.github.io/MapColombia/?lang=en)
+[[OPEN THE MAP]](https://tomascorreag.github.io/MapColombia/?lang=en)
 `,
   },
   {
@@ -572,21 +572,30 @@ I've also made the entire repository public with an open-source license, to cont
     spritesheet: {
       file: 'Games/Matrix/Neo_run_spriteSheet.png',
       frames: 8, first: 0, count: 8, fps: 10,
-      // Pixel-perfect: native frame is 64×64; render at integer 2× = 128×128.
-      frameWidth: 64, frameHeight: 64, scale: 2,
+      // Pixel-perfect: native frame is 64×64; render at integer 3× = 192×192
+      // in the 180px-tall Games list slot. Opaque rows are 5–62, so shifting
+      // up 2 native px (6px) crops only empty rows (12px top, 0 bottom).
+      frameWidth: 64, frameHeight: 64, scale: 3, shiftY: -2,
       frameAspect: '1 / 1',
       background: 'transparent',
+      // Detail banner: the 1:1 frame at full column width is too big; draw it
+      // at half the column width instead.
+      bannerScale: 0.5,
+      // Detail banner through the terminal CRT preset (styleSpriteBanner).
+      crt: true,
     },
     title: 'The Matrix',
     date: '2024',
-    description: 'The Matrix is a short, playable 2D platformer demo I built on my own in Unity, styled after the look of an old CRT television.',
+    description: 'The Matrix is a short, playable 2D sample scene I built on my own in Unity, styled after the look of an old CRT television.',
     links: [
       { label: 'Play', icon: 'website', url: 'https://tomascorreag.github.io/the-matrix-vertical-slice/' },
     ],
+    // Only the CTA at the end of the page, none under the banner.
+    headerCta: false,
     page: `
 ## About the Project
 
-A short, playable slice of a 2D platformer set in the world of *The Matrix*: you run and jump as Neo through a side-scrolling level, the whole screen dressed in the glow and scanlines of an old CRT television.
+A short, playable 2D sample scene set in the world of *The Matrix*: you run and jump as Neo through a side-scrolling level, the whole screen dressed in the glow and scanlines of an old CRT television.
 
 Built as an exercise in pixel art and post-processing effects.
 
@@ -598,7 +607,7 @@ Built on my own in **Unity**:
 
 - A custom **CRT screen shader** that gives the whole game the look of an old television: scanlines, glow, and curved glass
 - **Pixel-art character animation**, driven by hand-made sprite sheets in Aseprite.
-- The platformer movement and the level itself
+- The character movement and the level itself
 
 ---
 
@@ -608,7 +617,7 @@ A focused study in two things I wanted to get right: a convincing CRT screen eff
 
 ---
 
-[Play|website](https://tomascorreag.github.io/the-matrix-vertical-slice/)
+[[PLAY NOW]](https://tomascorreag.github.io/the-matrix-vertical-slice/)
 `,
   },
 ];
@@ -636,9 +645,7 @@ export const CATEGORIES = {
 
 ![Raw flesh material: wet, fresh tissue](3d-assets/flesh_details/var1_comp.mp4){right}
 
-Realistic raw, living tissue with fine control over colour, wetness, and surface detail. Surface wetness, colour, and subsurface depth are all art-directable. It is one of my commercial materials and a consistent best-seller, with over 1,000 sales on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
-
-[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+Realistic raw, living tissue with fine control over colour, wetness, and surface detail. Surface wetness, colour, and subsurface depth are all art-directable. It is one of my commercial materials and a consistent best-seller, with over 1,000 sales on Superhive (Blender Market). A portion of the proceeds from all my Blender products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
 ---
 
@@ -657,6 +664,10 @@ I built it as a product: a fully parametric organic-tissue material other artist
 
 ![Flesh material variation](3d-assets/flesh_details/var4_comp.mp4)
 ![Flesh material variation](3d-assets/flesh_details/var5_comp.mp4)
+
+---
+
+[[VIEW ON SUPERHIVE]](https://superhivemarket.com/creators/tomoco)
 `,
     },
     {
@@ -671,9 +682,7 @@ I built it as a product: a fully parametric organic-tissue material other artist
 
 One setup that can produce a wide range of ice: different shapes, clarity, and surface looks. The version shown here, classic ice in a glass with a drink, is just one of many.
 
-It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
-
-[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my Blender products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
 ---
 
@@ -689,6 +698,10 @@ Built entirely by me in **Blender**, combining geometry generation (Geometry Nod
 ## Why I Made It
 
 I built it for my own personal and commercial projects: a flexible, reusable tool for ice of any shape or clarity, rather than something rebuilt from scratch each time. Once it was general enough to reuse across my own work, it also became one of the products I sell.
+
+---
+
+[[VIEW ON SUPERHIVE]](https://superhivemarket.com/creators/tomoco)
 `,
     },
     {
@@ -727,9 +740,7 @@ A study in non-photorealistic rendering: getting 3D to read as a drawing, and le
 
 Every part of the eye's look (the iris pattern, the veins in the white, the wet sheen of the cornea) is generated procedurally, without a single photograph. It's fully adjustable and rigged to animate, pupil dilation included.
 
-It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
-
-[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my Blender products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
 ---
 
@@ -749,6 +760,10 @@ I built it for my own work, a reusable and fully parametric eye I can drop into 
 
 ![The full range of eyes the setup can generate](3d-assets/eye_details/allVars.jpg)
 *Every iris, colour, and vein pattern is procedurally generated*
+
+---
+
+[[VIEW ON SUPERHIVE]](https://superhivemarket.com/creators/tomoco)
 `,
     },
     {
@@ -762,9 +777,7 @@ I built it for my own work, a reusable and fully parametric eye I can drop into 
 
 One material that spans a huge range of woven cloth: a few controls take it from a broad basket-weave to a tight cloth knit, and it stays physically believable throughout.
 
-It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
-
-[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my Blender products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
 ---
 
@@ -784,10 +797,14 @@ I built it for my own personal and commercial projects as a single fully paramet
 ![A final fabric weave variation](3d-assets/fabric_details/detail5-min.jpg){left}
 
 A single node group exposes the weave pattern, scale, colour, and wear, so the same material covers everything from coarse upholstery to fine garment cloth.
+
+---
+
+[[VIEW ON SUPERHIVE]](https://superhivemarket.com/creators/tomoco)
 `,
     },
     {
-      id: 'paint', src: '3d-assets/paintThumb.jpg', alt: 'Procedural brushstroke painting material', cols: 4, rows: 2,
+      id: 'paint', src: '3d-assets/paintThumb.jpg', compare: '3d-assets/paintThumb_source.jpg', alt: 'Close-up of the brushstroke painting material on canvas', cols: 4, rows: 2,
       title: 'Brushstroke Painting Material',
       description: 'A Blender shader I built that turns any image into an oil painting of broad brushstrokes on canvas.',
       page: `
@@ -795,13 +812,24 @@ A single node group exposes the weave pattern, scale, colour, and wear, so the s
 
 Feed it any image and it re-renders the picture as if painted onto canvas with broad strokes, with the paint visibly thicker where the source is brighter.
 
-![Broad brushstrokes on canvas](3d-assets/paint_details/im2.jpg)
-![Another image through the painting shader](3d-assets/paint_details/im5.jpg)
-*The same shader applied to two different source images: impasto thickness follows each one's brightness*
+:::gallery
+![Venice's Grand Canal, painted by the shader](3d-assets/paint_details/venice.jpg|3d-assets/paint_details/venice_source.jpg) ![Close-up of the Grand Canal painting](3d-assets/paint_details/closeup_venice.jpg|3d-assets/paint_details/closeup_venice_source.jpg)
+![The Pillars of Creation, painted by the shader](3d-assets/paint_details/pillars_of_creation.jpg|3d-assets/paint_details/pillars_of_creation_source.jpg) ![Close-up of the Pillars of Creation painting](3d-assets/paint_details/closeup_pillars_of_creation.jpg|3d-assets/paint_details/closeup_pillars_of_creation_source.jpg)
+![Emir of Bukhara, painted by the shader](3d-assets/paint_details/emir_of_bukhara.jpg|3d-assets/paint_details/emir_of_bukhara_source.jpg) ![Close-up of the Emir of Bukhara painting](3d-assets/paint_details/closeup_emir_of_bukhara.jpg|3d-assets/paint_details/closeup_emir_of_bukhara_source.jpg)
+![American bison, painted by the shader](3d-assets/paint_details/american_bison.jpg|3d-assets/paint_details/american_bison_source.jpg) ![Close-up of the American bison painting](3d-assets/paint_details/closeup_american_bison.jpg|3d-assets/paint_details/closeup_american_bison_source.jpg)
+![Taj Mahal, 1900, painted by the shader](3d-assets/paint_details/taj_mahal.jpg|3d-assets/paint_details/taj_mahal_source.jpg) ![Close-up of the Taj Mahal painting](3d-assets/paint_details/closeup_taj_mahal.jpg|3d-assets/paint_details/closeup_taj_mahal_source.jpg)
+![The Blue Marble photograph of Earth, painted by the shader](3d-assets/paint_details/blue_marble.jpg|3d-assets/paint_details/blue_marble_source.jpg) ![Close-up of the Blue Marble painting](3d-assets/paint_details/closeup_blue_marble.jpg|3d-assets/paint_details/closeup_blue_marble_source.jpg)
+![Grand Canyon at sunrise, painted by the shader](3d-assets/paint_details/grand_canyon.jpg|3d-assets/paint_details/grand_canyon_source.jpg) ![Close-up of the Grand Canyon painting](3d-assets/paint_details/closeup_grand_canyon.jpg|3d-assets/paint_details/closeup_grand_canyon_source.jpg)
+![Himeji Castle, painted by the shader](3d-assets/paint_details/himeji_castle.jpg|3d-assets/paint_details/himeji_castle_source.jpg) ![Close-up of the Himeji Castle painting](3d-assets/paint_details/closeup_himeji_castle.jpg|3d-assets/paint_details/closeup_himeji_castle_source.jpg)
+![Cherry blossoms, painted by the shader](3d-assets/paint_details/cherry_blossoms.jpg|3d-assets/paint_details/cherry_blossoms_source.jpg) ![Close-up of the cherry blossom painting](3d-assets/paint_details/closeup_cherry_blossoms.jpg|3d-assets/paint_details/closeup_cherry_blossoms_source.jpg)
+![Aurora over Iceland, painted by the shader](3d-assets/paint_details/aurora.jpg|3d-assets/paint_details/aurora_source.jpg) ![Close-up of the aurora painting](3d-assets/paint_details/closeup_aurora.jpg|3d-assets/paint_details/closeup_aurora_source.jpg)
+![Portrait of Malala Yousafzai, painted by the shader](3d-assets/paint_details/malala.jpg|3d-assets/paint_details/malala_source.jpg) ![Close-up of the Malala Yousafzai painting](3d-assets/paint_details/closeup_malala.jpg|3d-assets/paint_details/closeup_malala_source.jpg)
+![Eiffel Tower, 1900, painted by the shader](3d-assets/paint_details/eiffel_tower.jpg|3d-assets/paint_details/eiffel_tower_source.jpg) ![Close-up of the Eiffel Tower painting](3d-assets/paint_details/closeup_eiffel_tower.jpg|3d-assets/paint_details/closeup_eiffel_tower_source.jpg)
+![Denali from Wonder Lake, painted by the shader](3d-assets/paint_details/denali.jpg|3d-assets/paint_details/denali_source.jpg) ![Close-up of the Denali painting](3d-assets/paint_details/closeup_denali.jpg|3d-assets/paint_details/closeup_denali_source.jpg)
+:::
+*One shader, thirteen source images, each shown whole and up close: impasto thickness follows each one's brightness*
 
-It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my products goes to the Blender Foundation Development Fund, supporting the software they are built with.
-
-[Buy on Superhive|website](https://superhivemarket.com/creators/tomoco)
+It is one of my commercial products, available on Superhive (Blender Market). A portion of the proceeds from all my Blender products goes to the Blender Foundation Development Fund, supporting the software they are built with.
 
 ---
 
@@ -814,6 +842,10 @@ Built entirely by me in **Blender**, with the brushstroke thickness (the impasto
 ## Why I Made It
 
 I built it for my own personal and commercial projects, a reusable shader that turns any image into something reading as a real, physical painting automatically. It started as a study in that effect, and once it was general enough to reuse, it also became a product, not just a study.
+
+---
+
+[[VIEW ON SUPERHIVE]](https://superhivemarket.com/creators/tomoco)
 `,
     },
   ],

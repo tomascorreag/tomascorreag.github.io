@@ -24,8 +24,9 @@ import { PARTICLE_CONFIG } from './config/particles.js';
 import { deviceTier, getSaveData, prefersReducedMotion } from './config/device.js';
 import { CATEGORIES, GAMES, GENERAL_CONTENT, resolveSplat, variantsFor } from './config/content.js';
 import { ICONS as CONTACT_ICONS } from './config/icons.js';
-import { createMediaElement, createSpritesheetElement, createTitleArt, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia, cloneMediaForZoom } from './utils/media.js';
-import { parseMarkdown, applyInline } from './utils/markdown.js';
+import { createMediaElement, createSpritesheetElement, createTitleArt, styleSpriteBanner, pauseManagedVideos, resumeManagedVideos, deferManagedVideo, releaseMedia, cloneMediaForZoom } from './utils/media.js';
+import { parseMarkdown, applyInline, extractCtas, buildCtaRow } from './utils/markdown.js';
+import { galleryOf, slideMedia, revealSlide, mountMediaCompare, createZoomArrows } from './utils/galleryZoom.js';
 import { attachVideoControls } from './components/VideoControls.js';
 import { createCrtScrollbar } from './components/CrtScrollbar.js';
 import { parseRoute, findItemIndex, createUrlSync } from './utils/route.js';
@@ -135,6 +136,18 @@ function mountDetailVideoControls(itemEl, itemData) {
   return attachVideoControls(video, itemEl, { reveal: 'hover' });
 }
 
+/**
+ * Mounts the before/after slider over a detail-active item whose content
+ * entry names a `compare` image (the source photo for the painted render).
+ * Like the video bar it's a child of itemEl, so fullscreen resizes carry it.
+ * @returns {{ destroy(): void }|null}
+ */
+function mountDetailCompare(itemEl, itemData) {
+  if (!itemData?.compare) return null;
+  return mountMediaCompare(itemEl, itemEl.querySelector('img, video'), itemData.compare,
+    { loupe: true, ownSrc: itemData.src, intro: { ms: 400 } });
+}
+
 // Inject CSS variables from centralized config
 injectCSSVariables();
 injectCRTVariables();
@@ -147,6 +160,9 @@ const crtScreen = document.getElementById('crt-screen');
 function fullMotion() {
   return deviceTier !== 'low';
 }
+
+// .detail-info opacity transition (style.css); keep in sync.
+const INFO_FADE_MS = 250;
 
 // Reduced motion: geometry tweens (detail FLIP, fullscreen zoom) become a
 // plain opacity fade at the final rect. Returns the Animation for onfinish.
@@ -590,6 +606,32 @@ function fadeOutDetail() {
   }
 }
 
+/**
+ * Fades the detail/article nav out, then removes it. Dropping .visible also
+ * shrinks the handle bar back (style.css keys it on .detail-nav.visible).
+ * A builder that runs meanwhile removes the fading nav itself (it removes any
+ * existing .detail-nav), so the timer only removes a node still attached.
+ */
+function fadeOutNavBar(nav) {
+  if (!nav) return;
+  nav.classList.remove('visible');
+  nav.style.pointerEvents = 'none';
+  setTimeout(() => nav.remove(), 300); // .detail-nav opacity transition: 250ms
+}
+
+/**
+ * Parent for the detail/article nav: the mosaic frame, so the buttons ride the
+ * frame's geometry tween and sit on its handle bar (see .detail-nav).
+ */
+function navBarHost() {
+  return crtScreen.querySelector('.mosaic-frame') || crtScreen;
+}
+
+/** Toggles the frame onto the detail box (see .mosaic-frame.detail-open). */
+function setFrameDetailOpen(open) {
+  crtScreen.querySelector('.mosaic-frame')?.classList.toggle('detail-open', open);
+}
+
 /** Empties the mosaic, unloading its videos first so they stop downloading. */
 function clearMosaic() {
   releaseMedia(mosaicEl);
@@ -1009,6 +1051,11 @@ async function renderGames() {
 
     if (game.type === 'spritesheet') {
       const banner = createSpritesheetElement(game.spritesheet, { className: 'game-banner', alt: game.title });
+      if (banner && game.spritesheet.crt) {
+        // CRT sprite (Matrix): same look as its detail banner (article.css).
+        banner.classList.add('crt', 'scanlines');
+        banner.style.backgroundColor = '';
+      }
       if (banner) card.appendChild(banner);
     } else if (game.type === 'parallax') {
       // Card slot is a fixed 320px column (style.css .game-card > :first-child).
@@ -1023,9 +1070,12 @@ async function renderGames() {
     }
 
     const info = document.createElement('div');
-    info.className = 'game-info';
+    // .scanlines: the Games list renders above the global scanline overlay
+    // (so photo thumbnails stay clean), so the text column carries its own.
+    info.className = 'game-info scanlines';
 
     const h2 = document.createElement('h2');
+    h2.className = 'crt'; // terminal CRT preset (article.css)
     h2.textContent = game.title;
     info.appendChild(h2);
 
@@ -1141,7 +1191,7 @@ function buildArticleContent(itemData) {
 
   if (itemData.type === 'spritesheet' || itemData.type === 'parallax' || itemData.src) {
     const bannerMedia = itemData.type === 'spritesheet'
-      ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true })
+      ? createSpritesheetElement(itemData.spritesheet, { className: 'article-banner', alt: itemData.title || '', responsive: true, bannerScale: itemData.spritesheet.bannerScale })
       : itemData.type === 'parallax'
         ? createParallaxBanner(itemData.parallax, { className: 'article-banner', alt: itemData.title || '', sizes: '55vw', lazy: false })
         : itemData.type === 'landing'
@@ -1158,39 +1208,30 @@ function buildArticleContent(itemData) {
       // The wrap dims its contents (brightness filter to offset CRT glow on
       // photos). The sprite title is already authored at the right brightness,
       // so clear it for sprite banners to avoid a muted look.
-      if (itemData.type === 'spritesheet') bannerWrap.style.filter = 'none';
+      if (itemData.type === 'spritesheet') styleSpriteBanner(bannerWrap, bannerMedia, itemData.spritesheet);
       bannerWrap.appendChild(bannerMedia);
       header.appendChild(bannerWrap);
     }
   }
 
-  if (itemData.title || itemData.links?.length) {
+  // Games (the items that carry `links`): repeat the page's own CTA buttons
+  // right under the banner; the originals stay at the end. Other items (the
+  // Superhive products) keep theirs at the end only. No title art: the
+  // banner above already shows it.
+  if (itemData.links?.length && itemData.headerCta !== false) {
+    const ctas = extractCtas(itemData.page);
+    if (ctas.length) header.appendChild(buildCtaRow(ctas, { iconMap: CONTACT_ICONS, reveal: false }));
+  }
+
+  // No header link chips: each page ends in its own [[CTA]] buttons, and
+  // `links` stays for the Games list cards only.
+  if (itemData.title) {
     const titleRow = document.createElement('div');
     titleRow.className = 'article-title-row';
-
-    if (itemData.title) {
-      const title = document.createElement('h1');
-      title.className = 'article-title';
-      title.textContent = itemData.title;
-      titleRow.appendChild(title);
-    }
-
-    if (itemData.links?.length) {
-      const linksEl = document.createElement('div');
-      linksEl.className = 'article-header-links';
-      for (const link of itemData.links) {
-        const a = document.createElement('a');
-        a.href = link.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.className = 'article-link';
-        const icon = CONTACT_ICONS[link.icon] ?? CONTACT_ICONS.website;
-        a.innerHTML = `${icon}<span>${link.label}</span>`;
-        linksEl.appendChild(a);
-      }
-      titleRow.appendChild(linksEl);
-    }
-
+    const title = document.createElement('h1');
+    title.className = 'article-title';
+    title.textContent = itemData.title;
+    titleRow.appendChild(title);
     header.appendChild(titleRow);
   }
 
@@ -1232,10 +1273,8 @@ function buildArticleNav() {
   if (existing) existing.remove();
 
   const nav = document.createElement('div');
-  // masthead: the article-mode content scrolls in its own container, so lift the
-  // nav above the grid (like landscape 3D-art detail) to mask content scrolling
-  // up beneath the back button.
-  nav.className = 'detail-nav crt-effects masthead';
+  // Scrolling content is kept off the bar by the grid's clip-path (style.css).
+  nav.className = 'detail-nav';
 
   const backBtn = document.createElement('button');
   backBtn.textContent = '< back';
@@ -1245,7 +1284,7 @@ function buildArticleNav() {
   });
 
   nav.appendChild(backBtn);
-  crtScreen.appendChild(nav);
+  navBarHost().appendChild(nav);
 
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -1268,8 +1307,8 @@ async function closeArticlePage() {
   // view if it scrolls — e.g. returning to Games).
   unmountScrollbar();
 
-  // Remove nav bar
-  crtScreen.querySelector('.detail-nav')?.remove();
+  // Fade out the nav bar alongside the article
+  fadeOutNavBar(crtScreen.querySelector('.detail-nav'));
 
   // Fade out article
   const gen = ++renderGen;
@@ -1306,8 +1345,10 @@ function renderGeneralContent() {
   const header = document.createElement('header');
   header.className = 'general-header';
 
+  // Only the name gets the terminal CRT preset; title/subtitle keep the
+  // panel's lighter look.
   const gcName = document.createElement('h1');
-  gcName.className = 'general-name';
+  gcName.className = 'general-name crt';
   gcName.textContent = gc.name;
 
   const gcTitle = document.createElement('p');
@@ -1533,7 +1574,13 @@ function getMediaAspectRatio(itemEl) {
   const media = itemEl.querySelector('img, video');
   if (!media) return 1;
   if (media.tagName === 'VIDEO') return media.videoWidth / media.videoHeight || 1;
-  if (!media.complete || media.naturalWidth === 0) return 1;
+  if (!media.complete || media.naturalWidth === 0) {
+    // Not decoded yet (e.g. a deep link opens the detail on page load): the
+    // width/height attributes from asset-dims.json already give the ratio.
+    const w = Number(media.getAttribute('width'));
+    const h = Number(media.getAttribute('height'));
+    return w && h ? w / h : 1;
+  }
   return media.naturalWidth / media.naturalHeight;
 }
 
@@ -1549,9 +1596,14 @@ function getMediaAspectRatio(itemEl) {
  * @returns {{ targetRect: {x,y,w,h}, infoSide: 'below'|'left'|'right' }}
  */
 // Height reserved for the detail nav bar (back + prev/next arrows), from the
-// grid's top: .detail-nav's 12px offset + its 2.5rem height + 18px clearance.
+// grid's top. Mirrors .detail-nav in style.css: it starts 13px below the
+// frame's top, which is --mosaic-frame-pad above the grid, and is 2.5rem tall;
+// plus 18px clearance. The pad is a rem value (2rem, 1.5rem stacked).
 function detailNavHeight() {
-  return 12 + 2.5 * remPx() + 18;
+  const rem = remPx();
+  const pad = parseFloat(getComputedStyle(document.documentElement)
+    .getPropertyValue('--mosaic-frame-pad')) * rem || 2 * rem;
+  return Math.max(0, 13 - pad + 2.5 * rem) + 18;
 }
 
 // `prev` pins the portrait side (and, on a resize relayout, the aspect ratio
@@ -1786,7 +1838,73 @@ function enterGalleryImageFullscreen(imgEl) {
   activeDetail._galleryBackdrop = backdrop;
   activeDetail._galleryFromRect = from;
   activeDetail._galleryImg = imgEl;
+  activeDetail._galleryExtras = mountGalleryZoomExtras(imgEl, overlay);
   detailFullscreen = true;
+}
+
+/**
+ * Extras on a zoomed article figure: the before/after slider when the figure
+ * names a compare image, and side arrows that step through its :::gallery
+ * strip without leaving the zoom. Stepping swaps the overlay's media, scrolls
+ * the strip so the new slide is the one the close animation flies back to,
+ * and re-targets the overlay (its size transition animates the AR change).
+ * @returns {{ step(dir): void, relayout(): void, destroy(): void }}
+ */
+function mountGalleryZoomExtras(imgEl, overlay) {
+  // Intro plays alongside the overlay's 300ms zoom / resize (.gallery-fs-overlay).
+  const intro = { ms: 300 };
+  let compare = mountMediaCompare(overlay, imgEl, null, { loupe: true, intro });
+  const gallery = galleryOf(imgEl);
+  let index = gallery?.index ?? 0;
+
+  const step = (dir) => {
+    if (!gallery || !activeDetail?._galleryOverlay) return;
+    const i = index + dir;
+    const next = slideMedia(gallery, i);
+    if (!next) return;
+    index = i;
+    revealSlide(gallery, i);
+    compare?.destroy();
+    overlay.replaceChildren(cloneMediaForZoom(next));
+    compare = mountMediaCompare(overlay, next, null, { loupe: true, intro });
+    const { from, to } = galleryFullscreenRects(next);
+    activeDetail._galleryImg = next;
+    activeDetail._galleryFromRect = from;
+    setRect(overlay, to);
+    arrows.update(index, gallery.slides.length);
+  };
+
+  const arrows = gallery ? createZoomArrows(step) : null;
+  // Content-space vertical centre of the visible area (the arrows live in the
+  // scrolled detail container, like the overlay).
+  const relayout = () => {
+    if (!arrows) return;
+    const top = `${mosaicEl.scrollTop + mosaicEl.clientHeight / 2}px`;
+    arrows.prev.style.setProperty('--zoom-nav-top', top);
+    arrows.next.style.setProperty('--zoom-nav-top', top);
+  };
+  if (arrows) {
+    relayout();
+    arrows.update(index, gallery.slides.length);
+    mosaicEl.append(arrows.prev, arrows.next);
+  }
+
+  return {
+    step,
+    relayout,
+    // Closing zoom: the slider slides back out during the 300ms fly-back.
+    destroy({ animate = false } = {}) {
+      if (animate) compare?.leave(300);
+      else compare?.destroy();
+      arrows?.destroy();
+    },
+  };
+}
+
+/** Tears down mountGalleryZoomExtras for the active detail, if any. */
+function destroyGalleryZoomExtras(opts) {
+  activeDetail?._galleryExtras?.destroy(opts);
+  if (activeDetail) activeDetail._galleryExtras = null;
 }
 
 function exitDetailFullscreen() {
@@ -1800,6 +1918,7 @@ function exitDetailFullscreen() {
     activeDetail._galleryOverlay = null;
     activeDetail._galleryBackdrop = null;
     activeDetail._galleryFromRect = null;
+    destroyGalleryZoomExtras({ animate: true });
     detailFullscreen = false;
 
     // Remove backdrop immediately — no animation needed
@@ -1825,19 +1944,23 @@ function exitDetailFullscreen() {
     // Restore main detail image opacity (fades in while overlay retreats)
     if (activeDetail) activeDetail.el.style.opacity = '';
 
-    // After animation: remove overlay, restore info + arrows. Runs once
-    // (transitionend and the timeout both call it), and leaves info/arrows
+    // After animation: restore info + arrows, then remove the overlay. Runs
+    // once (transitionend and the timeout both call it), and leaves info/arrows
     // alone if fullscreen was re-entered in the meantime.
+    // The overlay stays on top until the info panel has faded back in: a
+    // zoomed article figure lives INSIDE .detail-info, which is still at
+    // opacity 0 when the overlay lands, so removing it right away made the
+    // figure vanish and fade back in with the panel.
     let cleanedUp = false;
     const cleanup = () => {
       if (cleanedUp) return;
       cleanedUp = true;
-      overlay.remove();
-      if (detailFullscreen) return;
+      if (detailFullscreen) { overlay.remove(); return; }
       const info = mosaicEl.querySelector('.detail-info');
       if (info) { info.classList.add('visible'); info.style.pointerEvents = ''; }
       const arrows = crtScreen.querySelector('.detail-nav-arrows');
       if (arrows) arrows.classList.remove('hidden');
+      setTimeout(() => overlay.remove(), INFO_FADE_MS);
     };
     overlay.addEventListener('transitionend', (e) => { if (e.target === overlay) cleanup(); });
     setTimeout(cleanup, 350);
@@ -1962,6 +2085,9 @@ function openDetail(itemEl, itemData) {
 
   // Let clicks pass through grid to nav bar underneath
   mosaicEl.classList.add('detail-mode');
+  // Frame scales to the detail box now, alongside the FLIP (the grid follows
+  // in expandDetailBox once the FLIP lands).
+  setFrameDetailOpen(true);
 
   // Insert a placeholder before itemEl to hold its grid slot while it's
   // position:absolute. Without this, the grid reflows the moment itemEl
@@ -2004,6 +2130,9 @@ function openDetail(itemEl, itemData) {
 
   // Build nav bar immediately so it's visible during the FLIP animation
   buildDetailNav(itemData, layout);
+  // Compare slider too: a child of itemEl, so it rides the FLIP transform and
+  // its intro plays alongside it.
+  if (activeDetail) activeDetail.compare = mountDetailCompare(itemEl, itemData);
 
   anim.onfinish = () => {
     if (activeDetail?.sessionId === sessionId) expandDetailBox();
@@ -2043,7 +2172,7 @@ function buildDetailNav(itemData, layout) {
   if (existing) existing.remove();
 
   const nav = document.createElement('div');
-  nav.className = 'detail-nav crt-effects';
+  nav.className = 'detail-nav';
 
   // Back button (left side)
   const backBtn = document.createElement('button');
@@ -2081,7 +2210,7 @@ function buildDetailNav(itemData, layout) {
 
   nav.appendChild(backBtn);
   nav.appendChild(arrows);
-  crtScreen.appendChild(nav);
+  navBarHost().appendChild(nav);
 
   // Set disabled state based on current position
   updateDetailNavButtons();
@@ -2254,11 +2383,6 @@ function buildDetailInfo(itemData, layout) {
   // Start at the top whenever a doc is (re)built (open / navigate).
   mosaicEl.scrollTop = 0;
 
-  // In landscape scroll mode the doc scrolls up under the nav bar — turn the nav
-  // into an opaque masthead (above the grid) so it masks the passing content.
-  const navBar = crtScreen.querySelector('.detail-nav');
-  if (navBar) navBar.classList.toggle('masthead', mosaicEl.classList.contains('detail-scroll'));
-
   // Fade in after a frame
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -2318,6 +2442,7 @@ function relayoutDetail() {
     activeDetail._galleryFromRect = from;
     setRect(activeDetail._galleryOverlay, to);
     backdrop.style.height = `${mosaicEl.scrollHeight}px`;
+    activeDetail._galleryExtras?.relayout();
   }
 }
 
@@ -2339,6 +2464,7 @@ function closeDetail(instant = false) {
   if (detailFullscreen) {
     detachMediaClickHandler();
     if (activeDetail._galleryOverlay) {
+      destroyGalleryZoomExtras();
       activeDetail._galleryOverlay.remove();
       activeDetail._galleryBackdrop?.remove();
       activeDetail._galleryOverlay = null;
@@ -2371,6 +2497,10 @@ function closeDetail(instant = false) {
   // Same timing for the video controls — the bar must not flash inside the
   // thumbnail while the item shrinks back into the grid (and destroy re-mutes).
   activeDetail.videoControls?.destroy();
+  // The slider instead slides out during the 400ms reverse FLIP (it shrinks
+  // with the item, since it's a child of it).
+  if (instant) activeDetail.compare?.destroy();
+  else activeDetail.compare?.leave(400);
 
   activeDetail = null;
   syncUrl();
@@ -2383,7 +2513,8 @@ function closeDetail(instant = false) {
   const info = mosaicEl.querySelector('.detail-info');
   if (info) info.remove();
   const nav = crtScreen.querySelector('.detail-nav');
-  if (nav) nav.remove();
+  if (instant) nav?.remove();
+  else fadeOutNavBar(nav);
   // Drop scroll mode + reset position so the reverse FLIP snapshots the image at
   // its unscrolled spot, not wherever the user had scrolled to.
   mosaicEl.classList.remove('detail-mode', 'detail-scroll');
@@ -2405,6 +2536,10 @@ function closeDetail(instant = false) {
 
   // Clean up stored layout
   delete itemEl._detailLayout;
+
+  // Frame back to the grid's fitted box, in step with the grid's own
+  // layoutMosaic() below.
+  setFrameDetailOpen(false);
 
   if (instant) {
     placeholder?.remove();
@@ -2741,6 +2876,7 @@ async function navigateDetail(direction) {
     if (detailFullscreen) {
       detachMediaClickHandler();
       if (activeDetail._galleryOverlay) {
+        destroyGalleryZoomExtras();
         activeDetail._galleryOverlay.remove();
         activeDetail._galleryBackdrop?.remove();
         activeDetail._galleryOverlay = null;
@@ -2770,6 +2906,8 @@ async function navigateDetail(direction) {
     activeDetail.viewer = null;
     activeDetail.videoControls?.destroy();
     activeDetail.videoControls = null;
+    activeDetail.compare?.destroy();
+    activeDetail.compare = null;
 
     // Fade out current image + info, then swap to new item
     const { el: currentEl } = activeDetail;
@@ -2834,6 +2972,7 @@ async function navigateDetail(direction) {
     // Attach click-to-fullscreen for the new item
     attachMediaClickHandler(nextEl);
     activeDetail.videoControls = mountDetailVideoControls(nextEl, nextData);
+    activeDetail.compare = mountDetailCompare(nextEl, nextData);
 
     // Mount splat viewer for the next item if it's a splat
     if (nextData.type === 'splat' && nextData.splat?.file) {
@@ -2893,7 +3032,9 @@ document.addEventListener('keydown', (e) => {
   if (activeDetail) {
     // A focused seek bar owns the arrow keys (scrubbing) — don't navigate.
     // Escape still falls through so it keeps closing fullscreen/detail.
-    if (key !== 'Escape' && e.target.closest?.('.video-controls')) return;
+    // Same for the compare slider and a focused gallery strip (they page or
+    // move the line with arrows).
+    if (key !== 'Escape' && e.target.closest?.('.video-controls, .compare-handle, .article-gallery-track')) return;
     if (key === 'Escape') {
       if (detailFullscreen) {
         exitDetailFullscreen();
@@ -2905,7 +3046,9 @@ document.addEventListener('keydown', (e) => {
     // Block arrow navigation while in fullscreen (arrows are hidden too)
     if (key === 'ArrowLeft' || key === 'ArrowRight') {
       e.preventDefault();
-      if (!detailFullscreen) navigateDetail(key === 'ArrowLeft' ? -1 : 1);
+      const dir = key === 'ArrowLeft' ? -1 : 1;
+      if (!detailFullscreen) navigateDetail(dir);
+      else activeDetail._galleryExtras?.step(dir); // zoomed gallery: next slide
       return;
     }
     return; // swallow other keys in detail mode

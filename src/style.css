@@ -398,7 +398,7 @@
   --mosaic-margin-min: calc(var(--mosaic-frame-pad) + 4px);
   /* --mosaic-avail-* is the stylesheet box and is never overridden; JS only
    * writes the --mosaic-* copies below. The detail view (.detail-box,
-   * .detail-nav) reads the avail set directly. */
+   * .mosaic-frame.detail-open) reads the avail set directly. */
   --mosaic-avail-right: max(2%, var(--mosaic-margin-min));
   --mosaic-avail-top: max(5%, var(--mosaic-margin-min));
   --mosaic-avail-bottom: max(5%, var(--mosaic-margin-min));
@@ -473,22 +473,13 @@
  * opaque vs. transparent geometry in a game renderer.
  */
 
-/* --- Text CRT: terminal + nav-menu + detail-nav + mosaic-frame ---
- * Deck headings use a copy of this rule in portfolio-deck.css (the deck also
- * runs on mobile, which doesn't load this file). Keep the two in sync. */
+/* --- Text CRT: terminal + nav-menu + mosaic-frame (+ the .detail-nav in it) ---
+ * The text-shadow half lives in the shared CRT presets (article.css); this is
+ * the filter half, applied on the opaque container: the terminal reference. */
 .terminal.crt-effects,
 .nav-menu.crt-effects,
-.detail-nav.crt-effects,
 .mosaic-frame.crt-effects {
   filter: blur(var(--crt-blur, 0.4px)) brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
-  text-shadow:
-    /* RGB split — red left, blue right */
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, var(--rgb-intensity, 0.7)),
-    var(--rgb-offset, 1px) 0 0 rgba(0, 0, 255, var(--rgb-intensity, 0.7)),
-    /* Glow — 3 layers that stack for intensity > 1 */
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
 }
 
 /* The terminal is the full-viewport backdrop for the whole session, and a
@@ -693,7 +684,16 @@
   background: var(--text-primary);
   opacity: 0.33;
   clip-path: polygon(0% 0%, 0% 0%, 0% 0%);
-  transition: clip-path 1000ms ease-in-out;
+  /* height: grows into the detail/article nav bar (below). 320ms + ease-smooth
+   * = the frame's own geometry tween, which runs at the same moment. */
+  transition: clip-path 1000ms ease-in-out, height 320ms var(--ease-smooth);
+}
+
+/* Detail / article view: the handle thickens into the bar the .detail-nav
+ * buttons sit on (same top, 2.5rem = .detail-nav's height). Keyed to
+ * .visible so the bar grows and shrinks in step with the buttons' fade. */
+.mosaic-frame:has(> .detail-nav.visible) .mosaic-handle {
+  height: 2.5rem;
 }
 
 .mosaic-frame.visible .mosaic-handle {
@@ -899,6 +899,8 @@
   flex: 1 1 auto;
   min-width: 0;
   padding: 0;
+  /* .crt titles inside divide this back out (see .crt in article.css). */
+  --crt-ambient: calc(1 + 0.4 * var(--crt-glow-brightness, 1));
   filter: brightness(calc(1 + 0.4 * var(--crt-glow-brightness, 1)));
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
@@ -1021,6 +1023,12 @@
   opacity: 1;
 }
 
+/* Article view: the bar is the 2.5rem .detail-nav (from frame-top + 13px), not
+ * the 20px handle, so start the track 9px below it, as above. */
+#crt-screen:has(.detail-nav) .crt-scrollbar {
+  top: calc(var(--mosaic-top) - var(--mosaic-frame-pad) + 13px + 2.5rem + 9px);
+}
+
 /* Faint end caps — mark the scroll extents so the track ends read clearly. */
 .crt-scrollbar::before,
 .crt-scrollbar::after {
@@ -1113,6 +1121,10 @@
    * subtree every scrolled frame. Children blur first, panel brightness
    * after = the original chain order, so the look is unchanged. */
   filter: brightness(calc(1 + 1 * var(--crt-glow-brightness, 1)));
+  /* A .crt inside (the name) gets the terminal pass: this opaque panel
+   * already composites and brightens, so the child only adds the blur. */
+  --crt-ambient: calc(1 + 1 * var(--crt-glow-brightness, 1));
+  --crt-under: transparent;
 
   text-shadow:
     calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 0.5)),
@@ -1123,8 +1135,11 @@
 }
 
 /* The blur half of the split above — applied per section, not on the
- * scrolling panel (see the filter comment in .general-content). */
-.general-content > * {
+ * scrolling panel (see the filter comment in .general-content). The header
+ * blurs per child instead, so the .crt name takes only the preset's full
+ * blur (stacked blurs would compound) while title/subtitle keep 0.5x. */
+.general-content > :not(.general-header),
+.general-header > :not(.crt) {
   filter: blur(calc(var(--crt-blur, 0.4px) * 0.5));
 }
 
@@ -1141,15 +1156,7 @@
   font-weight: 200;
   margin: 0;
   line-height: 1.1;
-
-  /* No separate blur pass — parent .general-content already blurs at 0.5x */
-  /* 1/2-strength CRT text-shadow — title gets more glow than body, less than terminal */
-  text-shadow:
-    calc(var(--rgb-offset, 1px) * -1) 0 0 rgba(255, 0, 0, calc(var(--rgb-intensity, 0.7) * 1)),
-    calc(var(--rgb-offset, 1px) * 1) 0 0 rgba(0, 0, 255, calc(var(--rgb-intensity, 0.7) * 1)),
-    0 0 calc(5px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(15px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent),
-    0 0 calc(30px * var(--crt-glow-spread, 1)) color-mix(in srgb, var(--glow-color) calc(100% * var(--crt-glow-intensity, 1)), transparent);
+  /* CRT look comes from the .crt preset (class set in desktop.js). */
 }
 
 .general-title {
@@ -1551,26 +1558,25 @@
   margin-top: 0;
 }
 
-/* Detail nav bar — lives in #crt-screen (below scanlines),
- * positioned to align with the mosaic's top edge.
- * Uses the same box as .mosaic-grid.detail-box so it overlaps exactly — from
- * the first frame, while the grid is still row-fitted during the open FLIP.
- * Its 12px + 2.5rem extent is mirrored by detailNavHeight() in desktop.js. */
+/* Detail nav bar — a child of .mosaic-frame (below scanlines), so it rides the
+ * frame's geometry tween. Transparent: the green fill is .mosaic-handle. The
+ * nav sits on the handle's box (top 13px, 12px in from each side) and grows
+ * with it (20px → 2.5rem, same tween), so the buttons stay centred on the bar
+ * the whole time. No .crt-effects of its own: it inherits the frame's filter.
+ * Its extent is mirrored by detailNavHeight() in desktop.js. */
 .detail-nav {
   position: absolute;
-  right: var(--mosaic-avail-right);
-  top: calc(var(--mosaic-avail-top) + 12px);
-  width: var(--mosaic-avail-width);
-  height: 2.5rem;
-  z-index: 1;
-  /* below .crt-overlay (100) so scanlines cover it, like the terminal */
+  top: 13px;
+  left: 12px;
+  right: 12px;
+  height: 20px;
+  /* the frame is pointer-events: none */
+  pointer-events: auto;
 
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 0.5rem;
-  /* No background by default — the bar floats over the CRT. The opaque bg is
-   * only needed during landscape scroll (see .detail-nav.masthead below). */
+  padding: 0 4px;
 
   font-family: 'Martian Mono', monospace;
   font-size: clamp(0.9rem, 1.8vw, 1.6rem);
@@ -1578,35 +1584,55 @@
   color: var(--text-primary);
 
   opacity: 0;
-  transition: opacity 250ms ease;
+  transition: opacity 250ms ease, height 320ms var(--ease-smooth);
 }
 
-/* During landscape scroll the doc scrolls up under the nav; lift the nav above
- * the grid (z1000) so its opaque bg masks the content passing beneath it.
- * (Trade-off: scanlines no longer cover the bar while scrolling — only here.) */
-.detail-nav.masthead {
-  z-index: var(--z-masthead);
+/* The grid (z1000, above the scanlines) starts inside the bar, so scrolled
+ * content would paint over it. Clip the grid at the bar's bottom edge instead
+ * of lifting the nav above the grid: the nav stays under the scanlines.
+ * clip-path is fixed to the scroll container's box, not its scrolled content,
+ * and also clips hit-testing, so clicks in the bar reach the nav. */
+.mosaic-grid.detail-scroll,
+.mosaic-grid.article-mode {
+  clip-path: inset(max(0px, calc(13px - var(--mosaic-frame-pad) + 2.5rem)) 0 0 0);
 }
 
 .detail-nav.visible {
   opacity: 1;
+  height: 2.5rem;
 }
 
+/* The frame itself takes the detail box the moment detail opens, so it scales
+ * alongside the FLIP. The grid can't (growing it mid-FLIP reflows the fading
+ * siblings; it grows in expandDetailBox once the FLIP lands), and the frame
+ * normally reads the grid's --mosaic-* vars, so the frame re-declares them
+ * from the avail box for itself and its children only. */
+.mosaic-frame.detail-open {
+  --mosaic-right: var(--mosaic-avail-right);
+  --mosaic-top: var(--mosaic-avail-top);
+  --mosaic-bottom: var(--mosaic-avail-bottom);
+  --mosaic-width: var(--mosaic-avail-width);
+}
+
+/* Buttons: bare black bold text on the bar, like the selected category tab's
+ * text (.nav-item.selected), no glow. Brightness can't lift black, so hover
+ * fades the text toward the bar instead. */
 .detail-nav button {
   font-family: inherit;
   font-size: inherit;
-  font-weight: inherit;
-  color: inherit;
-  text-shadow: inherit;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--bg-primary);
+  text-shadow: none;
   background: none;
   border: none;
   cursor: pointer;
   padding: 0.3em 0.5em;
-  transition: filter 150ms;
+  transition: opacity 150ms;
 }
 
 .detail-nav button:hover {
-  filter: brightness(1.5);
+  opacity: 0.6;
 }
 
 .detail-nav button:disabled {
@@ -1818,6 +1844,15 @@
 @media (prefers-reduced-motion: reduce) {
   .mosaic-frame {
     transition: none;
+  }
+
+  /* Keep the border sweep and the buttons' fade, drop the bar's height tween. */
+  .mosaic-handle {
+    transition: clip-path 1000ms ease-in-out;
+  }
+
+  .detail-nav {
+    transition: opacity 250ms ease;
   }
 
   .mosaic-item.detail-active.detail-transitioning {

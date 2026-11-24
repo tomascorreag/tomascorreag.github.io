@@ -77,7 +77,6 @@
   --z-below-scanlines: 99;   /* CV panel, CRT scrollbar */
   --z-crt-overlay: 100;      /* scanlines + vignette */
   --z-above-scanlines: 1000; /* mosaic grid (thumbnail/games/article modes) */
-  --z-masthead: 1001;        /* detail nav while landscape doc scrolls */
   --z-deck: 1500;            /* portfolio deck + not-found panel */
   --z-lightbox: 2000;        /* image lightbox backdrop */
   --z-lightbox-image: 2001;  /* image lightbox overlay */
