@@ -17,6 +17,7 @@ const PINNED = {
   '65f2v': 'UCL MA Digital Media: Production application (sent 2026)',
   '0c3d': 'OceanX Science Impact Challenge',
   '2b86': 'UAL MA Internet Equalities application (sent 2026)',
+  '92a8': 'UAL MSc Creative Computing application (sent 2026)',
 };
 
 const errors = [];

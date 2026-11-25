@@ -24,6 +24,7 @@
  *   https://tomascorreag.github.io/?p=65f2v   UCL application (alias, same deck)
  *   https://tomascorreag.github.io/?p=0c3d    OceanX challenge
  *   https://tomascorreag.github.io/?p=2b86    UAL MA Internet Equalities application
+ *   https://tomascorreag.github.io/?p=92a8    UAL MSc Creative Computing application
  * Rules:
  *   - Never rename or delete these slugs or the PAGE_ALIASES entry.
  *   - Never remove the `id` of a project they list from content.js (the deck
@@ -79,7 +80,7 @@ export const PORTFOLIO_PAGES = {
     // Arc, in order: shipped commercial craft (with its post-mortem as a
     // section of the ARBO document) → the solo work that came out of it
     // (procedural argument, memory cartography, film) → art.
-    intro: 'Curated for **UCL MA Digital Media: Production**\nGames, artefacts, and film exploring memory, environment and identity in Colombia and abroad, from four years of shipped studio production to solo work. Select any piece to read more',
+    intro: 'Curated for **UCL MA Digital Media: Production**\nGames, artefacts, and film exploring memory, environment and identity in Colombia and abroad, from four years of shipped studio production to solo work.',
     items: ['arbo', 'paramo', 'scars-of-violence', 'frenesi', 'ardo'],
     outro: true,
   },
@@ -94,7 +95,7 @@ export const PORTFOLIO_PAGES = {
     // turned into a navigable, time-driven map) → a simulation whose rules
     // carry the argument → four years of shipped production and its
     // post-mortem, i.e. the evidence that I finish things.
-    intro: 'Curated for the **OceanX Science Impact Challenge**\nTurning large, uncertain public datasets into things you can navigate — and shipping them. Select any piece to read more',
+    intro: 'Curated for the **OceanX Science Impact Challenge**\nTurning large, uncertain public datasets into things you can navigate — and shipping them.',
     items: ['scars-of-violence', 'paramo', 'arbo'],
     outro: true,
   },
@@ -108,8 +109,22 @@ export const PORTFOLIO_PAGES = {
     // (data, power, who gets seen) → a game whose rules argue about unequal
     // power over land → shipped commercial production and its post-mortem
     // (evidence of delivery) → a film about stigma, gender, and sexuality.
-    intro: 'Curated for **UAL MA Internet Equalities**\nDigital artefacts, games and film exploring memory, environment and identity in Colombia, built to be read and played freely online. Select any piece to read more',
+    intro: 'Curated for **UAL MA Internet Equalities**\nDigital artefacts, games and film exploring memory, environment and identity in Colombia, built to be read and played freely online.',
     items: ['scars-of-violence', 'paramo', 'arbo', 'frenesi'],
+    outro: true,
+  },
+
+  // UAL CCI MSc Creative Computing — application portfolio (Fall 2027 entry).
+  // Shared at: https://tomascorreag.github.io/?p=92a8
+  // PERMANENT: do not rename or delete this slug.
+  '92a8': {
+    title: 'Tomás Correa — Selected Work',
+    // Arc, in order: a simulation whose rules carry the argument → a public
+    // archive turned into a navigable map → shipped commercial production and
+    // its post-mortem → a procedural material sold as a tool for other
+    // artists → film.
+    intro: 'Curated for **UAL MSc Creative Computing**\nGames, interactive maps, procedural tools and film, built as systems that carry meaning, about memory, environment and identity in Colombia.',
+    items: ['paramo', 'scars-of-violence', 'arbo', 'flesh', 'frenesi'],
     outro: true,
   },
 };
